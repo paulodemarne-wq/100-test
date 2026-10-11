@@ -42,6 +42,8 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   let ground: THREE.Group | null = null;
   let objects: THREE.Group | null = null;
   let walkers: Walker[] = [];
+  let focusId: string | null = null;
+  let focusSince = -1;
 
   // The island's earth underneath, never changes.
   // Soft rounded corners: a cartoon island, not a grid of squares.
@@ -62,8 +64,11 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: 0.12, bevelThickness: 0.08, bevelSegments: 3, curveSegments: 10 });
     // Shape is drawn in x/y; lay it flat so it extends downward from y.
     kit.add(base, geo, kit.mat(color), [0, y, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+    return shape;
   };
-  slab(0.35, 1.4, 0.06, -0.09, TILE_COLORS.grass[0]);
+  const top = slab(0.35, 1.4, 0.06, -0.09, TILE_COLORS.grass[0]);
+  // A perfectly flat lawn on top (the bevelled slab alone shades unevenly).
+  kit.add(base, new THREE.ShapeGeometry(top, 10), kit.mat('#8BD46B'), [0, -0.004, 0], [1, -1, 1], [-Math.PI / 2, 0, 0]);
   slab(0.3, 1.4, 0.45, -0.17, '#B07D52');
   slab(-0.6, 1.8, 0.5, -0.62, '#94663F');
   const flatBase = flatten(base);
@@ -213,8 +218,27 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     setWorld,
     setPets,
     /** Moves the pets around. dt in seconds. */
-    update(t: number, dt: number) {
+    /** Pet that was tapped: it stops and looks at the camera. */
+    setFocus(id: string | null) {
+      if (id !== focusId) focusSince = -1;
+      focusId = id;
+    },
+    update(t: number, dt: number, camera?: THREE.Vector3) {
       for (const w of walkers) {
+        if (w.spec.id === focusId) {
+          if (focusSince < 0) focusSince = t;
+          const face = camera ? Math.atan2(camera.x - w.x, camera.z - w.z) : w.body.rotation.y;
+          let turn = face - w.body.rotation.y;
+          turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+          w.body.rotation.y += turn * Math.min(1, dt * 10);
+          // Two happy hops, then stands still.
+          const k = t - focusSince;
+          w.body.position.set(w.x, k < 0.9 ? Math.abs(Math.sin(k * 7)) * 0.18 : 0, w.z);
+          w.tx = w.x;
+          w.tz = w.z;
+          w.wait = 1;
+          continue;
+        }
         if (w.wait > 0) {
           w.wait -= dt;
           w.body.position.y = 0;
@@ -270,6 +294,11 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
         }
       }
       return best;
+    },
+    /** Where a pet stands (top of its head), if it is here. */
+    petPosition(id: string): THREE.Vector3 | null {
+      const w = walkers.find((x) => x.spec.id === id);
+      return w ? new THREE.Vector3(w.x, 0.95, w.z) : null;
     },
     /** Where each pet stands (for name labels). */
     petPositions(): { id: string; x: number; y: number; z: number }[] {

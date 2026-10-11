@@ -1,6 +1,6 @@
 import { ExpoWebGLRenderingContext, GLView } from 'expo-gl';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import * as THREE from 'three';
 import { addLights } from '../creatures/build';
 import { buildIsland, IslandCamera, IslandScene, PetSpec } from '../world/scene';
@@ -13,6 +13,10 @@ type Props = {
   labels?: Record<string, string>;
   onTapCell?: (x: number, z: number) => void;
   onTapPet?: (petId: string) => void;
+  /** Tapped pet: it stops, faces the camera and gets a bubble above its head. */
+  focusId?: string | null;
+  /** Content of that bubble. */
+  renderFocus?: (petId: string) => ReactNode;
   style?: ViewStyle;
 };
 
@@ -21,7 +25,7 @@ type Label = { id: string; x: number; y: number };
 /**
  * An island in 3D. One finger moves around, two fingers zoom and turn, a tap picks a pet or a cell.
  */
-export function WorldView({ world, pets, labels, onTapCell, onTapPet, style }: Props) {
+export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = null, renderFocus, style }: Props) {
   const islandRef = useRef<IslandScene | null>(null);
   const camRef = useRef<IslandCamera | null>(null);
   const size = useRef({ width: 1, height: 1 });
@@ -31,6 +35,15 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, style }: P
   const latest = useRef({ world, pets });
   latest.current = { world, pets };
   const [shown, setShown] = useState<Label[]>([]);
+  // Bubble position, moved every frame without re-rendering.
+  const bubble = useRef(new Animated.ValueXY({ x: -1000, y: -1000 })).current;
+  const focus = useRef<{ id: string | null; glideUntil: number }>({ id: null, glideUntil: 0 });
+
+  useEffect(() => {
+    focus.current = { id: focusId, glideUntil: focusId ? Date.now() + 800 : 0 };
+    islandRef.current?.setFocus(focusId);
+    if (!focusId) bubble.setValue({ x: -1000, y: -1000 });
+  }, [focusId, bubble]);
   const petsKey = JSON.stringify(pets);
 
   useEffect(() => {
@@ -59,7 +72,7 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, style }: P
       const { width, height } = size.current;
       const next: Label[] = [];
       for (const p of island.petPositions()) {
-        if (!labels[p.id]) continue;
+        if (!labels[p.id] || p.id === focus.current.id) continue;
         const s = cam.project(new THREE.Vector3(p.x, p.y, p.z), width, height);
         if (s && s.x > -40 && s.x < width + 40 && s.y > -20 && s.y < height + 20) next.push({ id: p.id, x: s.x, y: s.y });
       }
@@ -152,8 +165,20 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, style }: P
     const render = () => {
       frame.current = requestAnimationFrame(render);
       const now = Date.now();
-      island.update((now - start) / 1000, Math.min(0.1, (now - last) / 1000));
+      const f = focus.current;
+      const target = f.id ? island.petPosition(f.id) : null;
+      // Glide the camera toward a tapped pet.
+      if (target && now < f.glideUntil) {
+        cam.target.lerp(new THREE.Vector3(target.x, 0, target.z), 0.12);
+        cam.distance += (Math.min(cam.distance, 11) - cam.distance) * 0.12;
+        cam.apply();
+      }
+      island.update((now - start) / 1000, Math.min(0.1, (now - last) / 1000), cam.camera.position);
       last = now;
+      if (target) {
+        const p = cam.project(target, size.current.width, size.current.height);
+        if (p) bubble.setValue(p);
+      }
       renderer.render(scene, cam.camera);
       gl.endFrameEXP();
     };
@@ -175,11 +200,43 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, style }: P
             </Text>
           </View>
         ))}
+      {focusId && renderFocus && (
+        <Animated.View style={[styles.anchor, { transform: bubble.getTranslateTransform() }]} pointerEvents="box-none">
+          <View style={styles.bubble}>{renderFocus(focusId)}</View>
+          <View style={styles.tail} />
+        </Animated.View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  anchor: { position: 'absolute', left: 0, top: 0, width: 0, height: 0, alignItems: 'center', overflow: 'visible' },
+  bubble: {
+    position: 'absolute',
+    bottom: 14,
+    width: 220,
+    left: -110,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 12,
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  tail: {
+    position: 'absolute',
+    bottom: 6,
+    left: -8,
+    width: 16,
+    height: 16,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '45deg' }],
+  },
   label: { position: 'absolute', width: 120, alignItems: 'center' },
   labelText: {
     backgroundColor: 'rgba(255,255,255,0.9)',

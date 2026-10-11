@@ -1,6 +1,6 @@
 // A player's island: a square grid of ground tiles plus objects placed on cells.
 // Stored as profiles.world (validated by the save_world function in supabase/schema.sql).
-import { Garden, SHOP_ITEMS } from '../creatures/species';
+import { SHOP_ITEMS } from '../creatures/species';
 
 export const WORLD_SIZE = 16;
 export const MAX_OBJECTS = 150;
@@ -72,38 +72,16 @@ export function walkable(world: World): boolean[] {
   return ok;
 }
 
-/** A starter island: grass, a winding path, a few trees. Keeps what the old garden had. */
-export function defaultWorld(garden?: Garden | null): World {
-  const tiles = Array.from({ length: WORLD_SIZE * WORLD_SIZE }, () => 'g');
-  // A winding path; consecutive rows are joined sideways so it stays continuous.
-  let prev = -1;
-  for (let z = 0; z < WORLD_SIZE; z++) {
-    const x = 7 + Math.round(Math.sin(z * 0.6) * 1.5);
-    if (prev >= 0) for (let k = Math.min(prev, x); k <= Math.max(prev, x); k++) tiles[(z - 1) * WORLD_SIZE + k] = 'p';
-    tiles[z * WORLD_SIZE + x] = 'p';
-    prev = x;
-  }
-  const ground = garden?.ground && TILE_CHARS[garden.ground];
-  if (ground) for (let i = 0; i < tiles.length; i++) if (tiles[i] === 'g' && (i * 7) % 5 === 0) tiles[i] = ground;
-  const objects: PlacedObject[] = [
-    ['pine', 2, 2, 0],
-    ['pine', 13, 3, 0],
-    ['rock', 11, 12, 0],
-    ['pine', 3, 12, 0],
-    ['fence', 4, 6, 0],
-    ['fence', 5, 6, 0],
-  ];
-  if (garden?.house) objects.push([garden.house, 5, 4, 0]);
-  if (garden?.tree) objects.push([garden.tree, 10, 5, 0]);
-  if (garden?.deco) objects.push([garden.deco, 10, 9, 0]);
-  return { v: 1, tiles: tiles.join(''), objects };
+/** A new island starts empty: only grass. Players build everything themselves. */
+export function defaultWorld(): World {
+  return { v: 1, tiles: 'g'.repeat(WORLD_SIZE * WORLD_SIZE), objects: [] };
 }
 
 /** Accepts whatever is stored (maybe nothing yet) and returns a usable world. */
-export function readWorld(raw: unknown, garden?: Garden | null): World {
+export function readWorld(raw: unknown): World {
   const w = raw as Partial<World> | null;
   if (w && typeof w.tiles === 'string' && w.tiles.length === WORLD_SIZE * WORLD_SIZE && Array.isArray(w.objects)) {
     return { v: 1, tiles: w.tiles, objects: w.objects.filter((o) => Array.isArray(o) && o.length === 4) as PlacedObject[] };
   }
-  return defaultWorld(garden);
+  return defaultWorld();
 }

@@ -145,13 +145,14 @@ function mountWorld(canvas: HTMLCanvasElement, opts: { world?: World; pets: PetS
     if (canvas.width !== Math.round(w * renderer.getPixelRatio())) renderer.setSize(w, h, false);
     cam.camera.aspect = w / h;
     cam.camera.updateProjectionMatrix();
-    island.update((now - start) / 1000, Math.min(0.1, (now - prev) / 1000));
+    island.update((now - start) / 1000, Math.min(0.1, (now - prev) / 1000), cam.camera.position);
     prev = now;
     renderer.render(scene, cam.camera);
   };
   frame();
   return {
     setWorld: (world: World) => island.setWorld(world),
+    setFocus: (id: string | null) => island.setFocus(id),
     destroy() {
       cancelAnimationFrame(raf);
       island.dispose();

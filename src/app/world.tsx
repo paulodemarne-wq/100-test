@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
@@ -27,7 +27,7 @@ export default function WorldScreen() {
   const host = params.user ? friends.find((f) => f.profile.id === params.user)?.profile : profile;
   const mine = !params.user || params.user === profile?.id;
 
-  const saved = useMemo(() => readWorld(host?.world, host?.garden), [host?.world, host?.garden]);
+  const saved = useMemo(() => readWorld(host?.world), [host?.world]);
   const [draft, setDraft] = useState<World | null>(params.edit && mine ? saved : null);
   const [tab, setTab] = useState<Tab>(params.item && isTile(params.item) ? 'tiles' : 'objects');
   const [tool, setTool] = useState<Tool>(
@@ -36,6 +36,9 @@ export default function WorldScreen() {
   const [saving, setSaving] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const editing = draft !== null;
+
+  // Switching island closes the bubble.
+  useEffect(() => setPicked(null), [params.user]);
   const world = draft ?? saved;
 
   // Who lives here: on my island, me and all my friends; on a friend's, them and me (visiting).
@@ -118,9 +121,46 @@ export default function WorldScreen() {
     ]);
   };
 
-  const pickedPet = picked ? [...pets, ...Object.values(friendPets)].find((p) => p.id === picked) : null;
-  const pickedOwner = picked ? owners[picked] : null;
-  const pickedFriend = pickedOwner ? friends.find((f) => f.profile.id === pickedOwner) : null;
+  const renderFocus = (petId: string) => {
+    const pet = [...pets, ...Object.values(friendPets)].find((p) => p.id === petId);
+    if (!pet) return null;
+    const ownerId = owners[petId];
+    const friend = friends.find((f) => f.profile.id === ownerId);
+    const level = levelFor(pet.xp_seconds);
+    const tier = tierFor(level);
+    const onTheirIsland = params.user === ownerId;
+    return (
+      <>
+        <Text style={styles.focusName} numberOfLines={1}>
+          {friend ? friend.profile.display_name : 'Toi'}
+        </Text>
+        <Text style={[styles.focusPet, { color: tier.color }]} numberOfLines={1}>
+          {displayName(speciesById(pet.species), level)} · Niv. {level}
+        </Text>
+        {friend && !onTheirIsland ? (
+          <Pressable
+            onPress={() => {
+              setPicked(null);
+              router.setParams({ user: friend.profile.id });
+            }}
+            style={styles.focusButton}
+          >
+            <Text style={styles.focusButtonText}>🏝️ Voir son île</Text>
+          </Pressable>
+        ) : !friend && !mine ? (
+          <Pressable
+            onPress={() => {
+              setPicked(null);
+              router.setParams({ user: '' });
+            }}
+            style={styles.focusButton}
+          >
+            <Text style={styles.focusButtonText}>🏠 Rentrer sur mon île</Text>
+          </Pressable>
+        ) : null}
+      </>
+    );
+  };
   const items = tab === 'tiles' ? TILES : OBJECTS;
   const selectedId = tool.kind === 'tile' || tool.kind === 'object' ? tool.id : null;
 
@@ -132,6 +172,8 @@ export default function WorldScreen() {
         labels={labels}
         onTapCell={editing ? tapCell : () => setPicked(null)}
         onTapPet={editing ? undefined : (id) => setPicked(id)}
+        focusId={editing ? null : picked}
+        renderFocus={renderFocus}
         style={styles.fill}
       />
 
@@ -193,34 +235,6 @@ export default function WorldScreen() {
           </ScrollView>
         )}
       </SafeAreaView>
-
-      {!editing && pickedPet && (
-        <SafeAreaView edges={['bottom']} style={styles.bottom} pointerEvents="box-none">
-          <View style={styles.card}>
-            <Text style={{ fontSize: 30 }}>{pickedOwner === profile?.id ? '⭐' : '👋'}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={type.headline}>
-                {displayName(speciesById(pickedPet.species), levelFor(pickedPet.xp_seconds))}
-                {pickedOwner === profile?.id ? ' · toi' : pickedFriend ? ` · ${pickedFriend.profile.display_name}` : ''}
-              </Text>
-              <Text style={[type.footnote, { color: tierFor(levelFor(pickedPet.xp_seconds)).color, fontWeight: '700' }]}>
-                {tierFor(levelFor(pickedPet.xp_seconds)).name} · Niv. {levelFor(pickedPet.xp_seconds)}
-              </Text>
-            </View>
-            {pickedFriend && mine && (
-              <Pressable
-                onPress={() => {
-                  setPicked(null);
-                  router.setParams({ user: pickedFriend.profile.id });
-                }}
-                style={[styles.pill, styles.pillAccent]}
-              >
-                <Text style={[styles.pillText, { color: colors.onAccent }]}>Visiter</Text>
-              </Pressable>
-            )}
-          </View>
-        </SafeAreaView>
-      )}
 
       {editing && (
         <SafeAreaView edges={['bottom']} style={styles.bottom} pointerEvents="box-none">
@@ -308,7 +322,6 @@ const styles = StyleSheet.create({
   visitActive: { borderWidth: 2, borderColor: colors.accent },
   visitText: { fontSize: 13, fontWeight: '600', color: colors.text },
   bottom: { position: 'absolute', bottom: 0, left: 0, right: 0 },
-  card: { ...glass, margin: 16, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
   palette: { ...glass, margin: 10, borderRadius: 20, paddingVertical: 10, gap: 8 },
   tabs: { flexDirection: 'row', backgroundColor: colors.fill, borderRadius: 10, padding: 2, marginHorizontal: 12 },
   tab: { flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
@@ -324,4 +337,8 @@ const styles = StyleSheet.create({
   tools: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
   toolItem: { height: 78, justifyContent: 'center' },
   hint: { ...type.footnote, marginHorizontal: 14 },
+  focusName: { fontSize: 17, fontWeight: '800', color: colors.text },
+  focusPet: { fontSize: 13, fontWeight: '700' },
+  focusButton: { marginTop: 2, backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  focusButtonText: { color: colors.onAccent, fontWeight: '700', fontSize: 14 },
 });
