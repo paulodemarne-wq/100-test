@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
 import { formatDuration } from '../lib/time';
+import { formatWallet, walletSeconds } from '../lib/wallet';
 
 /** Time left before the daily shop changes (midnight, Paris time). */
 function msUntilNextShop(now: Date): number {
@@ -51,7 +52,7 @@ export default function Shop() {
   const [preview, setPreview] = useState<ShopItem | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
   const pet = pets[0] ?? null;
-  const balance = Math.max(0, (profile?.total_seconds ?? 0) - (profile?.spent_seconds ?? 0));
+  const balance = walletSeconds(profile);
 
   const buy = (item: ShopItem) => {
     const deal = dealFor(item);
@@ -170,7 +171,7 @@ export default function Shop() {
         <Text style={type.title}>Boutique</Text>
         <View style={styles.wallet}>
           <Ionicons name="hourglass" size={16} color={colors.accent} />
-          <Text style={styles.walletText}>{formatDuration(balance)}</Text>
+          <Text style={styles.walletText}>{formatWallet(balance)}</Text>
         </View>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.close}>
           <Ionicons name="close" size={20} color={colors.secondary} />

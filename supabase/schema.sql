@@ -853,7 +853,8 @@ begin
   if it.kind = 'special' then raise exception 'Pas à vendre' using errcode = 'P0001'; end if;
   -- Lock the profile row so two purchases can't spend the same hours.
   select * into me from public.profiles where id = auth.uid() for update;
-  if me.total_seconds - me.spent_seconds < price then
+  -- Featured accounts (the app's creator) have unlimited hours.
+  if not me.featured and me.total_seconds - me.spent_seconds < price then
     raise exception 'Pas assez d''heures' using errcode = 'P0001';
   end if;
   -- A bigger island needs the size just below it first.
@@ -875,7 +876,9 @@ begin
   else
     insert into public.pets (user_id) values (me.id) returning id into new_pet;
   end if;
-  update public.profiles set spent_seconds = spent_seconds + price where id = me.id;
+  if not me.featured then
+    update public.profiles set spent_seconds = spent_seconds + price where id = me.id;
+  end if;
   return new_pet;
 end $$;
 

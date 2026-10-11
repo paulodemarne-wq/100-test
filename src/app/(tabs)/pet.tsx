@@ -25,6 +25,7 @@ import { useAuth } from '../../lib/auth';
 import { useSocial } from '../../lib/social';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration } from '../../lib/time';
+import { formatWallet, walletSeconds } from '../../lib/wallet';
 
 const SLOTS: Slot[] = ['head', 'eyes', 'neck', 'back'];
 
@@ -33,7 +34,7 @@ export default function PetScreen() {
   const { pets, friends, friendPets, inventory, equipItem, setActivePet, refresh } = useSocial();
   const [busy, setBusy] = useState(false);
   const pet = pets[0] ?? null;
-  const balance = Math.max(0, (profile?.total_seconds ?? 0) - (profile?.spent_seconds ?? 0));
+  const balance = walletSeconds(profile);
   const fail = (e: unknown) => Alert.alert('Oups', (e as Error).message);
 
   if (!pet) {
@@ -125,7 +126,7 @@ export default function PetScreen() {
           </View>
           <Pressable onPress={() => router.push('/shop')} style={styles.wallet} hitSlop={8}>
             <Ionicons name="hourglass" size={16} color={colors.accent} />
-            <Text style={styles.walletText}>{formatDuration(balance)}</Text>
+            <Text style={styles.walletText}>{formatWallet(balance)}</Text>
           </Pressable>
         </View>
 
@@ -207,7 +208,7 @@ export default function PetScreen() {
         <Pressable onPress={() => router.push('/shop')} style={styles.shopButton}>
           <Ionicons name="bag-handle" size={20} color={colors.onAccent} />
           <Text style={styles.shopText}>Boutique</Text>
-          <Text style={styles.shopSub}>{formatDuration(balance)} à dépenser</Text>
+          <Text style={styles.shopSub}>{formatWallet(balance)} à dépenser</Text>
         </Pressable>
 
         {pets.length > 1 && (

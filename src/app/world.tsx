@@ -29,6 +29,7 @@ import {
   SIZES,
   World,
 } from '../world/world';
+import { walletSeconds } from '../lib/wallet';
 
 type Tool =
   | { kind: 'none' }
@@ -119,7 +120,7 @@ export default function WorldScreen() {
     const placed = (w?.objects ?? []).filter((o) => o[0] === id).length;
     return (stock[id] ?? 0) - placed;
   };
-  const balance = Math.max(0, (profile?.total_seconds ?? 0) - (profile?.spent_seconds ?? 0));
+  const balance = walletSeconds(profile);
 
   /** Puts the object down (asking first if it replaces another one), then goes back to neutral. */
   const putDown = (base: World, id: string, x: number, z: number) => {
