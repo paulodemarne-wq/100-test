@@ -1,11 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetView } from '../components/PetView';
-import { RARITY_COLORS, SHOP_ITEMS, ShopItem, SLOT_NAMES, levelFor } from '../creatures/species';
+import { GARDEN_SLOT_NAMES, GardenSlot, levelFor, RARITY_COLORS, SHOP_ITEMS, ShopItem, Slot, SLOT_NAMES } from '../creatures/species';
 import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
@@ -13,7 +13,9 @@ import { formatDuration } from '../lib/time';
 
 export default function Shop() {
   const { profile, reloadProfile } = useAuth();
-  const { pets, inventory, buyItem, equipItem } = useSocial();
+  const { pets, inventory, buyItem, equipItem, setGarden } = useSocial();
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<'pet' | 'garden'>(params.tab === 'garden' ? 'garden' : 'pet');
   const [preview, setPreview] = useState<ShopItem | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
   const pet = pets[0] ?? null;
@@ -36,6 +38,17 @@ export default function Shop() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             if (item.kind === 'egg') {
               Alert.alert('Nouvel œuf 🥚', "Il est dans ta collection. Choisis-le comme animal actif pour le faire éclore.");
+            } else if (item.kind === 'garden' && item.slot) {
+              Alert.alert(`${item.name} acheté 🎉`, 'Tu veux le placer dans ton jardin ?', [
+                { text: 'Plus tard', style: 'cancel' },
+                {
+                  text: 'Placer',
+                  onPress: () =>
+                    setGarden(item.slot!, item.id)
+                      .then(reloadProfile)
+                      .catch(() => {}),
+                },
+              ]);
             } else if (pet && item.slot) {
               Alert.alert(`${item.name} acheté 🎉`, 'Tu veux le mettre tout de suite ?', [
                 { text: 'Plus tard', style: 'cancel' },
@@ -52,9 +65,15 @@ export default function Shop() {
     ]);
   };
 
+  const trying = preview && preview.kind === (tab === 'garden' ? 'garden' : 'accessory') ? preview : null;
   const equippedPreview = pet
-    ? { ...pet.equipped, ...(preview?.slot ? { [preview.slot]: preview.id } : {}) }
+    ? { ...pet.equipped, ...(tab === 'pet' && trying?.slot ? { [trying.slot]: trying.id } : {}) }
     : undefined;
+  const gardenPreview =
+    tab === 'garden' ? { ...(profile?.garden ?? {}), ...(trying?.slot ? { [trying.slot]: trying.id } : {}) } : null;
+  const items = SHOP_ITEMS.filter((i) => (tab === 'garden' ? i.kind === 'garden' : i.kind !== 'garden'));
+  const slotName = (item: ShopItem) =>
+    item.kind === 'garden' ? GARDEN_SLOT_NAMES[item.slot as GardenSlot] : SLOT_NAMES[item.slot as Slot];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -71,18 +90,42 @@ export default function Shop() {
 
       {pet && (
         <View style={styles.preview}>
-          <PetView species={pet.species} level={levelFor(pet.xp_seconds)} equipped={equippedPreview} style={{ flex: 1 }} />
+          <PetView
+            species={pet.species}
+            level={levelFor(pet.xp_seconds)}
+            equipped={equippedPreview}
+            garden={gardenPreview}
+            style={{ flex: 1 }}
+          />
           <Text style={styles.previewHint}>
-            {preview?.slot ? `Essai : ${preview.name}` : 'Touche un accessoire pour l’essayer'}
+            {trying ? `Essai : ${trying.name}` : tab === 'garden' ? 'Touche un objet pour le voir dans ton jardin' : 'Touche un accessoire pour l’essayer'}
           </Text>
         </View>
       )}
 
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={type.subhead}>Chaque heure de lock in = 1 h à dépenser ici.</Text>
+        <View style={styles.tabs}>
+          {(['pet', 'garden'] as const).map((t) => (
+            <Pressable
+              key={t}
+              onPress={() => {
+                setTab(t);
+                setPreview(null);
+              }}
+              style={[styles.tab, tab === t && styles.tabActive]}
+            >
+              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t === 'pet' ? 'Animal' : 'Jardin'}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={type.subhead}>
+          {tab === 'garden'
+            ? 'Décore le jardin derrière ton animal. Tes amis le voient quand ils te rendent visite.'
+            : 'Chaque heure de lock in = 1 h à dépenser ici.'}
+        </Text>
         <View style={styles.grid}>
-          {SHOP_ITEMS.map((item) => {
-            const owned = item.kind === 'accessory' && inventory.includes(item.id);
+          {items.map((item) => {
+            const owned = item.kind !== 'egg' && inventory.includes(item.id);
             const affordable = balance >= item.costHours * 3600;
             const color = item.kind === 'egg' ? colors.accent : RARITY_COLORS[item.rarity];
             return (
@@ -97,7 +140,7 @@ export default function Shop() {
                 <Text style={styles.itemName} numberOfLines={2}>
                   {item.name}
                 </Text>
-                <Text style={type.footnote}>{item.slot ? SLOT_NAMES[item.slot] : 'Éclot en un animal au hasard'}</Text>
+                <Text style={type.footnote}>{item.slot ? slotName(item) : 'Éclot en un animal au hasard'}</Text>
                 {owned ? (
                   <View style={[styles.buy, { backgroundColor: colors.successSoft }]}>
                     <Text style={[styles.buyText, { color: colors.success }]}>Possédé ✓</Text>
@@ -141,6 +184,11 @@ const styles = StyleSheet.create({
   preview: { ...card, height: 220, marginHorizontal: 20, marginTop: 12, overflow: 'hidden' },
   previewHint: { position: 'absolute', bottom: 8, alignSelf: 'center', ...type.footnote },
   container: { padding: 20, paddingBottom: 40, gap: 12 },
+  tabs: { flexDirection: 'row', backgroundColor: colors.fill, borderRadius: 10, padding: 2 },
+  tab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  tabActive: { backgroundColor: colors.card },
+  tabText: { fontSize: 15, fontWeight: '600', color: colors.secondary },
+  tabTextActive: { color: colors.text },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   item: { ...card, width: '48%', flexGrow: 1, padding: 12, gap: 6, borderWidth: 2, borderColor: 'transparent' },
   rarity: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },

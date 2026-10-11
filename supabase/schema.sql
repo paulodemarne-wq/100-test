@@ -657,6 +657,13 @@ create table if not exists public.shop_items (
   cost_seconds integer not null check (cost_seconds > 0)
 );
 
+-- v5: garden items (house, tree, deco, ground).
+alter table public.shop_items drop constraint if exists shop_items_kind_check;
+alter table public.shop_items add constraint shop_items_kind_check check (kind in ('accessory', 'egg', 'garden'));
+alter table public.shop_items drop constraint if exists shop_items_slot_check;
+alter table public.shop_items add constraint shop_items_slot_check
+  check (slot in ('head', 'eyes', 'neck', 'back', 'house', 'tree', 'deco', 'ground'));
+
 insert into public.shop_items (id, kind, slot, rarity, cost_seconds) values
   ('egg', 'egg', null, 'rare', 100 * 3600),
   ('cap', 'accessory', 'head', 'commune', 10 * 3600),
@@ -675,7 +682,25 @@ insert into public.shop_items (id, kind, slot, rarity, cost_seconds) values
   ('backpack', 'accessory', 'back', 'rare', 30 * 3600),
   ('cape', 'accessory', 'back', 'épique', 80 * 3600),
   ('angel', 'accessory', 'back', 'mythique', 200 * 3600),
-  ('jetpack', 'accessory', 'back', 'légendaire', 400 * 3600)
+  ('jetpack', 'accessory', 'back', 'légendaire', 400 * 3600),
+  ('doghouse', 'garden', 'house', 'commune', 10 * 3600),
+  ('cabin', 'garden', 'house', 'rare', 30 * 3600),
+  ('cottage', 'garden', 'house', 'épique', 80 * 3600),
+  ('mushroom', 'garden', 'house', 'mythique', 200 * 3600),
+  ('castle', 'garden', 'house', 'légendaire', 400 * 3600),
+  ('bush', 'garden', 'tree', 'commune', 10 * 3600),
+  ('apple', 'garden', 'tree', 'rare', 30 * 3600),
+  ('sakura', 'garden', 'tree', 'épique', 80 * 3600),
+  ('crystal', 'garden', 'tree', 'mythique', 200 * 3600),
+  ('flowerbed', 'garden', 'deco', 'commune', 10 * 3600),
+  ('lamp', 'garden', 'deco', 'commune', 10 * 3600),
+  ('pond', 'garden', 'deco', 'rare', 30 * 3600),
+  ('fountain', 'garden', 'deco', 'épique', 80 * 3600),
+  ('rainbow', 'garden', 'deco', 'légendaire', 400 * 3600),
+  ('meadow', 'garden', 'ground', 'rare', 30 * 3600),
+  ('beach', 'garden', 'ground', 'rare', 30 * 3600),
+  ('snow', 'garden', 'ground', 'épique', 80 * 3600),
+  ('clouds', 'garden', 'ground', 'légendaire', 400 * 3600)
 on conflict (id) do update set kind = excluded.kind, slot = excluded.slot, rarity = excluded.rarity, cost_seconds = excluded.cost_seconds;
 
 alter table public.shop_items enable row level security;
@@ -764,7 +789,7 @@ begin
   if me.total_seconds - me.spent_seconds < it.cost_seconds then
     raise exception 'Pas assez d''heures' using errcode = 'P0001';
   end if;
-  if it.kind = 'accessory' then
+  if it.kind in ('accessory', 'garden') then
     if exists (select 1 from public.inventory where user_id = me.id and item_id = it.id) then
       raise exception 'Déjà acheté' using errcode = 'P0001';
     end if;
@@ -805,10 +830,31 @@ begin
   update public.pets set equipped = equipped || jsonb_build_object(slot, item) where id = pet;
 end $$;
 
+-- v5: the garden behind the pet. Everyone signed in can read it (friends visit it), only set_garden writes it.
+alter table public.profiles add column if not exists garden jsonb not null default '{}'::jsonb;
+
+create or replace function public.set_garden(slot text, item text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Non connecté'; end if;
+  if slot not in ('house', 'tree', 'deco', 'ground') then raise exception 'Emplacement inconnu'; end if;
+  if item is null then
+    update public.profiles set garden = garden - slot where id = auth.uid();
+    return;
+  end if;
+  if not exists (
+    select 1 from public.inventory i join public.shop_items s on s.id = i.item_id
+    where i.user_id = auth.uid() and i.item_id = item and s.kind = 'garden' and s.slot = set_garden.slot
+  ) then
+    raise exception 'Objet non possédé';
+  end if;
+  update public.profiles set garden = garden || jsonb_build_object(slot, item) where id = auth.uid();
+end $$;
+
 revoke execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text),
-  public.hatch_if_ready(uuid) from public, anon;
-grant execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text)
-  to authenticated;
+  public.set_garden(text, text), public.hatch_if_ready(uuid) from public, anon;
+grant execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text),
+  public.set_garden(text, text) to authenticated;
 
 do $$
 declare t text;

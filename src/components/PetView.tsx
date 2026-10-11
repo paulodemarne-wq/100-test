@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { PanResponder, View, ViewStyle } from 'react-native';
 import * as THREE from 'three';
 import { addLights, buildCreature, Creature } from '../creatures/build';
-import { Equipped } from '../creatures/species';
+import { buildGarden, GARDEN_CAMERA, GardenScene } from '../creatures/garden';
+import { Equipped, Garden } from '../creatures/species';
 
 type Props = {
   species: number | null;
@@ -12,14 +13,21 @@ type Props = {
   style?: ViewStyle;
   /** Allow turning the pet with a finger. */
   interactive?: boolean;
+  /** Show the pet in its garden (the garden stays still while the pet turns). */
+  garden?: Garden | null;
+  /** Called on a tap (not a drag). */
+  onPress?: () => void;
 };
 
 /** A pet in 3D. Drag horizontally to turn it; it keeps spinning slowly on its own. */
-export function PetView({ species, level, equipped, style, interactive = true }: Props) {
+export function PetView({ species, level, equipped, style, interactive = true, garden, onPress }: Props) {
   const yaw = useRef(0.5);
   const velocity = useRef(0);
   const dragging = useRef(false);
-  const sceneRef = useRef<{ scene: THREE.Scene; creature: Creature | null } | null>(null);
+  const sceneRef = useRef<{ scene: THREE.Scene; creature: Creature | null; garden: GardenScene | null } | null>(null);
+  const onPressRef = useRef(onPress);
+  onPressRef.current = onPress;
+  const gardenKey = garden ? JSON.stringify(garden) : null;
   const frame = useRef<number | null>(null);
   const equippedKey = JSON.stringify(equipped ?? {});
 
@@ -35,8 +43,9 @@ export function PetView({ species, level, equipped, style, interactive = true }:
           velocity.current = g.vx * 0.25;
           yaw.current += velocity.current;
         },
-        onPanResponderRelease: () => {
+        onPanResponderRelease: (_, g) => {
           dragging.current = false;
+          if (Math.abs(g.dx) < 6 && Math.abs(g.dy) < 6) onPressRef.current?.();
         },
         onPanResponderTerminate: () => {
           dragging.current = false;
@@ -57,15 +66,29 @@ export function PetView({ species, level, equipped, style, interactive = true }:
     s.scene.add(s.creature.group);
   }, [species, level, equippedKey]);
 
+  // Swap garden items in place (switching garden on/off needs a new view: the camera changes).
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (!s || !s.garden || !gardenKey) return;
+    s.scene.remove(s.garden.group);
+    s.garden.dispose();
+    s.garden = buildGarden(JSON.parse(gardenKey));
+    s.scene.add(s.garden.group);
+  }, [gardenKey]);
+
   useEffect(
     () => () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current);
       sceneRef.current?.creature?.dispose();
+      sceneRef.current?.garden?.dispose();
     },
     [],
   );
 
   const onContextCreate = (gl: ExpoWebGLRenderingContext) => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    sceneRef.current?.creature?.dispose();
+    sceneRef.current?.garden?.dispose();
     const width = gl.drawingBufferWidth;
     const height = gl.drawingBufferHeight;
     // three.js expects a canvas; expo-gl only gives a context, so pass a minimal stand-in.
@@ -86,12 +109,19 @@ export function PetView({ species, level, equipped, style, interactive = true }:
     const scene = new THREE.Scene();
     addLights(scene);
     const camera = new THREE.PerspectiveCamera(32, width / height, 0.1, 50);
-    camera.position.set(0, 1.5, 4.8);
-    camera.lookAt(0, 0.85, 0);
+    const gardenScene = gardenKey ? buildGarden(JSON.parse(gardenKey)) : null;
+    if (gardenScene) {
+      camera.position.set(...GARDEN_CAMERA.position);
+      camera.lookAt(...GARDEN_CAMERA.target);
+      scene.add(gardenScene.group);
+    } else {
+      camera.position.set(0, 1.5, 4.8);
+      camera.lookAt(0, 0.85, 0);
+    }
 
     const creature = buildCreature({ species, level, equipped: JSON.parse(equippedKey) });
     scene.add(creature.group);
-    sceneRef.current = { scene, creature };
+    sceneRef.current = { scene, creature, garden: gardenScene };
 
     const start = Date.now();
     const render = () => {
@@ -100,10 +130,16 @@ export function PetView({ species, level, equipped, style, interactive = true }:
         velocity.current *= 0.94;
         yaw.current += velocity.current + 0.006;
       }
+      const t = (Date.now() - start) / 1000;
       const c = sceneRef.current?.creature;
       if (c) {
         c.group.rotation.y = yaw.current;
-        c.update((Date.now() - start) / 1000);
+        c.update(t);
+      }
+      const g = sceneRef.current?.garden;
+      if (g) {
+        renderer.setClearColor(g.sky, 1);
+        g.update(t);
       }
       renderer.render(scene, camera);
       gl.endFrameEXP();
@@ -113,7 +149,7 @@ export function PetView({ species, level, equipped, style, interactive = true }:
 
   return (
     <View style={style} {...pan.panHandlers}>
-      <GLView style={{ flex: 1 }} onContextCreate={onContextCreate} />
+      <GLView key={garden ? 'garden' : 'plain'} style={{ flex: 1 }} onContextCreate={onContextCreate} />
     </View>
   );
 }

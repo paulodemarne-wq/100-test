@@ -7,6 +7,8 @@ import { PetView } from '../../components/PetView';
 import {
   displayName,
   formFor,
+  GARDEN_SLOT_NAMES,
+  GardenSlot,
   LEVEL_HOURS,
   LEVEL_UNLOCKS,
   levelFor,
@@ -27,10 +29,11 @@ import { card, colors, type } from '../../lib/theme';
 import { formatDuration } from '../../lib/time';
 
 const SLOTS: Slot[] = ['head', 'eyes', 'neck', 'back'];
+const GARDEN_SLOTS: GardenSlot[] = ['house', 'tree', 'deco', 'ground'];
 
 export default function PetScreen() {
   const { profile, reloadProfile } = useAuth();
-  const { pets, inventory, equipItem, setActivePet } = useSocial();
+  const { pets, inventory, equipItem, setActivePet, setGarden } = useSocial();
   const [busy, setBusy] = useState(false);
   const pet = pets[0] ?? null;
   const balance = Math.max(0, (profile?.total_seconds ?? 0) - (profile?.spent_seconds ?? 0));
@@ -78,6 +81,27 @@ export default function PetScreen() {
     ]);
   };
 
+  const garden = profile?.garden ?? {};
+  const chooseGardenItem = (slot: GardenSlot) => {
+    const owned = SHOP_ITEMS.filter((i) => i.kind === 'garden' && i.slot === slot && inventory.includes(i.id));
+    if (owned.length === 0) {
+      Alert.alert(`Pas encore de ${GARDEN_SLOT_NAMES[slot].toLowerCase()}`, 'Achète de quoi décorer ton jardin dans la boutique.', [
+        { text: 'Plus tard', style: 'cancel' },
+        { text: 'Boutique', onPress: () => router.push({ pathname: '/shop', params: { tab: 'garden' } }) },
+      ]);
+      return;
+    }
+    const place = (item: string | null) =>
+      setGarden(slot, item)
+        .then(reloadProfile)
+        .catch(fail);
+    Alert.alert(GARDEN_SLOT_NAMES[slot], undefined, [
+      ...owned.map((i) => ({ text: garden[slot] === i.id ? `${i.name} ✓` : i.name, onPress: () => place(i.id) })),
+      ...(garden[slot] ? [{ text: 'Retirer', style: 'destructive' as const, onPress: () => place(null) }] : []),
+      { text: 'Annuler', style: 'cancel' as const },
+    ]);
+  };
+
   const switchPet = async (id: string) => {
     setBusy(true);
     try {
@@ -107,13 +131,22 @@ export default function PetScreen() {
         </View>
 
         <View style={styles.stage}>
-          <PetView species={pet.species} level={level} equipped={pet.equipped} style={styles.viewer} />
+          <PetView
+            species={pet.species}
+            level={level}
+            equipped={pet.equipped}
+            garden={garden}
+            onPress={() => router.push('/gardens')}
+            style={styles.viewer}
+          />
           <View style={[styles.badge, { backgroundColor: tier.color }]}>
             <Text style={styles.badgeText}>
               {tier.name} · Niv. {level}
             </Text>
           </View>
-          <Text style={styles.hint}>Glisse pour le faire tourner</Text>
+          <View style={styles.hint} pointerEvents="none">
+            <Text style={styles.hintText}>Glisse pour le tourner · touche pour visiter tes amis</Text>
+          </View>
         </View>
 
         <View style={styles.xpCard}>
@@ -156,6 +189,27 @@ export default function PetScreen() {
             );
           })}
         </View>
+
+        <Text style={styles.sectionTitle}>MON JARDIN</Text>
+        <View style={styles.slots}>
+          {GARDEN_SLOTS.map((slot) => {
+            const item = SHOP_ITEMS.find((i) => i.id === garden[slot]);
+            return (
+              <Pressable key={slot} onPress={() => chooseGardenItem(slot)} style={styles.slot}>
+                <Text style={type.footnote}>{GARDEN_SLOT_NAMES[slot]}</Text>
+                <Text style={[styles.slotItem, item && { color: RARITY_COLORS[item.rarity] }]} numberOfLines={2}>
+                  {item ? item.name : slot === 'ground' ? 'Herbe' : 'Vide'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable onPress={() => router.push('/gardens')} style={styles.linkRow}>
+          <Ionicons name="people" size={20} color={colors.accent} />
+          <Text style={[type.headline, { flex: 1 }]}>Visiter les jardins de mes amis</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.tertiary} />
+        </Pressable>
 
         <Pressable onPress={() => router.push('/shop')} style={styles.shopButton}>
           <Ionicons name="bag-handle" size={20} color={colors.onAccent} />
@@ -218,11 +272,20 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   walletText: { color: colors.accent, fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] },
-  stage: { ...card, marginTop: 16, height: 340, overflow: 'hidden' },
+  stage: { ...card, marginTop: 16, height: 360, overflow: 'hidden' },
   viewer: { flex: 1 },
   badge: { position: 'absolute', top: 14, left: 14, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   badgeText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
-  hint: { position: 'absolute', bottom: 10, alignSelf: 'center', ...type.footnote },
+  hint: {
+    position: 'absolute',
+    bottom: 10,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  hintText: { ...type.footnote, color: colors.secondary },
   xpCard: { ...card, marginTop: 12, padding: 16, gap: 8 },
   xpTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   nextStage: { fontWeight: '700', fontSize: 15 },

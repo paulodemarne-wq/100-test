@@ -344,11 +344,20 @@ export type Slot = 'head' | 'eyes' | 'neck' | 'back';
 
 export const SLOT_NAMES: Record<Slot, string> = { head: 'Tête', eyes: 'Yeux', neck: 'Cou', back: 'Dos' };
 
+export type GardenSlot = 'house' | 'tree' | 'deco' | 'ground';
+
+export const GARDEN_SLOT_NAMES: Record<GardenSlot, string> = {
+  house: 'Maison',
+  tree: 'Arbre',
+  deco: 'Déco',
+  ground: 'Sol',
+};
+
 export type ShopItem = {
   id: string;
   name: string;
-  kind: 'accessory' | 'egg';
-  slot: Slot | null;
+  kind: 'accessory' | 'egg' | 'garden';
+  slot: Slot | GardenSlot | null;
   rarity: Rarity;
   /** Price in hours of lock in. Must match supabase/schema.sql (shop_items). */
   costHours: number;
@@ -373,6 +382,25 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'cape', name: 'Cape de héros', kind: 'accessory', slot: 'back', rarity: 'épique', costHours: 80 },
   { id: 'angel', name: "Ailes d'ange", kind: 'accessory', slot: 'back', rarity: 'mythique', costHours: 200 },
   { id: 'jetpack', name: 'Jetpack', kind: 'accessory', slot: 'back', rarity: 'légendaire', costHours: 400 },
+  // Garden: shown behind the pet, visible to friends.
+  { id: 'doghouse', name: 'Niche', kind: 'garden', slot: 'house', rarity: 'commune', costHours: 10 },
+  { id: 'cabin', name: 'Cabane en bois', kind: 'garden', slot: 'house', rarity: 'rare', costHours: 30 },
+  { id: 'cottage', name: 'Petite maison', kind: 'garden', slot: 'house', rarity: 'épique', costHours: 80 },
+  { id: 'mushroom', name: 'Maison champignon', kind: 'garden', slot: 'house', rarity: 'mythique', costHours: 200 },
+  { id: 'castle', name: 'Château', kind: 'garden', slot: 'house', rarity: 'légendaire', costHours: 400 },
+  { id: 'bush', name: 'Buissons', kind: 'garden', slot: 'tree', rarity: 'commune', costHours: 10 },
+  { id: 'apple', name: 'Pommier', kind: 'garden', slot: 'tree', rarity: 'rare', costHours: 30 },
+  { id: 'sakura', name: 'Cerisier en fleurs', kind: 'garden', slot: 'tree', rarity: 'épique', costHours: 80 },
+  { id: 'crystal', name: 'Arbre de cristal', kind: 'garden', slot: 'tree', rarity: 'mythique', costHours: 200 },
+  { id: 'flowerbed', name: 'Parterre de fleurs', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10 },
+  { id: 'lamp', name: 'Lampadaire', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10 },
+  { id: 'pond', name: 'Petite mare', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30 },
+  { id: 'fountain', name: 'Fontaine', kind: 'garden', slot: 'deco', rarity: 'épique', costHours: 80 },
+  { id: 'rainbow', name: 'Arc-en-ciel', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 400 },
+  { id: 'meadow', name: 'Prairie fleurie', kind: 'garden', slot: 'ground', rarity: 'rare', costHours: 30 },
+  { id: 'beach', name: 'Plage', kind: 'garden', slot: 'ground', rarity: 'rare', costHours: 30 },
+  { id: 'snow', name: 'Neige', kind: 'garden', slot: 'ground', rarity: 'épique', costHours: 80 },
+  { id: 'clouds', name: 'Île dans les nuages', kind: 'garden', slot: 'ground', rarity: 'légendaire', costHours: 400 },
 ];
 
 export function itemById(id: string | null | undefined): ShopItem | null {
@@ -380,3 +408,6 @@ export function itemById(id: string | null | undefined): ShopItem | null {
 }
 
 export type Equipped = Partial<Record<Slot, string>>;
+
+/** Garden items placed around the pet. */
+export type Garden = Partial<Record<GardenSlot, string>>;

@@ -2,9 +2,10 @@
 // Build: npx esbuild scripts/bestiary/entry.ts --bundle --format=iife --minify --outfile=<out>.js
 import * as THREE from 'three';
 import { addLights, buildCreature, Creature } from '../../src/creatures/build';
-import { displayName, Equipped, LEVEL_HOURS, LEVEL_UNLOCKS, PLAN_NAMES, SHOP_ITEMS, SPECIES, TIERS, formFor, tierFor } from '../../src/creatures/species';
+import { buildGarden, GARDEN_CAMERA, GardenScene } from '../../src/creatures/garden';
+import { displayName, Equipped, Garden, LEVEL_HOURS, LEVEL_UNLOCKS, PLAN_NAMES, SHOP_ITEMS, SPECIES, TIERS, formFor, tierFor } from '../../src/creatures/species';
 
-type Item = { species: number | null; level: number; equipped?: Equipped };
+type Item = { species: number | null; level: number; equipped?: Equipped; garden?: Garden };
 
 /** Renders a grid of creatures in ONE WebGL context. Drag to turn them all. */
 function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; background?: string }) {
@@ -17,13 +18,17 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
   camera.position.set(0, 1.5, 4.8);
   camera.lookAt(0, 0.85, 0);
 
+  const gardenCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
+  gardenCamera.position.set(...GARDEN_CAMERA.position);
+  gardenCamera.lookAt(...GARDEN_CAMERA.target);
+
   let creatures: Creature[] = [];
+  let gardens: (GardenScene | null)[] = [];
   const build = () => {
-    creatures.forEach((c) => {
-      scene.remove(c.group);
-      c.dispose();
-    });
+    creatures.forEach((c) => c.dispose());
+    gardens.forEach((g) => g?.dispose());
     creatures = opts.items.map((it) => buildCreature(it));
+    gardens = opts.items.map((it) => (it.garden ? buildGarden(it.garden) : null));
   };
   build();
 
@@ -74,6 +79,8 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
     renderer.clear();
     camera.aspect = cw / ch;
     camera.updateProjectionMatrix();
+    gardenCamera.aspect = cw / ch;
+    gardenCamera.updateProjectionMatrix();
     creatures.forEach((c, i) => {
       const x = (i % cols) * cw;
       const y = h - (Math.floor(i / cols) + 1) * ch;
@@ -81,9 +88,17 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
       renderer.setScissor(x, y, cw, ch);
       c.group.rotation.y = yaw;
       c.update(t + i * 0.37);
+      const g = gardens[i];
+      if (g) {
+        renderer.setClearColor(g.sky, 1);
+        renderer.clear();
+        g.update(t);
+        scene.add(g.group);
+      }
       scene.add(c.group);
-      renderer.render(scene, camera);
+      renderer.render(scene, g ? gardenCamera : camera);
       scene.remove(c.group);
+      if (g) scene.remove(g.group);
     });
   };
   frame();
@@ -97,6 +112,7 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
     destroy() {
       cancelAnimationFrame(raf);
       creatures.forEach((c) => c.dispose());
+      gardens.forEach((g) => g?.dispose());
       renderer.dispose();
     },
   };

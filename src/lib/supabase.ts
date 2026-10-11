@@ -36,6 +36,8 @@ export type ProfileRow = {
   /** Hours spent in the shop (seconds). Balance = total_seconds - spent_seconds. */
   spent_seconds: number;
   active_pet_id: string | null;
+  /** Garden items shown behind the pet, by slot (house, tree, deco, ground). */
+  garden: Partial<Record<'house' | 'tree' | 'deco' | 'ground', string>>;
 };
 
 export type PetRow = {
