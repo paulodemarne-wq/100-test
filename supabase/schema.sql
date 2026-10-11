@@ -775,6 +775,8 @@ create table if not exists public.inventory (
   acquired_at timestamptz not null default now(),
   primary key (user_id, item_id)
 );
+-- v9: island objects are counted (one purchase = one object to place).
+alter table public.inventory add column if not exists quantity int not null default 1 check (quantity >= 1);
 
 alter table public.inventory enable row level security;
 drop policy if exists "see own inventory" on public.inventory;
@@ -861,7 +863,11 @@ begin
   ) then
     raise exception 'Agrandis d''abord à la taille d''avant' using errcode = 'P0001';
   end if;
-  if it.kind in ('accessory', 'garden', 'upgrade') then
+  if it.kind = 'garden' and it.slot <> 'ground' then
+    -- Island objects are bought one by one: each purchase is one more in stock.
+    insert into public.inventory (user_id, item_id, quantity) values (me.id, it.id, 1)
+    on conflict (user_id, item_id) do update set quantity = public.inventory.quantity + 1;
+  elsif it.kind in ('accessory', 'garden', 'upgrade') then
     if exists (select 1 from public.inventory where user_id = me.id and item_id = it.id) then
       raise exception 'Déjà acheté' using errcode = 'P0001';
     end if;
@@ -982,6 +988,12 @@ begin
       raise exception 'Objet non possédé';
     end if;
     boat := exists (select 1 from public.shop_items where id = o->>0 and slot = 'boat');
+    -- No more copies of a paid object than bought.
+    if exists (select 1 from public.shop_items where id = o->>0 and cost_seconds > 0) and
+       (select count(*) from jsonb_array_elements(objects) e where e->>0 = o->>0) >
+       coalesce((select quantity from public.inventory where user_id = auth.uid() and item_id = o->>0), 0) then
+      raise exception 'Tu n''as pas assez de % : achète-en un de plus', o->>0 using errcode = 'P0001';
+    end if;
     if x >= 0 and z >= 0 and x < size and z < size then
       -- On the island: boats only on water tiles.
       if boat and substr(tiles, z * size + x + 1, 1) <> 'w' then raise exception 'Un bateau doit être sur l''eau'; end if;
@@ -1088,3 +1100,38 @@ revoke insert, update, delete on public.claimed_gifts from anon, authenticated;
 
 revoke execute on function public.buy_deal(text), public.todays_deals() from public, anon;
 grant execute on function public.buy_deal(text), public.todays_deals() to authenticated;
+
+-- v9 migration: before, an object was bought once and placed many times. Keep what players already placed.
+update public.inventory i
+set quantity = greatest(i.quantity, c.n)
+from (
+  select p.id as user_id, o->>0 as item_id, count(*)::int as n
+  from public.profiles p, jsonb_array_elements(coalesce(p.world->'objects', '[]'::jsonb)) o
+  group by 1, 2
+) c
+where i.user_id = c.user_id and i.item_id = c.item_id;
+
+-- The daily gift can be an island object (which can be bought again): one gift per player per day.
+alter table public.claimed_gifts add column if not exists day date not null default ((now() at time zone 'Europe/Paris')::date);
+alter table public.claimed_gifts drop constraint if exists claimed_gifts_pkey;
+alter table public.claimed_gifts add primary key (user_id, item_id, day);
+
+create or replace function public.buy_deal(item text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  pct int;
+  cost int;
+  today date := (now() at time zone 'Europe/Paris')::date;
+begin
+  select d.percent into pct from public.todays_deals() d where d.item_id = item;
+  if pct is null then raise exception 'Cette promo n''est plus dans la boutique du jour' using errcode = 'P0001'; end if;
+  if pct = 100 then
+    if exists (select 1 from public.claimed_gifts where user_id = auth.uid() and item_id = item and day = today) then
+      raise exception 'Déjà pris aujourd''hui' using errcode = 'P0001';
+    end if;
+    insert into public.claimed_gifts (user_id, item_id, day) values (auth.uid(), item, today);
+  end if;
+  select cost_seconds into cost from public.shop_items where id = item;
+  return public.purchase(item, (cost * (100 - pct)) / 100);
+end $$;
+

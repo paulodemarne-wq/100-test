@@ -10,6 +10,7 @@ import { displayName, GARDEN_SLOT_NAMES, GardenSlot, levelFor, ownsItem, RARITY_
 import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { colors, type } from '../lib/theme';
+import { formatDuration } from '../lib/time';
 import { PetSpec } from '../world/scene';
 import {
   canPlace,
@@ -29,7 +30,14 @@ import {
   World,
 } from '../world/world';
 
-type Tool = { kind: 'tile'; id: string } | { kind: 'object'; id: string } | { kind: 'erase' } | { kind: 'rotate' };
+type Tool =
+  | { kind: 'none' }
+  | { kind: 'tile'; id: string }
+  | { kind: 'object'; id: string }
+  | { kind: 'erase' }
+  | { kind: 'rotate' }
+  /** Moving an object: first pick it (`from`), then tap where it goes. */
+  | { kind: 'move'; from?: [number, number] };
 type Tab = 'tiles' | 'objects' | 'tools';
 
 const TILES = SHOP_ITEMS.filter((i) => i.kind === 'garden' && i.slot === 'ground');
@@ -39,7 +47,7 @@ const OBJECTS = SHOP_ITEMS.filter((i) => i.kind === 'garden' && i.slot !== 'grou
 export default function WorldScreen() {
   const params = useLocalSearchParams<{ user?: string; edit?: string; item?: string; grow?: string; sea?: string }>();
   const { profile, reloadProfile } = useAuth();
-  const { pets, friends, friendPets, inventory, saveWorld, featured } = useSocial();
+  const { pets, friends, friendPets, inventory, stock, saveWorld, featured, buyItem } = useSocial();
   const host = params.user
     ? (friends.find((f) => f.profile.id === params.user)?.profile ?? featured.find((p) => p.id === params.user))
     : profile;
@@ -59,7 +67,7 @@ export default function WorldScreen() {
   });
   const [tab, setTab] = useState<Tab>(params.item && isTile(params.item) ? 'tiles' : 'objects');
   const [tool, setTool] = useState<Tool>(
-    params.item ? (isTile(params.item) ? { kind: 'tile', id: params.item } : { kind: 'object', id: params.item }) : { kind: 'object', id: 'pine' },
+    params.item ? (isTile(params.item) ? { kind: 'tile', id: params.item } : { kind: 'object', id: params.item }) : { kind: 'none' },
   );
   const [saving, setSaving] = useState(false);
   const [category, setCategory] = useState<GardenSlot>(
@@ -102,33 +110,137 @@ export default function WorldScreen() {
     );
   }
 
+  const itemOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id);
+  const nameOf = (id: string) => itemOf(id)?.name.toLowerCase() ?? 'cet objet';
+  /** How many of an object can still be placed without paying (Infinity if free). */
+  const available = (id: string, w: World | null = draft) => {
+    const item = itemOf(id);
+    if (!item || item.costHours === 0) return Infinity;
+    const placed = (w?.objects ?? []).filter((o) => o[0] === id).length;
+    return (stock[id] ?? 0) - placed;
+  };
+  const balance = Math.max(0, (profile?.total_seconds ?? 0) - (profile?.spent_seconds ?? 0));
+
+  /** Puts the object down (asking first if it replaces another one), then goes back to neutral. */
+  const putDown = (base: World, id: string, x: number, z: number) => {
+    const occupant = objectAt(base, x, z);
+    const apply = () => {
+      setDraft((d) => (d ? placeObject(d, x, z, id) : d));
+      setTool({ kind: 'none' });
+      Haptics.selectionAsync();
+    };
+    if (occupant && occupant[0] !== id) {
+      Alert.alert(`Remplacer ${nameOf(occupant[0])} ?`, `${itemOf(occupant[0])?.name ?? 'L’objet'} retourne dans ton stock.`, [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Remplacer', style: 'destructive', onPress: apply },
+      ]);
+    } else apply();
+  };
+
   /** In the editor: apply the tool on a cell. Returns whether something changed (the cell lights green or red). */
-  const tapCell = (x: number, z: number, object: [number, number] | null): boolean => {
+  const tapCell = (x: number, z: number, object: [number, number] | null): boolean | void => {
     if (!draft) return false;
-    let next = draft;
-    // Erasing / turning works on the object under the finger (tapping its roof counts).
-    if ((tool.kind === 'erase' || tool.kind === 'rotate') && object) [x, z] = object;
-    if (tool.kind === 'tile') next = setTile(draft, x, z, tool.id);
-    else if (tool.kind === 'object') {
-      if (!objectAt(draft, x, z) && draft.objects.length >= MAX_OBJECTS) {
-        Alert.alert('Île pleine', `${MAX_OBJECTS} objets maximum. Enlève-en avec la gomme.`);
+    if (tool.kind === 'none') return;
+    // Erasing / turning / picking up works on the object under the finger (tapping its roof counts).
+    if ((tool.kind === 'erase' || tool.kind === 'rotate' || (tool.kind === 'move' && !tool.from)) && object) [x, z] = object;
+
+    if (tool.kind === 'tile') {
+      const next = setTile(draft, x, z, tool.id);
+      if (next === draft) return false;
+      Haptics.selectionAsync();
+      setDraft(next);
+      return true;
+    }
+    if (tool.kind === 'rotate') {
+      if (!objectAt(draft, x, z)) return false;
+      Haptics.selectionAsync();
+      setDraft(rotateAt(draft, x, z));
+      return true;
+    }
+    if (tool.kind === 'erase') {
+      const target = objectAt(draft, x, z);
+      if (!target) return false;
+      Alert.alert(`Supprimer ${nameOf(target[0])} ?`, itemOf(target[0])?.costHours ? 'Il retourne dans ton stock : tu pourras le reposer sans repayer.' : undefined, [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: () => {
+            setDraft((d) => (d ? removeAt(d, x, z) : d));
+            setTool({ kind: 'none' });
+            Haptics.selectionAsync();
+          },
+        },
+      ]);
+      return;
+    }
+    if (tool.kind === 'move') {
+      if (!tool.from) {
+        if (!objectAt(draft, x, z)) return false;
+        setTool({ kind: 'move', from: [x, z] });
+        Haptics.selectionAsync();
+        return true;
+      }
+      const [fx, fz] = tool.from;
+      const moving = objectAt(draft, fx, fz);
+      if (!moving || (fx === x && fz === z)) {
+        setTool({ kind: 'none' });
         return false;
       }
-      if (!canPlace(draft, tool.id, x, z)) {
-        if (isBoat(tool.id))
-          Alert.alert(
-            'Un bateau va sur l’eau',
-            draft.sea ? 'Pose-le sur la mer autour de l’île, ou sur de l’eau peinte sur l’île.' : 'Pose-le sur de l’eau peinte sur l’île, ou achète la mer dans la boutique.',
-          );
+      if (objectAt(draft, x, z)) {
+        Alert.alert('Case occupée', 'Choisis une case libre, ou enlève d’abord ce qui est dessus.');
         return false;
       }
-      next = placeObject(draft, x, z, tool.id);
-    } else if (tool.kind === 'erase') next = removeAt(draft, x, z);
-    else next = rotateAt(draft, x, z);
-    if (next === draft) return false;
-    Haptics.selectionAsync();
-    setDraft(next);
-    return true;
+      if (!canPlace(draft, moving[0], x, z)) return false;
+      setDraft({ ...draft, objects: draft.objects.map((o) => (o[1] === fx && o[2] === fz ? [o[0], x, z, o[3]] : o)) });
+      setTool({ kind: 'none' });
+      Haptics.selectionAsync();
+      return true;
+    }
+
+    // Placing an object.
+    const id = tool.id;
+    if (!objectAt(draft, x, z) && draft.objects.length >= MAX_OBJECTS) {
+      Alert.alert('Île pleine', `${MAX_OBJECTS} objets maximum. Enlève-en avec la gomme.`);
+      return false;
+    }
+    if (!canPlace(draft, id, x, z)) {
+      if (isBoat(id))
+        Alert.alert(
+          'Un bateau va sur l’eau',
+          draft.sea ? 'Pose-le sur la mer autour de l’île, ou sur de l’eau peinte sur l’île.' : 'Pose-le sur de l’eau peinte sur l’île, ou achète la mer dans la boutique.',
+        );
+      return false;
+    }
+    // Replacing an object of the same kind frees one: no need to pay then.
+    const occupant = objectAt(draft, x, z);
+    if (occupant?.[0] === id) return false;
+    if (available(id) > 0) {
+      putDown(draft, id, x, z);
+      return;
+    }
+    // None left in stock: buy one (each object is paid once, for one placement).
+    const item = itemOf(id)!;
+    if (balance < item.costHours * 3600) {
+      Alert.alert("Pas assez d'heures", `${item.name} coûte ${item.costHours} h. Il te manque ${formatDuration(item.costHours * 3600 - balance)} de lock in 💪`);
+      return false;
+    }
+    Alert.alert(`Acheter ${item.name.toLowerCase()} ?`, `1 ${item.name.toLowerCase()} pour ${item.costHours} h de lock in.`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: `Payer ${item.costHours} h`,
+        onPress: async () => {
+          try {
+            await buyItem(id);
+            await reloadProfile();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            putDown(draft, id, x, z);
+          } catch (e) {
+            Alert.alert('Oups', (e as Error).message);
+          }
+        },
+      },
+    ]);
   };
 
   const openShop = (title: string, message: string) =>
@@ -138,8 +250,9 @@ export default function WorldScreen() {
     ]);
 
   const choose = (item: ShopItem) => {
-    if (!ownsItem(item, inventory)) {
-      Alert.alert(item.name, `À débloquer dans la boutique pour ${item.costHours} h. Ensuite tu peux en poser autant que tu veux.`, [
+    // Grounds are unlocked once in the shop; objects are paid one by one when placed.
+    if (item.slot === 'ground' && !ownsItem(item, inventory)) {
+      Alert.alert(item.name, `À débloquer dans la boutique pour ${item.costHours} h. Ensuite tu peux en peindre autant que tu veux.`, [
         { text: 'Plus tard', style: 'cancel' },
         { text: 'Boutique', onPress: () => router.push({ pathname: '/shop', params: { tab: 'garden' } }) },
       ]);
@@ -389,12 +502,22 @@ export default function WorldScreen() {
               <>
               {tab === 'objects' && (
                 <View style={styles.categories}>
-                  <Pressable
-                    onPress={() => setTool({ kind: 'erase' })}
-                    style={[styles.category, tool.kind === 'erase' && { backgroundColor: colors.danger }]}
-                  >
-                    <Text style={[styles.categoryText, tool.kind === 'erase' && { color: colors.onAccent }]}>🧽 Gomme</Text>
-                  </Pressable>
+                  {(
+                    [
+                      ['none', '✋ Rien'],
+                      ['erase', '🧽 Gomme'],
+                      ['move', '↔️ Déplacer'],
+                    ] as const
+                  ).map(([k, label]) => (
+                    <Pressable
+                      key={k}
+                      onPress={() => setTool({ kind: k })}
+                      style={[styles.category, tool.kind === k && { backgroundColor: k === 'erase' ? colors.danger : colors.text }]}
+                    >
+                      <Text style={[styles.categoryText, tool.kind === k && { color: colors.onAccent }]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                  <View style={styles.chipSeparator} />
                   {(['house', 'tree', 'deco', 'boat'] as const).map((c) => (
                     <Pressable key={c} onPress={() => setCategory(c)} style={[styles.category, category === c && styles.categoryActive]}>
                       <Text style={[styles.categoryText, category === c && { color: colors.onAccent }]}>{GARDEN_SLOT_NAMES[c]}</Text>
@@ -404,16 +527,17 @@ export default function WorldScreen() {
               )}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.items}>
                 {items.map((item) => {
-                  const owned = ownsItem(item, inventory);
+                  const tile = item.slot === 'ground';
+                  const left = tile ? 0 : available(item.id);
+                  const ready = tile ? ownsItem(item, inventory) : left > 0;
+                  const label = item.costHours === 0 ? 'Gratuit' : tile ? (ready ? '✓' : `🔒 ${item.costHours} h`) : ready ? `×${left}` : `${item.costHours} h`;
                   return (
                     <Pressable key={item.id} onPress={() => choose(item)} style={[styles.item, selectedId === item.id && styles.itemActive]}>
-                      <Text style={[styles.itemEmoji, !owned && { opacity: 0.35 }]}>{item.emoji}</Text>
+                      <Text style={[styles.itemEmoji, tile && !ready && { opacity: 0.35 }]}>{item.emoji}</Text>
                       <Text style={styles.itemName} numberOfLines={1}>
                         {item.name}
                       </Text>
-                      <Text style={[styles.itemPrice, { color: owned ? colors.success : RARITY_COLORS[item.rarity] }]}>
-                        {owned ? '✓' : `🔒 ${item.costHours} h`}
-                      </Text>
+                      <Text style={[styles.itemPrice, { color: ready ? colors.success : RARITY_COLORS[item.rarity] }]}>{label}</Text>
                     </Pressable>
                   );
                 })}
@@ -421,13 +545,21 @@ export default function WorldScreen() {
               </>
             )}
             <Text style={styles.hint}>
-              {tool.kind === 'tile'
-                ? 'Touche des cases pour peindre le sol.'
-                : tool.kind === 'object'
-                  ? 'Touche une case pour poser l’objet. Glisse pour te déplacer, pince pour zoomer.'
-                  : tool.kind === 'erase'
-                    ? 'Touche un objet pour l’enlever.'
-                    : 'Touche un objet pour le tourner.'}
+              {tool.kind === 'none'
+                ? 'Choisis un objet ou un sol, puis touche une case. Glisse pour te déplacer, pince pour zoomer.'
+                : tool.kind === 'tile'
+                  ? 'Touche des cases pour peindre le sol. « ✋ Rien » pour arrêter.'
+                  : tool.kind === 'object'
+                    ? available(tool.id) > 0
+                      ? `Touche une case pour poser ${nameOf(tool.id)}.`
+                      : `Touche une case : tu pourras acheter ${nameOf(tool.id)} pour ${itemOf(tool.id)?.costHours} h.`
+                    : tool.kind === 'erase'
+                      ? 'Touche un objet pour l’enlever.'
+                      : tool.kind === 'move'
+                        ? tool.from
+                          ? 'Touche la case où le mettre.'
+                          : 'Touche l’objet à déplacer.'
+                        : 'Touche un objet pour le tourner.'}
               {tool.kind === 'object' && isBoat(tool.id) ? ' Les bateaux vont sur la mer ou sur l’eau.' : ''}
             </Text>
           </View>
@@ -476,6 +608,7 @@ const styles = StyleSheet.create({
   categories: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 12 },
   category: { borderRadius: 999, backgroundColor: colors.card, paddingHorizontal: 12, paddingVertical: 5 },
   categoryActive: { backgroundColor: colors.accent },
+  chipSeparator: { width: 1, alignSelf: 'stretch', backgroundColor: colors.separator, marginHorizontal: 2 },
   categoryText: { fontSize: 13, fontWeight: '700', color: colors.text },
   sizeChip: { borderRadius: 999, backgroundColor: colors.card, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 2, borderColor: 'transparent' },
   hint: { ...type.footnote, marginHorizontal: 14 },

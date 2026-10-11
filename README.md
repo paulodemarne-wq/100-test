@@ -25,6 +25,7 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
   et les paliers Bébé → Rare → Super rare → Épique → Mythique → Légendaire. Le niveau max demande ~2 190 h (2 ans à 3 h/jour).
 - **Mon île** 🏝️ : une île qui commence vide et qu'on décore comme on veut : peindre le sol (herbe, chemin, pavés, eau, sable, neige, nuages…)
   et poser jusqu'à 200 objets (plus de 50 : maisons, igloo, moulin, phare, arbres, balançoire, trampoline, coffre au trésor…).
+  Chaque objet se paie à la pièce (confirmation avant de payer) ; un objet enlevé retourne dans le stock. Outils : gomme et remplacement avec confirmation, déplacer, tourner, mode neutre.
   On peut **l'agrandir** (16×16 → 32×32), **ajouter la mer** autour et y mettre **des bateaux** (barque, pédalo canard, voilier, yacht, bateau pirate).
   **Les animaux de tous tes amis se promènent sur ton île** : touche-en un, il se tourne vers toi avec son nom et un bouton pour visiter son île.
 - **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis 10 h → légendaire 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 100 animaux.

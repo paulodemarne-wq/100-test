@@ -116,9 +116,11 @@ begin
   update public.profiles set featured = true where id = me;
 
   -- Every item (accessories, island objects, upgrades).
-  insert into public.inventory (user_id, item_id)
-  select me, id from public.shop_items where kind <> 'egg'
-  on conflict do nothing;
+  -- Island objects are counted: give plenty of each.
+  insert into public.inventory (user_id, item_id, quantity)
+  select me, id, case when kind in ('garden', 'special') and slot <> 'ground' then 999 else 1 end
+  from public.shop_items where kind <> 'egg'
+  on conflict (user_id, item_id) do update set quantity = greatest(public.inventory.quantity, excluded.quantity);
 
   -- Every dragon, maxed, wearing the legendary set. The first one becomes the active pet.
   foreach sp in array array[${dragons.map((d) => d.id).join(', ')}] loop

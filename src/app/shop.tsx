@@ -32,7 +32,7 @@ function msUntilNextShop(now: Date): number {
 
 export default function Shop() {
   const { profile, reloadProfile } = useAuth();
-  const { pets, inventory, buyItem, equipItem, deals, buyDeal, claimedGifts, featured } = useSocial();
+  const { pets, inventory, stock, buyItem, equipItem, deals, buyDeal, featured } = useSocial();
   const params = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<'pet' | 'garden' | 'deals'>(
     params.tab === 'garden' ? 'garden' : params.tab === 'deals' ? 'deals' : 'pet',
@@ -87,13 +87,18 @@ export default function Shop() {
                 ],
               );
             } else if (item.kind === 'garden' && item.slot) {
-              Alert.alert(`${item.name} débloqué 🎉`, 'Tu peux en poser autant que tu veux sur ton île.', [
+              const tile = item.slot === 'ground';
+              Alert.alert(
+                tile ? `${item.name} débloqué 🎉` : `1 ${item.name.toLowerCase()} ajouté à ton stock 🎉`,
+                tile ? 'Tu peux en peindre autant que tu veux sur ton île.' : 'Pose-le sur ton île quand tu veux.',
+                [
                 { text: 'Plus tard', style: 'cancel' },
                 {
                   text: 'Le poser',
                   onPress: () => router.replace({ pathname: '/world', params: { edit: '1', item: item.id } }),
                 },
-              ]);
+                ],
+              );
             } else if (pet && item.slot) {
               Alert.alert(`${item.name} acheté 🎉`, 'Tu veux le mettre tout de suite ?', [
                 { text: 'Plus tard', style: 'cancel' },
@@ -198,7 +203,7 @@ export default function Shop() {
           {tab === 'deals'
             ? `Chaque jour, une nouvelle boutique : 6 promos et un cadeau offert. Nouvelle boutique dans ${formatDuration(Math.max(60, Math.floor(msUntilNextShop(now) / 1000)))}.`
             : tab === 'garden'
-            ? 'Agrandis ton île, ajoute la mer et des bateaux. Un objet débloqué se pose autant de fois que tu veux.'
+            ? 'Agrandis ton île, ajoute la mer et des bateaux. Chaque objet acheté = 1 objet à poser ; les sols se débloquent une fois.'
             : 'Chaque heure de lock in = 1 h à dépenser ici.'}
         </Text>
         {sections.map((section) => (
@@ -208,7 +213,9 @@ export default function Shop() {
           {section.items.map((item) => {
             const deal = dealFor(item);
             const price = priceOf(item);
-            const owned = (item.kind !== 'egg' && ownsItem(item, inventory)) || (deal?.percent === 100 && claimedGifts.includes(item.id));
+            // Island objects are bought one by one (never "owned" for good), the rest once.
+            const perPiece = item.kind === 'garden' && item.slot !== 'ground' && item.costHours > 0;
+            const owned = !perPiece && item.kind !== 'egg' && ownsItem(item, inventory);
             const locked = owned ? null : lockedBy(item);
             const affordable = balance >= price * 3600;
             const color = item.kind === 'egg' ? colors.accent : RARITY_COLORS[item.rarity];
@@ -232,7 +239,10 @@ export default function Shop() {
                   {item.emoji ? `${item.emoji} ` : ''}
                   {item.name}
                 </Text>
-                <Text style={type.footnote}>{describe(item)}</Text>
+                <Text style={type.footnote}>
+                  {perPiece && stock[item.id] ? `${stock[item.id]} acheté${stock[item.id] > 1 ? 's' : ''} · ` : ''}
+                  {describe(item)}
+                </Text>
                 {owned ? (
                   <View style={[styles.buy, { backgroundColor: colors.successSoft }]}>
                     <Text style={[styles.buyText, { color: colors.success }]}>{item.costHours === 0 ? 'Gratuit ✓' : 'Possédé ✓'}</Text>

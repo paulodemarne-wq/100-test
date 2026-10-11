@@ -96,6 +96,8 @@ type Social = {
   setGarden: (slot: string, itemId: string | null) => Promise<void>;
   /** Saves my island. Reload the profile afterwards. */
   saveWorld: (world: unknown) => Promise<void>;
+  /** How many of each island object I bought (one purchase = one object to place). */
+  stock: Record<string, number>;
   /** Featured accounts (not me): their pet walks on every island, their island has a shop with deals. */
   featured: ProfileRow[];
   /** Deals of the featured shop. */
@@ -173,6 +175,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [reactionRows, setReactionRows] = useState<ReactionRow[]>([]);
   const [petRows, setPetRows] = useState<PetRow[]>([]);
   const [inventory, setInventory] = useState<string[]>([]);
+  const [stock, setStock] = useState<Record<string, number>>({});
   const [featuredRows, setFeaturedRows] = useState<ProfileRow[]>([]);
   const [dealRows, setDealRows] = useState<Deal[]>([]);
   const [claimedGifts, setClaimedGifts] = useState<string[]>([]);
@@ -252,7 +255,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     setReactionRows((reactionsData ?? []) as ReactionRow[]);
     const [petsRes, invRes, featuredRes, dealsRes, giftsRes] = await Promise.all([
       supabase.from('pets').select('*').order('created_at'),
-      supabase.from('inventory').select('item_id').eq('user_id', userId),
+      supabase.from('inventory').select('item_id, quantity').eq('user_id', userId),
       // Featured accounts (the app's creator): their pet visits every island, their island has a shop.
       supabase.from('profiles').select('*').eq('featured', true),
       supabase.rpc('todays_deals'),
@@ -262,7 +265,9 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     setDealRows((dealsRes.data ?? []) as Deal[]);
     setClaimedGifts(((giftsRes.data ?? []) as { item_id: string }[]).map((r) => r.item_id));
     setPetRows((petsRes.data ?? []) as PetRow[]);
-    setInventory(((invRes.data ?? []) as { item_id: string }[]).map((r) => r.item_id));
+    const invRows = (invRes.data ?? []) as { item_id: string; quantity: number }[];
+    setInventory(invRows.map((r) => r.item_id));
+    setStock(Object.fromEntries(invRows.map((r) => [r.item_id, r.quantity ?? 1])));
     setNow(Date.now());
     setLoading(false);
   }, [userId]);
@@ -428,6 +433,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       pets: myPets,
       friendPets,
       inventory,
+      stock,
       buyItem: (itemId) => run(() => supabase.rpc('buy_item', { item: itemId })),
       equipItem: (petId, slot, itemId) => run(() => supabase.rpc('equip_item', { pet: petId, slot, item: itemId })),
       setActivePet: (petId) => run(() => supabase.rpc('set_active_pet', { pet: petId })),
@@ -545,6 +551,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     reactionRows,
     petRows,
     inventory,
+    stock,
     featuredRows,
     dealRows,
     claimedGifts,
