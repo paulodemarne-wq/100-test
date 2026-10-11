@@ -353,14 +353,20 @@ export const GARDEN_SLOT_NAMES: Record<GardenSlot, string> = {
   ground: 'Sol',
 };
 
+/** Whether the player can use this item (bought, or free). */
+export function ownsItem(item: ShopItem, inventory: string[]): boolean {
+  return item.costHours === 0 || inventory.includes(item.id);
+}
+
 export type ShopItem = {
   id: string;
   name: string;
   kind: 'accessory' | 'egg' | 'garden';
   slot: Slot | GardenSlot | null;
   rarity: Rarity;
-  /** Price in hours of lock in. Must match supabase/schema.sql (shop_items). */
+  /** Price in hours of lock in (0 = free for everyone). Must match supabase/schema.sql (shop_items). */
   costHours: number;
+  emoji?: string;
 };
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -382,25 +388,42 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'cape', name: 'Cape de héros', kind: 'accessory', slot: 'back', rarity: 'épique', costHours: 80 },
   { id: 'angel', name: "Ailes d'ange", kind: 'accessory', slot: 'back', rarity: 'mythique', costHours: 200 },
   { id: 'jetpack', name: 'Jetpack', kind: 'accessory', slot: 'back', rarity: 'légendaire', costHours: 400 },
-  // Garden: shown behind the pet, visible to friends.
-  { id: 'doghouse', name: 'Niche', kind: 'garden', slot: 'house', rarity: 'commune', costHours: 10 },
-  { id: 'cabin', name: 'Cabane en bois', kind: 'garden', slot: 'house', rarity: 'rare', costHours: 30 },
-  { id: 'cottage', name: 'Petite maison', kind: 'garden', slot: 'house', rarity: 'épique', costHours: 80 },
-  { id: 'mushroom', name: 'Maison champignon', kind: 'garden', slot: 'house', rarity: 'mythique', costHours: 200 },
-  { id: 'castle', name: 'Château', kind: 'garden', slot: 'house', rarity: 'légendaire', costHours: 400 },
-  { id: 'bush', name: 'Buissons', kind: 'garden', slot: 'tree', rarity: 'commune', costHours: 10 },
-  { id: 'apple', name: 'Pommier', kind: 'garden', slot: 'tree', rarity: 'rare', costHours: 30 },
-  { id: 'sakura', name: 'Cerisier en fleurs', kind: 'garden', slot: 'tree', rarity: 'épique', costHours: 80 },
-  { id: 'crystal', name: 'Arbre de cristal', kind: 'garden', slot: 'tree', rarity: 'mythique', costHours: 200 },
-  { id: 'flowerbed', name: 'Parterre de fleurs', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10 },
-  { id: 'lamp', name: 'Lampadaire', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10 },
-  { id: 'pond', name: 'Petite mare', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30 },
-  { id: 'fountain', name: 'Fontaine', kind: 'garden', slot: 'deco', rarity: 'épique', costHours: 80 },
-  { id: 'rainbow', name: 'Arc-en-ciel', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 400 },
-  { id: 'meadow', name: 'Prairie fleurie', kind: 'garden', slot: 'ground', rarity: 'rare', costHours: 30 },
-  { id: 'beach', name: 'Plage', kind: 'garden', slot: 'ground', rarity: 'rare', costHours: 30 },
-  { id: 'snow', name: 'Neige', kind: 'garden', slot: 'ground', rarity: 'épique', costHours: 80 },
-  { id: 'clouds', name: 'Île dans les nuages', kind: 'garden', slot: 'ground', rarity: 'légendaire', costHours: 400 },
+  // Island: ground tiles to paint and objects to place. Free ones (0 h) are owned by everyone.
+  { id: 'grass', name: 'Herbe', kind: 'garden', slot: 'ground', rarity: 'commune', costHours: 0, emoji: '🟩' },
+  { id: 'path', name: 'Chemin de terre', kind: 'garden', slot: 'ground', rarity: 'commune', costHours: 0, emoji: '🟫' },
+  { id: 'cobble', name: 'Pavés', kind: 'garden', slot: 'ground', rarity: 'commune', costHours: 10, emoji: '⬜' },
+  { id: 'water', name: 'Eau', kind: 'garden', slot: 'ground', rarity: 'commune', costHours: 10, emoji: '🟦' },
+  { id: 'meadow', name: 'Prairie fleurie', kind: 'garden', slot: 'ground', rarity: 'rare', costHours: 30, emoji: '🌼' },
+  { id: 'beach', name: 'Sable', kind: 'garden', slot: 'ground', rarity: 'rare', costHours: 30, emoji: '🏖️' },
+  { id: 'wood', name: 'Plancher', kind: 'garden', slot: 'ground', rarity: 'rare', costHours: 30, emoji: '🪵' },
+  { id: 'snow', name: 'Neige', kind: 'garden', slot: 'ground', rarity: 'épique', costHours: 80, emoji: '❄️' },
+  { id: 'clouds', name: 'Nuages', kind: 'garden', slot: 'ground', rarity: 'légendaire', costHours: 400, emoji: '☁️' },
+  { id: 'fence', name: 'Clôture', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 0, emoji: '🚧' },
+  { id: 'rock', name: 'Rocher', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 0, emoji: '🪨' },
+  { id: 'pine', name: 'Sapin', kind: 'garden', slot: 'tree', rarity: 'commune', costHours: 0, emoji: '🌲' },
+  { id: 'tent', name: 'Tente', kind: 'garden', slot: 'house', rarity: 'commune', costHours: 10, emoji: '⛺' },
+  { id: 'doghouse', name: 'Niche', kind: 'garden', slot: 'house', rarity: 'commune', costHours: 10, emoji: '🐶' },
+  { id: 'cabin', name: 'Cabane en bois', kind: 'garden', slot: 'house', rarity: 'rare', costHours: 30, emoji: '🛖' },
+  { id: 'cottage', name: 'Petite maison', kind: 'garden', slot: 'house', rarity: 'épique', costHours: 80, emoji: '🏡' },
+  { id: 'mushroom', name: 'Maison champignon', kind: 'garden', slot: 'house', rarity: 'mythique', costHours: 200, emoji: '🍄' },
+  { id: 'castle', name: 'Château', kind: 'garden', slot: 'house', rarity: 'légendaire', costHours: 400, emoji: '🏰' },
+  { id: 'bush', name: 'Buissons', kind: 'garden', slot: 'tree', rarity: 'commune', costHours: 10, emoji: '🌳' },
+  { id: 'apple', name: 'Pommier', kind: 'garden', slot: 'tree', rarity: 'rare', costHours: 30, emoji: '🍎' },
+  { id: 'palm', name: 'Palmier', kind: 'garden', slot: 'tree', rarity: 'rare', costHours: 30, emoji: '🌴' },
+  { id: 'sakura', name: 'Cerisier en fleurs', kind: 'garden', slot: 'tree', rarity: 'épique', costHours: 80, emoji: '🌸' },
+  { id: 'crystal', name: 'Arbre de cristal', kind: 'garden', slot: 'tree', rarity: 'mythique', costHours: 200, emoji: '💎' },
+  { id: 'flowerbed', name: 'Parterre de fleurs', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '🌷' },
+  { id: 'hedge', name: 'Haie', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '🟢' },
+  { id: 'bench', name: 'Banc', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '🪑' },
+  { id: 'lamp', name: 'Lampadaire', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '💡' },
+  { id: 'campfire', name: 'Feu de camp', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '🔥' },
+  { id: 'pumpkin', name: 'Citrouilles', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '🎃' },
+  { id: 'table', name: 'Table de pique-nique', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🧺' },
+  { id: 'pond', name: 'Petite mare', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🪷' },
+  { id: 'well', name: 'Puits', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🪣' },
+  { id: 'fountain', name: 'Fontaine', kind: 'garden', slot: 'deco', rarity: 'épique', costHours: 80, emoji: '⛲' },
+  { id: 'statue', name: 'Statue en or', kind: 'garden', slot: 'deco', rarity: 'mythique', costHours: 200, emoji: '🏆' },
+  { id: 'rainbow', name: 'Arc-en-ciel', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 400, emoji: '🌈' },
 ];
 
 export function itemById(id: string | null | undefined): ShopItem | null {

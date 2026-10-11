@@ -7,8 +7,6 @@ import { PetView } from '../../components/PetView';
 import {
   displayName,
   formFor,
-  GARDEN_SLOT_NAMES,
-  GardenSlot,
   LEVEL_HOURS,
   LEVEL_UNLOCKS,
   levelFor,
@@ -29,11 +27,10 @@ import { card, colors, type } from '../../lib/theme';
 import { formatDuration } from '../../lib/time';
 
 const SLOTS: Slot[] = ['head', 'eyes', 'neck', 'back'];
-const GARDEN_SLOTS: GardenSlot[] = ['house', 'tree', 'deco', 'ground'];
 
 export default function PetScreen() {
   const { profile, reloadProfile } = useAuth();
-  const { pets, inventory, equipItem, setActivePet, setGarden } = useSocial();
+  const { pets, friends, friendPets, inventory, equipItem, setActivePet } = useSocial();
   const [busy, setBusy] = useState(false);
   const pet = pets[0] ?? null;
   const balance = Math.max(0, (profile?.total_seconds ?? 0) - (profile?.spent_seconds ?? 0));
@@ -81,26 +78,7 @@ export default function PetScreen() {
     ]);
   };
 
-  const garden = profile?.garden ?? {};
-  const chooseGardenItem = (slot: GardenSlot) => {
-    const owned = SHOP_ITEMS.filter((i) => i.kind === 'garden' && i.slot === slot && inventory.includes(i.id));
-    if (owned.length === 0) {
-      Alert.alert(`Pas encore de ${GARDEN_SLOT_NAMES[slot].toLowerCase()}`, 'Achète de quoi décorer ton jardin dans la boutique.', [
-        { text: 'Plus tard', style: 'cancel' },
-        { text: 'Boutique', onPress: () => router.push({ pathname: '/shop', params: { tab: 'garden' } }) },
-      ]);
-      return;
-    }
-    const place = (item: string | null) =>
-      setGarden(slot, item)
-        .then(reloadProfile)
-        .catch(fail);
-    Alert.alert(GARDEN_SLOT_NAMES[slot], undefined, [
-      ...owned.map((i) => ({ text: garden[slot] === i.id ? `${i.name} ✓` : i.name, onPress: () => place(i.id) })),
-      ...(garden[slot] ? [{ text: 'Retirer', style: 'destructive' as const, onPress: () => place(null) }] : []),
-      { text: 'Annuler', style: 'cancel' as const },
-    ]);
-  };
+  const visitors = friends.filter((f) => friendPets[f.profile.id]).length;
 
   const switchPet = async (id: string) => {
     setBusy(true);
@@ -135,8 +113,7 @@ export default function PetScreen() {
             species={pet.species}
             level={level}
             equipped={pet.equipped}
-            garden={garden}
-            onPress={() => router.push('/gardens')}
+            onPress={() => router.push('/world')}
             style={styles.viewer}
           />
           <View style={[styles.badge, { backgroundColor: tier.color }]}>
@@ -145,7 +122,7 @@ export default function PetScreen() {
             </Text>
           </View>
           <View style={styles.hint} pointerEvents="none">
-            <Text style={styles.hintText}>Glisse pour le tourner · touche pour visiter tes amis</Text>
+            <Text style={styles.hintText}>Glisse pour le tourner · touche pour aller sur ton île</Text>
           </View>
         </View>
 
@@ -175,6 +152,22 @@ export default function PetScreen() {
           </View>
         </View>
 
+        <Pressable onPress={() => router.push('/world')} style={styles.island}>
+          <Text style={{ fontSize: 40 }}>🏝️</Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={type.headline}>Mon île</Text>
+            <Text style={type.footnote}>
+              {visitors > 0
+                ? `${visitors} ami${visitors > 1 ? 's' : ''} s'y promène${visitors > 1 ? 'nt' : ''} avec ${visitors > 1 ? 'leurs' : 'son'} animal`
+                : 'Décore-la et invite tes amis : leurs animaux viendront s’y promener'}
+            </Text>
+          </View>
+          <Pressable onPress={() => router.push({ pathname: '/world', params: { edit: '1' } })} style={styles.islandEdit} hitSlop={6}>
+            <Ionicons name="hammer" size={16} color={colors.accent} />
+          </Pressable>
+          <Ionicons name="chevron-forward" size={18} color={colors.tertiary} />
+        </Pressable>
+
         <Text style={styles.sectionTitle}>ACCESSOIRES</Text>
         <View style={styles.slots}>
           {SLOTS.map((slot) => {
@@ -189,27 +182,6 @@ export default function PetScreen() {
             );
           })}
         </View>
-
-        <Text style={styles.sectionTitle}>MON JARDIN</Text>
-        <View style={styles.slots}>
-          {GARDEN_SLOTS.map((slot) => {
-            const item = SHOP_ITEMS.find((i) => i.id === garden[slot]);
-            return (
-              <Pressable key={slot} onPress={() => chooseGardenItem(slot)} style={styles.slot}>
-                <Text style={type.footnote}>{GARDEN_SLOT_NAMES[slot]}</Text>
-                <Text style={[styles.slotItem, item && { color: RARITY_COLORS[item.rarity] }]} numberOfLines={2}>
-                  {item ? item.name : slot === 'ground' ? 'Herbe' : 'Vide'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Pressable onPress={() => router.push('/gardens')} style={styles.linkRow}>
-          <Ionicons name="people" size={20} color={colors.accent} />
-          <Text style={[type.headline, { flex: 1 }]}>Visiter les jardins de mes amis</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.tertiary} />
-        </Pressable>
 
         <Pressable onPress={() => router.push('/shop')} style={styles.shopButton}>
           <Ionicons name="bag-handle" size={20} color={colors.onAccent} />
@@ -319,5 +291,7 @@ const styles = StyleSheet.create({
   },
   collectionName: { fontSize: 13, fontWeight: '600', color: colors.text },
   collectionStage: { fontSize: 12, fontWeight: '700' },
+  island: { ...card, marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  islandEdit: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
   linkRow: { ...card, marginTop: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
 });

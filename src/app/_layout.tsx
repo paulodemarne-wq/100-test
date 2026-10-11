@@ -67,7 +67,7 @@ export default function RootLayout() {
             <Stack.Screen name="recap" options={{ presentation: 'modal' }} />
             <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
             <Stack.Screen name="bestiary" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="gardens" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="world" options={{ gestureEnabled: false }} />
           </Stack>
         </LockinProvider>
       </SocialProvider>

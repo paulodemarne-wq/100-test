@@ -38,6 +38,8 @@ export type ProfileRow = {
   active_pet_id: string | null;
   /** Garden items shown behind the pet, by slot (house, tree, deco, ground). */
   garden: Partial<Record<'house' | 'tree' | 'deco' | 'ground', string>>;
+  /** The island (see src/world/world.ts). Null until first saved. */
+  world: unknown;
 };
 
 export type PetRow = {
@@ -112,7 +114,7 @@ export function errorMessage(error: unknown): string {
   if (/unable to validate email|invalid format|email address .* is invalid/i.test(message)) return 'Adresse e-mail invalide.';
   if (/profiles_username_key/i.test(message)) return 'Ce pseudo est déjà pris.';
   if (/pas assez d'heures/i.test(message)) return "Pas assez d'heures. Lock in pour en gagner 💪";
-  if (/déjà acheté/i.test(message)) return 'Tu as déjà cet accessoire.';
+  if (/déjà acheté/i.test(message)) return 'Tu l’as déjà.';
   if (/code invalide/i.test(message)) return 'Code invalide. Vérifie-le avec la personne qui a créé le groupe.';
   if (/network request failed|fetch failed/i.test(message)) return 'Pas de connexion internet.';
   return message;

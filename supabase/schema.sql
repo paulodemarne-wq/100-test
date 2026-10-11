@@ -663,6 +663,9 @@ alter table public.shop_items add constraint shop_items_kind_check check (kind i
 alter table public.shop_items drop constraint if exists shop_items_slot_check;
 alter table public.shop_items add constraint shop_items_slot_check
   check (slot in ('head', 'eyes', 'neck', 'back', 'house', 'tree', 'deco', 'ground'));
+-- v6: some island items are free (0 h) and owned by everyone.
+alter table public.shop_items drop constraint if exists shop_items_cost_seconds_check;
+alter table public.shop_items add constraint shop_items_cost_seconds_check check (cost_seconds >= 0);
 
 insert into public.shop_items (id, kind, slot, rarity, cost_seconds) values
   ('egg', 'egg', null, 'rare', 100 * 3600),
@@ -683,6 +686,19 @@ insert into public.shop_items (id, kind, slot, rarity, cost_seconds) values
   ('cape', 'accessory', 'back', 'épique', 80 * 3600),
   ('angel', 'accessory', 'back', 'mythique', 200 * 3600),
   ('jetpack', 'accessory', 'back', 'légendaire', 400 * 3600),
+  ('grass', 'garden', 'ground', 'commune', 0 * 3600),
+  ('path', 'garden', 'ground', 'commune', 0 * 3600),
+  ('cobble', 'garden', 'ground', 'commune', 10 * 3600),
+  ('water', 'garden', 'ground', 'commune', 10 * 3600),
+  ('meadow', 'garden', 'ground', 'rare', 30 * 3600),
+  ('beach', 'garden', 'ground', 'rare', 30 * 3600),
+  ('wood', 'garden', 'ground', 'rare', 30 * 3600),
+  ('snow', 'garden', 'ground', 'épique', 80 * 3600),
+  ('clouds', 'garden', 'ground', 'légendaire', 400 * 3600),
+  ('fence', 'garden', 'deco', 'commune', 0 * 3600),
+  ('rock', 'garden', 'deco', 'commune', 0 * 3600),
+  ('pine', 'garden', 'tree', 'commune', 0 * 3600),
+  ('tent', 'garden', 'house', 'commune', 10 * 3600),
   ('doghouse', 'garden', 'house', 'commune', 10 * 3600),
   ('cabin', 'garden', 'house', 'rare', 30 * 3600),
   ('cottage', 'garden', 'house', 'épique', 80 * 3600),
@@ -690,17 +706,21 @@ insert into public.shop_items (id, kind, slot, rarity, cost_seconds) values
   ('castle', 'garden', 'house', 'légendaire', 400 * 3600),
   ('bush', 'garden', 'tree', 'commune', 10 * 3600),
   ('apple', 'garden', 'tree', 'rare', 30 * 3600),
+  ('palm', 'garden', 'tree', 'rare', 30 * 3600),
   ('sakura', 'garden', 'tree', 'épique', 80 * 3600),
   ('crystal', 'garden', 'tree', 'mythique', 200 * 3600),
   ('flowerbed', 'garden', 'deco', 'commune', 10 * 3600),
+  ('hedge', 'garden', 'deco', 'commune', 10 * 3600),
+  ('bench', 'garden', 'deco', 'commune', 10 * 3600),
   ('lamp', 'garden', 'deco', 'commune', 10 * 3600),
+  ('campfire', 'garden', 'deco', 'commune', 10 * 3600),
+  ('pumpkin', 'garden', 'deco', 'commune', 10 * 3600),
+  ('table', 'garden', 'deco', 'rare', 30 * 3600),
   ('pond', 'garden', 'deco', 'rare', 30 * 3600),
+  ('well', 'garden', 'deco', 'rare', 30 * 3600),
   ('fountain', 'garden', 'deco', 'épique', 80 * 3600),
-  ('rainbow', 'garden', 'deco', 'légendaire', 400 * 3600),
-  ('meadow', 'garden', 'ground', 'rare', 30 * 3600),
-  ('beach', 'garden', 'ground', 'rare', 30 * 3600),
-  ('snow', 'garden', 'ground', 'épique', 80 * 3600),
-  ('clouds', 'garden', 'ground', 'légendaire', 400 * 3600)
+  ('statue', 'garden', 'deco', 'mythique', 200 * 3600),
+  ('rainbow', 'garden', 'deco', 'légendaire', 400 * 3600)
 on conflict (id) do update set kind = excluded.kind, slot = excluded.slot, rarity = excluded.rarity, cost_seconds = excluded.cost_seconds;
 
 alter table public.shop_items enable row level security;
@@ -784,6 +804,7 @@ begin
   if auth.uid() is null then raise exception 'Non connecté'; end if;
   select * into it from public.shop_items where id = item;
   if it.id is null then raise exception 'Objet inconnu'; end if;
+  if it.cost_seconds = 0 then raise exception 'Déjà acheté' using errcode = 'P0001'; end if;
   -- Lock the profile row so two purchases can't spend the same hours.
   select * into me from public.profiles where id = auth.uid() for update;
   if me.total_seconds - me.spent_seconds < it.cost_seconds then
@@ -851,10 +872,55 @@ begin
   update public.profiles set garden = garden || jsonb_build_object(slot, item) where id = auth.uid();
 end $$;
 
+-- v6: the island (16×16 tiles + placed objects). Friends walk on it; only save_world writes it.
+alter table public.profiles add column if not exists world jsonb;
+
+create or replace function public.owns_item(u uuid, item text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.shop_items where id = item and kind = 'garden' and cost_seconds = 0)
+      or exists (select 1 from public.inventory where user_id = u and item_id = item);
+$$;
+
+create or replace function public.save_world(world jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  tiles text := world->>'tiles';
+  objects jsonb := world->'objects';
+  tile_items constant jsonb := '{"g":"grass","p":"path","o":"cobble","w":"water","f":"meadow","s":"beach","d":"wood","n":"snow","c":"clouds"}';
+  ch text;
+  o jsonb;
+begin
+  if auth.uid() is null then raise exception 'Non connecté'; end if;
+  if tiles is null or length(tiles) <> 256 or tiles !~ '^[gpowfsdnc]+$' then raise exception 'Île invalide'; end if;
+  if objects is null or jsonb_typeof(objects) <> 'array' or jsonb_array_length(objects) > 150 then
+    raise exception 'Trop d''objets (150 max)';
+  end if;
+  for ch in select distinct c from regexp_split_to_table(tiles, '') as c loop
+    if not public.owns_item(auth.uid(), tile_items->>ch) then raise exception 'Sol non possédé'; end if;
+  end loop;
+  for o in select * from jsonb_array_elements(objects) loop
+    if jsonb_typeof(o) <> 'array' or jsonb_array_length(o) <> 4
+      or jsonb_typeof(o->1) <> 'number' or jsonb_typeof(o->2) <> 'number' or jsonb_typeof(o->3) <> 'number'
+      or (o->>1)::numeric not in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)
+      or (o->>2)::numeric not in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)
+      or (o->>3)::numeric not in (0,1,2,3) then
+      raise exception 'Objet mal placé';
+    end if;
+    if not exists (select 1 from public.shop_items where id = o->>0 and kind = 'garden' and slot <> 'ground')
+      or not public.owns_item(auth.uid(), o->>0) then
+      raise exception 'Objet non possédé';
+    end if;
+  end loop;
+  update public.profiles
+  set world = jsonb_build_object('v', 1, 'tiles', tiles, 'objects', objects)
+  where id = auth.uid();
+end $$;
+
 revoke execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text),
-  public.set_garden(text, text), public.hatch_if_ready(uuid) from public, anon;
+  public.set_garden(text, text), public.save_world(jsonb), public.owns_item(uuid, text), public.hatch_if_ready(uuid)
+  from public, anon;
 grant execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text),
-  public.set_garden(text, text) to authenticated;
+  public.set_garden(text, text), public.save_world(jsonb) to authenticated;
 
 do $$
 declare t text;

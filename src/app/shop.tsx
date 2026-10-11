@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetView } from '../components/PetView';
-import { GARDEN_SLOT_NAMES, GardenSlot, levelFor, RARITY_COLORS, SHOP_ITEMS, ShopItem, Slot, SLOT_NAMES } from '../creatures/species';
+import { GARDEN_SLOT_NAMES, GardenSlot, levelFor, ownsItem, RARITY_COLORS, SHOP_ITEMS, ShopItem, Slot, SLOT_NAMES } from '../creatures/species';
 import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
@@ -13,7 +13,7 @@ import { formatDuration } from '../lib/time';
 
 export default function Shop() {
   const { profile, reloadProfile } = useAuth();
-  const { pets, inventory, buyItem, equipItem, setGarden } = useSocial();
+  const { pets, inventory, buyItem, equipItem } = useSocial();
   const params = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<'pet' | 'garden'>(params.tab === 'garden' ? 'garden' : 'pet');
   const [preview, setPreview] = useState<ShopItem | null>(null);
@@ -39,14 +39,11 @@ export default function Shop() {
             if (item.kind === 'egg') {
               Alert.alert('Nouvel œuf 🥚', "Il est dans ta collection. Choisis-le comme animal actif pour le faire éclore.");
             } else if (item.kind === 'garden' && item.slot) {
-              Alert.alert(`${item.name} acheté 🎉`, 'Tu veux le placer dans ton jardin ?', [
+              Alert.alert(`${item.name} débloqué 🎉`, 'Tu peux en poser autant que tu veux sur ton île.', [
                 { text: 'Plus tard', style: 'cancel' },
                 {
-                  text: 'Placer',
-                  onPress: () =>
-                    setGarden(item.slot!, item.id)
-                      .then(reloadProfile)
-                      .catch(() => {}),
+                  text: 'Le poser',
+                  onPress: () => router.replace({ pathname: '/world', params: { edit: '1', item: item.id } }),
                 },
               ]);
             } else if (pet && item.slot) {
@@ -65,12 +62,8 @@ export default function Shop() {
     ]);
   };
 
-  const trying = preview && preview.kind === (tab === 'garden' ? 'garden' : 'accessory') ? preview : null;
-  const equippedPreview = pet
-    ? { ...pet.equipped, ...(tab === 'pet' && trying?.slot ? { [trying.slot]: trying.id } : {}) }
-    : undefined;
-  const gardenPreview =
-    tab === 'garden' ? { ...(profile?.garden ?? {}), ...(trying?.slot ? { [trying.slot]: trying.id } : {}) } : null;
+  const trying = preview?.kind === 'accessory' ? preview : null;
+  const equippedPreview = pet ? { ...pet.equipped, ...(trying?.slot ? { [trying.slot]: trying.id } : {}) } : undefined;
   const items = SHOP_ITEMS.filter((i) => (tab === 'garden' ? i.kind === 'garden' : i.kind !== 'garden'));
   const slotName = (item: ShopItem) =>
     item.kind === 'garden' ? GARDEN_SLOT_NAMES[item.slot as GardenSlot] : SLOT_NAMES[item.slot as Slot];
@@ -88,18 +81,10 @@ export default function Shop() {
         </Pressable>
       </View>
 
-      {pet && (
+      {pet && tab === 'pet' && (
         <View style={styles.preview}>
-          <PetView
-            species={pet.species}
-            level={levelFor(pet.xp_seconds)}
-            equipped={equippedPreview}
-            garden={gardenPreview}
-            style={{ flex: 1 }}
-          />
-          <Text style={styles.previewHint}>
-            {trying ? `Essai : ${trying.name}` : tab === 'garden' ? 'Touche un objet pour le voir dans ton jardin' : 'Touche un accessoire pour l’essayer'}
-          </Text>
+          <PetView species={pet.species} level={levelFor(pet.xp_seconds)} equipped={equippedPreview} style={{ flex: 1 }} />
+          <Text style={styles.previewHint}>{trying ? `Essai : ${trying.name}` : 'Touche un accessoire pour l’essayer'}</Text>
         </View>
       )}
 
@@ -114,18 +99,18 @@ export default function Shop() {
               }}
               style={[styles.tab, tab === t && styles.tabActive]}
             >
-              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t === 'pet' ? 'Animal' : 'Jardin'}</Text>
+              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t === 'pet' ? 'Animal' : 'Île'}</Text>
             </Pressable>
           ))}
         </View>
         <Text style={type.subhead}>
           {tab === 'garden'
-            ? 'Décore le jardin derrière ton animal. Tes amis le voient quand ils te rendent visite.'
+            ? 'Débloque un objet une fois, pose-le autant de fois que tu veux sur ton île. Tes amis le verront en visite.'
             : 'Chaque heure de lock in = 1 h à dépenser ici.'}
         </Text>
         <View style={styles.grid}>
           {items.map((item) => {
-            const owned = item.kind !== 'egg' && inventory.includes(item.id);
+            const owned = item.kind !== 'egg' && ownsItem(item, inventory);
             const affordable = balance >= item.costHours * 3600;
             const color = item.kind === 'egg' ? colors.accent : RARITY_COLORS[item.rarity];
             return (
@@ -138,12 +123,13 @@ export default function Shop() {
                   <Text style={styles.rarityText}>{item.kind === 'egg' ? 'Nouvel animal' : item.rarity}</Text>
                 </View>
                 <Text style={styles.itemName} numberOfLines={2}>
+                  {item.emoji ? `${item.emoji} ` : ''}
                   {item.name}
                 </Text>
                 <Text style={type.footnote}>{item.slot ? slotName(item) : 'Éclot en un animal au hasard'}</Text>
                 {owned ? (
                   <View style={[styles.buy, { backgroundColor: colors.successSoft }]}>
-                    <Text style={[styles.buyText, { color: colors.success }]}>Possédé ✓</Text>
+                    <Text style={[styles.buyText, { color: colors.success }]}>{item.costHours === 0 ? 'Gratuit ✓' : 'Possédé ✓'}</Text>
                   </View>
                 ) : (
                   <Pressable

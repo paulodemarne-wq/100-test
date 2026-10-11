@@ -91,6 +91,8 @@ type Social = {
   setActivePet: (petId: string) => Promise<void>;
   /** Place an owned garden item (null removes it). Reload the profile afterwards. */
   setGarden: (slot: string, itemId: string | null) => Promise<void>;
+  /** Saves my island. Reload the profile afterwards. */
+  saveWorld: (world: unknown) => Promise<void>;
   /** Nudges received and not yet seen, with the sender's profile. */
   nudges: { id: string; from: ProfileRow }[];
   refresh: () => Promise<void>;
@@ -409,6 +411,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       equipItem: (petId, slot, itemId) => run(() => supabase.rpc('equip_item', { pet: petId, slot, item: itemId })),
       setActivePet: (petId) => run(() => supabase.rpc('set_active_pet', { pet: petId })),
       setGarden: (slot, itemId) => run(() => supabase.rpc('set_garden', { slot, item: itemId })),
+      saveWorld: (world) => run(() => supabase.rpc('save_world', { world })),
       react: async (sessionId, emoji) => {
         if (!userId) return;
         // Optimistic: show the reaction right away.

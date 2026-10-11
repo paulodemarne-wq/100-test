@@ -23,9 +23,10 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 - **Mon animal** 🐾 : un œuf qui éclot en un des **100 animaux** (16 corps différents : slime, golem, dragon, pieuvre, escargot…), à faire tourner en 3D.
   Il gagne l'expérience de tes sessions : **40 niveaux**, un changement visible à chaque niveau, 3 formes d'évolution,
   et les paliers Bébé → Rare → Super rare → Épique → Mythique → Légendaire. Le niveau max demande ~2 190 h (2 ans à 3 h/jour).
-- **Jardin** 🏡 derrière ton animal : maison (niche → château), arbre, déco (mare, fontaine, arc-en-ciel…) et sol (prairie, plage, neige, nuages).
-  Touche ton jardin pour **visiter ceux de tes amis** avec leur animal.
-- **Boutique** : chaque heure de lock in se dépense en accessoires (commune 10 h → légendaire 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 100 animaux.
+- **Mon île** 🏝️ : une île de 16×16 cases à décorer comme on veut : peindre le sol (herbe, chemin, pavés, eau, sable, neige, nuages…)
+  et poser jusqu'à 150 objets (maisons, arbres, clôtures, bancs, feu de camp, fontaine, château…). Un objet débloqué se pose autant de fois qu'on veut.
+  **Les animaux de tous tes amis se promènent sur ton île**, et tu peux aller visiter la leur.
+- **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis 10 h → légendaire 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 100 animaux.
 - **Rappel quotidien** à l'heure choisie et **joker de série** : un jour raté par mois est pardonné.
 
 ## Backend (Supabase)
@@ -68,9 +69,10 @@ src/app/                 écrans (Expo Router : chaque fichier = un écran)
   (tabs)/pet.tsx         mon animal 3D, accessoires, collection
   (tabs)/ranking.tsx     classement
   shop.tsx, bestiary.tsx boutique et bestiaire
-  gardens.tsx            visite des jardins des amis
-src/creatures/           100 espèces, niveaux, boutique (species.ts) modèles 3D (build.ts) et jardin (garden.ts)
-src/components/          PetView (3D), Avatar, anneau, listes, date/heure, pause, tâches, sons, réactions
+  world.tsx              l'île : visite, amis qui s'y promènent, mode Modifier
+src/creatures/           100 espèces, niveaux, boutique (species.ts) modèles 3D (build.ts)
+src/world/               l'île : données (world.ts), objets 3D (decor.ts), scène et caméra (scene.ts)
+src/components/          PetView et WorldView (3D), Avatar, anneau, listes, date/heure, pause, tâches, sons, réactions
 src/lib/
   supabase.ts            connexion à Supabase
   auth.tsx               compte et profil

@@ -2,10 +2,11 @@
 // Build: npx esbuild scripts/bestiary/entry.ts --bundle --format=iife --minify --outfile=<out>.js
 import * as THREE from 'three';
 import { addLights, buildCreature, Creature } from '../../src/creatures/build';
-import { buildGarden, GARDEN_CAMERA, GardenScene } from '../../src/creatures/garden';
-import { displayName, Equipped, Garden, LEVEL_HOURS, LEVEL_UNLOCKS, PLAN_NAMES, SHOP_ITEMS, SPECIES, TIERS, formFor, tierFor } from '../../src/creatures/species';
+import { buildIsland, IslandCamera, PetSpec } from '../../src/world/scene';
+import { defaultWorld, World } from '../../src/world/world';
+import { displayName, Equipped, LEVEL_HOURS, LEVEL_UNLOCKS, PLAN_NAMES, SHOP_ITEMS, SPECIES, TIERS, formFor, tierFor } from '../../src/creatures/species';
 
-type Item = { species: number | null; level: number; equipped?: Equipped; garden?: Garden };
+type Item = { species: number | null; level: number; equipped?: Equipped };
 
 /** Renders a grid of creatures in ONE WebGL context. Drag to turn them all. */
 function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; background?: string }) {
@@ -18,17 +19,10 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
   camera.position.set(0, 1.5, 4.8);
   camera.lookAt(0, 0.85, 0);
 
-  const gardenCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
-  gardenCamera.position.set(...GARDEN_CAMERA.position);
-  gardenCamera.lookAt(...GARDEN_CAMERA.target);
-
   let creatures: Creature[] = [];
-  let gardens: (GardenScene | null)[] = [];
   const build = () => {
     creatures.forEach((c) => c.dispose());
-    gardens.forEach((g) => g?.dispose());
     creatures = opts.items.map((it) => buildCreature(it));
-    gardens = opts.items.map((it) => (it.garden ? buildGarden(it.garden) : null));
   };
   build();
 
@@ -79,8 +73,6 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
     renderer.clear();
     camera.aspect = cw / ch;
     camera.updateProjectionMatrix();
-    gardenCamera.aspect = cw / ch;
-    gardenCamera.updateProjectionMatrix();
     creatures.forEach((c, i) => {
       const x = (i % cols) * cw;
       const y = h - (Math.floor(i / cols) + 1) * ch;
@@ -88,17 +80,9 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
       renderer.setScissor(x, y, cw, ch);
       c.group.rotation.y = yaw;
       c.update(t + i * 0.37);
-      const g = gardens[i];
-      if (g) {
-        renderer.setClearColor(g.sky, 1);
-        renderer.clear();
-        g.update(t);
-        scene.add(g.group);
-      }
       scene.add(c.group);
-      renderer.render(scene, g ? gardenCamera : camera);
+      renderer.render(scene, camera);
       scene.remove(c.group);
-      if (g) scene.remove(g.group);
     });
   };
   frame();
@@ -112,7 +96,65 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
     destroy() {
       cancelAnimationFrame(raf);
       creatures.forEach((c) => c.dispose());
-      gardens.forEach((g) => g?.dispose());
+      renderer.dispose();
+    },
+  };
+}
+
+/** Renders an island with pets walking on it. Drag to move, wheel to zoom. */
+function mountWorld(canvas: HTMLCanvasElement, opts: { world?: World; pets: PetSpec[]; yaw?: number; distance?: number }) {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  const scene = new THREE.Scene();
+  addLights(scene);
+  const island = buildIsland(opts.world ?? defaultWorld(), opts.pets);
+  scene.add(island.group);
+  const cam = new IslandCamera(1);
+  if (opts.yaw !== undefined) cam.yaw = opts.yaw;
+  if (opts.distance !== undefined) cam.distance = opts.distance;
+  cam.apply();
+  renderer.setClearColor(island.sky, 1);
+
+  let dragging = false;
+  let last = [0, 0];
+  canvas.style.touchAction = 'none';
+  canvas.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    last = [e.clientX, e.clientY];
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    cam.pan(e.clientX - last[0], e.clientY - last[1], canvas.clientHeight);
+    last = [e.clientX, e.clientY];
+  });
+  canvas.addEventListener('pointerup', () => (dragging = false));
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    cam.zoom(e.deltaY < 0 ? 1.1 : 0.9);
+  });
+
+  let raf = 0;
+  let prev = performance.now();
+  const start = prev;
+  const frame = () => {
+    raf = requestAnimationFrame(frame);
+    const now = performance.now();
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (canvas.width !== Math.round(w * renderer.getPixelRatio())) renderer.setSize(w, h, false);
+    cam.camera.aspect = w / h;
+    cam.camera.updateProjectionMatrix();
+    island.update((now - start) / 1000, Math.min(0.1, (now - prev) / 1000));
+    prev = now;
+    renderer.render(scene, cam.camera);
+  };
+  frame();
+  return {
+    setWorld: (world: World) => island.setWorld(world),
+    destroy() {
+      cancelAnimationFrame(raf);
+      island.dispose();
       renderer.dispose();
     },
   };
@@ -120,6 +162,8 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
 
 (window as unknown as { LockinBestiary: unknown }).LockinBestiary = {
   mount,
+  mountWorld,
+  defaultWorld,
   species: SPECIES.map((s) => ({
     id: s.id,
     names: s.names,
