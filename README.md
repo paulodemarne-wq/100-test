@@ -34,7 +34,8 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 
 `supabase/admin.sql` transforme un compte en compte vedette (à lancer après `schema.sql`, en mettant son pseudo) :
 tous les objets, 19 dragons niveau 40, une île 32×32 avec la mer, son animal visible sur l'île de tout le monde,
-et une boutique promo sur son île (table `deals` : `percent` = réduction, 100 = offert une fois par joueur).
+et **la boutique du jour**, un bâtiment au centre de son île : chaque jour à minuit (heure de Paris), 6 promos (-30 à -75 %)
+et 1 cadeau offert, tirés au sort côté serveur (`todays_deals()`).
 Le fichier est généré par `scripts/admin/make-admin-sql.ts`.
 
 ## Backend (Supabase)

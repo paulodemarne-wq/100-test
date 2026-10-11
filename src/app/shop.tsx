@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetView } from '../components/PetView';
@@ -11,6 +11,25 @@ import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
 import { formatDuration } from '../lib/time';
 
+/** Time left before the daily shop changes (midnight, Paris time). */
+function msUntilNextShop(now: Date): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Paris',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(now);
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+    return (86400 - (get('hour') * 3600 + get('minute') * 60 + get('second'))) * 1000;
+  } catch {
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    return midnight.getTime() - now.getTime();
+  }
+}
+
 export default function Shop() {
   const { profile, reloadProfile } = useAuth();
   const { pets, inventory, buyItem, equipItem, deals, buyDeal, claimedGifts, featured } = useSocial();
@@ -18,6 +37,11 @@ export default function Shop() {
   const [tab, setTab] = useState<'pet' | 'garden' | 'deals'>(
     params.tab === 'garden' ? 'garden' : params.tab === 'deals' ? 'deals' : 'pet',
   );
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
   const dealFor = (item: ShopItem) => (tab === 'deals' ? deals.find((d) => d.item_id === item.id) ?? null : null);
   /** Price in hours, with the deal applied on the featured shop. */
   const priceOf = (item: ShopItem) => {
@@ -94,7 +118,7 @@ export default function Shop() {
     tab === 'deals'
       ? [
           {
-            title: `Boutique de ${featured[0]?.display_name ?? 'la vedette'}`,
+            title: `Boutique du jour${featured[0] ? ` de ${featured[0].display_name}` : ''}`,
             items: deals
               .slice()
               .sort((a, b) => b.percent - a.percent)
@@ -166,13 +190,13 @@ export default function Shop() {
               }}
               style={[styles.tab, tab === t && styles.tabActive]}
             >
-              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t === 'pet' ? 'Animal' : t === 'garden' ? 'Île' : '⭐ Promos'}</Text>
+              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t === 'pet' ? 'Animal' : t === 'garden' ? 'Île' : '🛍️ Du jour'}</Text>
             </Pressable>
           ))}
         </View>
         <Text style={type.subhead}>
           {tab === 'deals'
-            ? 'Les promos de la boutique vedette : grosses réductions et un cadeau offert.'
+            ? `Chaque jour, une nouvelle boutique : 6 promos et un cadeau offert. Nouvelle boutique dans ${formatDuration(Math.max(60, Math.floor(msUntilNextShop(now) / 1000)))}.`
             : tab === 'garden'
             ? 'Agrandis ton île, ajoute la mer et des bateaux. Un objet débloqué se pose autant de fois que tu veux.'
             : 'Chaque heure de lock in = 1 h à dépenser ici.'}

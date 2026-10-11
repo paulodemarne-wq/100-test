@@ -44,6 +44,8 @@ export default function WorldScreen() {
     ? (friends.find((f) => f.profile.id === params.user)?.profile ?? featured.find((p) => p.id === params.user))
     : profile;
   const hostFeatured = !!host?.featured && host.id !== profile?.id;
+  // A featured island (also my own if I'm featured) has the daily shop building.
+  const shopIsland = !!host?.featured;
   const mine = !params.user || params.user === profile?.id;
 
   const saved = useMemo(() => readWorld(host?.world), [host?.world]);
@@ -166,6 +168,17 @@ export default function WorldScreen() {
     ]);
   };
 
+  /** Outside the editor: tapping the shop building opens today's shop. */
+  const tapIsland = (x: number, z: number) => {
+    setPicked(null);
+    if (!shopIsland) return;
+    const nearShop = world.objects.some((o) => o[0] === 'boutique' && Math.abs(o[1] - x) <= 1 && Math.abs(o[2] - z) <= 1);
+    if (nearShop) {
+      Haptics.selectionAsync();
+      router.push({ pathname: '/shop', params: { tab: 'deals' } });
+    }
+  };
+
   const renderFocus = (petId: string) => {
     const pet = [...pets, ...Object.values(friendPets)].find((p) => p.id === petId);
     if (!pet) return null;
@@ -215,7 +228,14 @@ export default function WorldScreen() {
         world={world}
         pets={specs}
         labels={labels}
-        onTapCell={editing ? tapCell : () => setPicked(null)}
+        onTapCell={editing ? tapCell : tapIsland}
+        markers={
+          shopIsland && !editing
+            ? world.objects
+                .filter((o) => o[0] === 'boutique')
+                .map((o) => ({ id: `${o[1]},${o[2]}`, x: o[1] + 0.5, y: 2.3, z: o[2] + 0.5, text: '🛍️ Boutique du jour' }))
+            : undefined
+        }
         onTapPet={editing ? undefined : (id) => setPicked(id)}
         focusId={editing ? null : picked}
         renderFocus={renderFocus}

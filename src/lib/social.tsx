@@ -35,8 +35,8 @@ export type PersonStatus =
   | (SessionInfo & { kind: 'done'; durationSec: number; at: number })
   | { kind: 'idle' };
 
-/** A deal on the featured island's shop: percent off (100 = offered). */
-export type Deal = { item_id: string; percent: number; label: string | null };
+/** A deal in today's featured shop: percent off (100 = offered). The shop changes every day. */
+export type Deal = { item_id: string; percent: number };
 
 export type Person = {
   profile: ProfileRow;
@@ -255,7 +255,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       supabase.from('inventory').select('item_id').eq('user_id', userId),
       // Featured accounts (the app's creator): their pet visits every island, their island has a shop.
       supabase.from('profiles').select('*').eq('featured', true),
-      supabase.from('deals').select('*'),
+      supabase.rpc('todays_deals'),
       supabase.from('claimed_gifts').select('item_id').eq('user_id', userId),
     ]);
     setFeaturedRows(((featuredRes.data ?? []) as ProfileRow[]).filter((p) => p.id !== userId));

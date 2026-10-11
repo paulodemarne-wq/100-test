@@ -659,7 +659,7 @@ create table if not exists public.shop_items (
 
 -- v5: garden items (house, tree, deco, ground).
 alter table public.shop_items drop constraint if exists shop_items_kind_check;
-alter table public.shop_items add constraint shop_items_kind_check check (kind in ('accessory', 'egg', 'garden', 'upgrade'));
+alter table public.shop_items add constraint shop_items_kind_check check (kind in ('accessory', 'egg', 'garden', 'upgrade', 'special'));
 alter table public.shop_items drop constraint if exists shop_items_slot_check;
 alter table public.shop_items add constraint shop_items_slot_check
   check (slot in ('head', 'eyes', 'neck', 'back', 'house', 'tree', 'deco', 'ground', 'boat'));
@@ -760,7 +760,9 @@ insert into public.shop_items (id, kind, slot, rarity, cost_seconds) values
   ('size20', 'upgrade', null, 'rare', 50 * 3600),
   ('size24', 'upgrade', null, 'épique', 120 * 3600),
   ('size28', 'upgrade', null, 'mythique', 250 * 3600),
-  ('size32', 'upgrade', null, 'légendaire', 500 * 3600)
+  ('size32', 'upgrade', null, 'légendaire', 500 * 3600),
+  -- Not sold: the shop building on featured islands (given by admin.sql).
+  ('boutique', 'special', 'house', 'légendaire', 9999 * 3600)
 on conflict (id) do update set kind = excluded.kind, slot = excluded.slot, rarity = excluded.rarity, cost_seconds = excluded.cost_seconds;
 
 alter table public.shop_items enable row level security;
@@ -846,6 +848,7 @@ begin
   select * into it from public.shop_items where id = item;
   if it.id is null then raise exception 'Objet inconnu'; end if;
   if it.cost_seconds = 0 then raise exception 'Déjà acheté' using errcode = 'P0001'; end if;
+  if it.kind = 'special' then raise exception 'Pas à vendre' using errcode = 'P0001'; end if;
   -- Lock the profile row so two purchases can't spend the same hours.
   select * into me from public.profiles where id = auth.uid() for update;
   if me.total_seconds - me.spent_seconds < price then
@@ -974,7 +977,7 @@ begin
     end if;
     x := (o->>1)::numeric::int;
     z := (o->>2)::numeric::int;
-    if not exists (select 1 from public.shop_items where id = o->>0 and kind = 'garden' and slot <> 'ground')
+    if not exists (select 1 from public.shop_items where id = o->>0 and kind in ('garden', 'special') and slot <> 'ground')
       or not public.owns_item(auth.uid(), o->>0) then
       raise exception 'Objet non possédé';
     end if;
@@ -1035,23 +1038,41 @@ drop policy if exists "deals readable" on public.deals;
 create policy "deals readable" on public.deals for select to authenticated using (true);
 revoke insert, update, delete on public.deals from anon, authenticated;
 
+-- The featured shop changes every day at midnight (Paris time): 6 deals (-30 % to -75 %) and 1 offered item.
+-- Computed from the date, so everyone sees the same shop and nobody can pick their own prices.
+create or replace function public.todays_deals()
+returns table (item_id text, percent int)
+language sql stable security definer set search_path = public as $$
+  with day as (select ((now() at time zone 'Europe/Paris')::date)::text as d),
+  pool as (
+    select s.id, s.kind, s.cost_seconds, md5(day.d || s.id) as h
+    from public.shop_items s, day
+    where s.cost_seconds > 0 and s.kind in ('accessory', 'garden', 'egg', 'upgrade')
+      and s.id not in ('size24', 'size28', 'size32')
+  ),
+  gift as (
+    select p.id from pool p, day
+    where p.kind in ('accessory', 'garden') and p.cost_seconds <= 80 * 3600
+    order by md5(day.d || 'gift' || p.id) limit 1
+  ),
+  picks as (
+    select p.id, p.h from pool p where p.id not in (select id from gift) order by p.h limit 6
+  )
+  select id, 100 from gift
+  union all
+  select id, 30 + (('x' || substr(h, 1, 4))::bit(16)::int % 10) * 5 from picks;
+$$;
+
 create or replace function public.buy_deal(item text)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
-  d public.deals;
+  pct int;
   cost int;
 begin
-  select * into d from public.deals where item_id = item;
-  if d.item_id is null then raise exception 'Cette promo n''existe plus' using errcode = 'P0001'; end if;
+  select d.percent into pct from public.todays_deals() d where d.item_id = item;
+  if pct is null then raise exception 'Cette promo n''est plus dans la boutique du jour' using errcode = 'P0001'; end if;
   select cost_seconds into cost from public.shop_items where id = item;
-  -- An offered item is free, but each player gets it only once (eggs too).
-  if d.percent = 100 and exists (select 1 from public.claimed_gifts where user_id = auth.uid() and item_id = item) then
-    raise exception 'Déjà acheté' using errcode = 'P0001';
-  end if;
-  if d.percent = 100 then
-    insert into public.claimed_gifts (user_id, item_id) values (auth.uid(), item);
-  end if;
-  return public.purchase(item, (cost * (100 - d.percent)) / 100);
+  return public.purchase(item, (cost * (100 - pct)) / 100);
 end $$;
 
 create table if not exists public.claimed_gifts (
@@ -1065,5 +1086,5 @@ drop policy if exists "see own gifts" on public.claimed_gifts;
 create policy "see own gifts" on public.claimed_gifts for select to authenticated using (user_id = auth.uid());
 revoke insert, update, delete on public.claimed_gifts from anon, authenticated;
 
-revoke execute on function public.buy_deal(text) from public, anon;
-grant execute on function public.buy_deal(text) to authenticated;
+revoke execute on function public.buy_deal(text), public.todays_deals() from public, anon;
+grant execute on function public.buy_deal(text), public.todays_deals() to authenticated;

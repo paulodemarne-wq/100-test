@@ -305,6 +305,38 @@ export function buildDecor(id: string, k: Kit): THREE.Group {
       for (const s of [-1, 1]) add(g, new THREE.TorusGeometry(0.08, 0.02, 6, 14, Math.PI), mat('#F5B400', 0.2), [s * 0.17, 0.62, 0], [1, 1, 1], [0, 0, s * Math.PI / 2]);
       add(g, new THREE.OctahedronGeometry(0.05), mat('#FFFFFF', 1), [0, 0.86, 0]);
       break;
+    // ─── The daily shop building (featured islands only) ──────────────────
+    case 'boutique': {
+      // Shop front with big windows, a striped awning, a sign and a golden star on top.
+      add(g, box(0.95, 0.62, 0.7), mat('#FFF4E0'), [0, 0.31, -0.05]);
+      add(g, box(1.0, 0.06, 0.75), mat('#C9A27A'), [0, 0.03, -0.05]);
+      add(g, cone(0.72, 0.36, 4), mat('#5856D6'), [0, 0.8, -0.05], [1, 1, 0.75], [0, Math.PI / 4, 0]);
+      for (let i = 0; i < 6; i++)
+        add(g, box(0.165, 0.025, 0.3), mat(i % 2 ? '#FFFFFF' : '#E5484D'), [-0.41 + i * 0.165, 0.6, 0.38], [1, 1, 1], [0.45, 0, 0]);
+      for (let i = 0; i < 6; i++) add(g, sphere(0.083, 10), mat(i % 2 ? '#FFFFFF' : '#E5484D'), [-0.41 + i * 0.165, 0.535, 0.52], [1, 0.6, 0.6]);
+      add(g, box(0.22, 0.36, 0.03), mat('#6B4BA8'), [0, 0.2, 0.31]);
+      add(g, sphere(0.02, 6), mat('#F5B400'), [0.07, 0.2, 0.33]);
+      for (const x of [-0.3, 0.3]) {
+        add(g, box(0.26, 0.24, 0.03), mat('#8FD3FF', 0.35), [x, 0.27, 0.31]);
+        add(g, box(0.28, 0.03, 0.05), mat('#FFFFFF'), [x, 0.14, 0.33]);
+      }
+      add(g, box(0.62, 0.16, 0.04), mat('#F5B400', 0.15), [0, 0.86, 0.22], [1, 1, 1], [-0.3, 0, 0]);
+      add(g, box(0.55, 0.1, 0.01), mat('#5856D6'), [0, 0.86, 0.245], [1, 1, 1], [-0.3, 0, 0]);
+      const star = k.group(g, [0, 1.08, -0.05]);
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        add(star, cone(0.05, 0.14, 4), mat('#FFD43B', 0.6), [Math.sin(a) * 0.07, Math.cos(a) * 0.07, 0], [1, 1, 0.4], [0, 0, -a]);
+      }
+      add(star, sphere(0.06, 10), mat('#FFD43B', 0.6), [0, 0, 0], [1, 1, 0.5]);
+      // Little crates of goodies on each side.
+      add(g, box(0.16, 0.12, 0.16), mat('#B5824F'), [-0.6, 0.06, 0.25]);
+      add(g, sphere(0.05, 8), mat('#E8322E'), [-0.62, 0.14, 0.25]);
+      add(g, sphere(0.05, 8), mat('#FFD43B'), [-0.56, 0.14, 0.28]);
+      add(g, box(0.16, 0.12, 0.16), mat('#B5824F'), [0.6, 0.06, 0.25]);
+      add(g, sphere(0.06, 8), mat('#FF6FA8'), [0.6, 0.15, 0.25]);
+      break;
+    }
+
     // ─── New houses ────────────────────────────────────────────────────────
     case 'igloo': {
       add(g, new THREE.SphereGeometry(0.42, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('#F4F8FF'));

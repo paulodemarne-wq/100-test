@@ -39,13 +39,15 @@ const put = (id: string, x: number, z: number, r = 0) => {
   objects.push([id, x, z, r]);
 };
 // The shop stand in the middle of the plaza, with the castle behind.
-put('castle', 15, 11);
-put('fountain', 15, 14);
+put('castle', 18, 10);
+// The daily shop building, in the middle of the plaza: everyone visiting can go in.
+put('boutique', 15, 14);
+put('fountain', 14, 17);
 put('statue', 13, 13);
 put('statue', 18, 13);
 for (const [x, z] of [[13, 18], [18, 18], [13, 15], [18, 15]]) put('lamp', x, z);
 put('table', 17, 17);
-put('treasure', 14, 17);
+put('treasure', 16, 18);
 // Houses.
 put('cottage', 5, 11); put('treehouse', 9, 11); put('mushroom', 5, 18); put('windmill', 10, 19);
 put('igloo', 25, 5); put('igloo', 27, 7); put('cabin', 22, 11); put('tent', 25, 12); put('doghouse', 20, 12);
@@ -95,7 +97,7 @@ console.log(`-- ═════════════════════�
 --
 -- Donne à ce compte : tous les objets et accessoires, ${dragons.length} dragons niveau ${MAX_LEVEL},
 -- une île ${S}×${S} avec la mer entièrement construite, et le statut « vedette » :
--- son animal se promène sur l'île de tout le monde et son île a une boutique promo.
+-- son animal se promène sur l'île de tout le monde et son île a la boutique du jour.
 -- Généré par scripts/admin/make-admin-sql.ts.
 -- ═════════════════════════════════════════════════════════════════════════
 do $$
@@ -135,17 +137,5 @@ begin
   update public.profiles set world = '${esc(JSON.stringify(world))}'::jsonb where id = me;
 end $$;
 
--- Promos de la boutique de ton île (modifiable : percent = réduction, 100 = offert).
-insert into public.deals (item_id, percent, label) values
-  ('pirate', 100, 'Offert'),
-  ('egg', 50, '-50 %'),
-  ('crown', 70, '-70 %'),
-  ('jetpack', 60, '-60 %'),
-  ('balloons', 50, '-50 %'),
-  ('castle', 70, '-70 %'),
-  ('pirateship', 60, '-60 %'),
-  ('lighthouse', 50, '-50 %'),
-  ('sea', 50, '-50 %'),
-  ('size20', 50, '-50 %'),
-  ('rainbow', 75, '-75 %')
-on conflict (item_id) do update set percent = excluded.percent, label = excluded.label;`);
+-- La boutique de ton île change toute seule chaque jour à minuit (6 promos + 1 cadeau) :
+-- rien à faire ici.`);

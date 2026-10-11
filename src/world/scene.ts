@@ -30,7 +30,7 @@ const LAYER: Record<string, number> = {
 const DECOR_SCALE: Record<string, number> = {
   tent: 1.3, doghouse: 1.3, cabin: 1.35, cottage: 1.4, mushroom: 1.4, castle: 1.5,
   pine: 1.3, apple: 1.35, palm: 1.35, sakura: 1.35, crystal: 1.3, fountain: 1.15, well: 1.1, rainbow: 1.6,
-  igloo: 1.35, treehouse: 1.5, windmill: 1.5, autumn: 1.35, bamboo: 1.2, lighthouse: 1.5,
+  boutique: 1.9, igloo: 1.35, treehouse: 1.5, windmill: 1.5, autumn: 1.35, bamboo: 1.2, lighthouse: 1.5,
   rowboat: 1.2, duckboat: 1.2, sailboat: 1.6, yacht: 1.7, pirateship: 2.2,
 };
 

@@ -12,6 +12,8 @@ type Props = {
   pets: PetSpec[];
   /** Name shown above each pet, by pet id. */
   labels?: Record<string, string>;
+  /** Fixed tags above places of the island (e.g. the shop building). */
+  markers?: { id: string; x: number; y: number; z: number; text: string }[];
   onTapCell?: (x: number, z: number) => void;
   onTapPet?: (petId: string) => void;
   /** Tapped pet: it stops, faces the camera and gets a bubble above its head. */
@@ -21,12 +23,12 @@ type Props = {
   style?: ViewStyle;
 };
 
-type Label = { id: string; x: number; y: number };
+type Label = { id: string; x: number; y: number; text: string; marker?: boolean };
 
 /**
  * An island in 3D. One finger moves around, two fingers zoom and turn, a tap picks a pet or a cell.
  */
-export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = null, renderFocus, style }: Props) {
+export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, focusId = null, renderFocus, style }: Props) {
   const islandRef = useRef<IslandScene | null>(null);
   const camRef = useRef<IslandCamera | null>(null);
   const size = useRef({ width: 1, height: 1 });
@@ -68,23 +70,29 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = 
   );
 
   // Name tags follow the pets (a few times per second is enough).
+  const markersKey = JSON.stringify(markers ?? []);
   useEffect(() => {
-    if (!labels) return;
+    const fixed = JSON.parse(markersKey) as NonNullable<Props['markers']>;
+    if (!labels && fixed.length === 0) return;
     const id = setInterval(() => {
       const island = islandRef.current;
       const cam = camRef.current;
       if (!island || !cam) return;
       const { width, height } = size.current;
       const next: Label[] = [];
+      const show = (key: string, x: number, y: number, z: number, text: string, marker?: boolean) => {
+        const s = cam.project(new THREE.Vector3(x, y, z), width, height);
+        if (s && s.x > -40 && s.x < width + 40 && s.y > -20 && s.y < height + 20) next.push({ id: key, x: s.x, y: s.y, text, marker });
+      };
+      for (const m of fixed) show(`m:${m.id}`, m.x, m.y, m.z, m.text, true);
       for (const p of island.petPositions()) {
-        if (!labels[p.id] || p.id === focus.current.id) continue;
-        const s = cam.project(new THREE.Vector3(p.x, p.y, p.z), width, height);
-        if (s && s.x > -40 && s.x < width + 40 && s.y > -20 && s.y < height + 20) next.push({ id: p.id, x: s.x, y: s.y });
+        if (!labels?.[p.id] || p.id === focus.current.id) continue;
+        show(p.id, p.x, p.y, p.z, labels[p.id]);
       }
       setShown(next);
     }, 120);
     return () => clearInterval(id);
-  }, [labels]);
+  }, [labels, markersKey]);
 
   const pan = useMemo(() => {
     let start = { x: 0, y: 0, time: 0 };
@@ -183,14 +191,13 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = 
   return (
     <View style={style} onLayout={onLayout} {...pan.panHandlers}>
       <GLView style={{ flex: 1 }} onContextCreate={onContextCreate} />
-      {labels &&
-        shown.map((l) => (
-          <View key={l.id} pointerEvents="none" style={[styles.label, { left: l.x - 60, top: l.y - 26 }]}>
-            <Text style={styles.labelText} numberOfLines={1}>
-              {labels[l.id]}
-            </Text>
-          </View>
-        ))}
+      {shown.map((l) => (
+        <View key={l.id} pointerEvents="none" style={[styles.label, { left: l.x - 90, top: l.y - 26 }]}>
+          <Text style={[styles.labelText, l.marker && styles.markerText]} numberOfLines={1}>
+            {l.text}
+          </Text>
+        </View>
+      ))}
       {focusId && renderFocus && (
         <Animated.View style={[styles.anchor, { transform: bubble.getTranslateTransform() }]} pointerEvents="box-none">
           <View style={styles.bubble}>{renderFocus(focusId)}</View>
@@ -228,7 +235,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     transform: [{ rotate: '45deg' }],
   },
-  label: { position: 'absolute', width: 120, alignItems: 'center' },
+  label: { position: 'absolute', width: 180, alignItems: 'center' },
+  markerText: { backgroundColor: '#5856D6', color: '#FFFFFF', fontSize: 13, paddingHorizontal: 10, paddingVertical: 4 },
   labelText: {
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 999,
