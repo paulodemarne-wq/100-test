@@ -3,35 +3,36 @@ import { Fragment, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../../components/Avatar';
-import { getDemoFriends } from '../../lib/demoFriends';
-import { useLockin } from '../../lib/store';
+import { useAuth } from '../../lib/auth';
+import { useSocial } from '../../lib/social';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration } from '../../lib/time';
 
 const PODIUM = ['#F5B400', '#A1A1AA', '#C77B30'];
 
 export default function RankingScreen() {
-  const { profile, weekSeconds, streak } = useLockin();
+  const { profile } = useAuth();
+  const { friends, myWeekSeconds: weekSeconds, myStreak: streak } = useSocial();
 
   const ranking = useMemo(() => {
     const me = {
       id: 'me',
-      name: profile?.name ?? '?',
-      photoUri: profile?.photoUri ?? null,
+      name: profile?.display_name ?? '?',
+      photoUri: profile?.avatar_url ?? null,
       seconds: weekSeconds,
       streak,
       isMe: true,
     };
-    const friends = getDemoFriends().map((f) => ({
-      id: f.id,
-      name: f.name,
-      photoUri: null,
-      seconds: f.weekMinutes * 60,
+    const others = friends.map((f) => ({
+      id: f.profile.id,
+      name: f.profile.display_name,
+      photoUri: f.profile.avatar_url,
+      seconds: f.weekSeconds,
       streak: f.streak,
       isMe: false,
     }));
-    return [me, ...friends].sort((a, b) => b.seconds - a.seconds);
-  }, [profile, weekSeconds, streak]);
+    return [me, ...others].sort((a, b) => b.seconds - a.seconds);
+  }, [profile, friends, weekSeconds, streak]);
 
   const leader = ranking[0];
   const myRank = ranking.findIndex((r) => r.isMe);
@@ -49,7 +50,9 @@ export default function RankingScreen() {
             <Text style={styles.heroRankSuffix}>{myRank === 0 ? 'er' : 'e'}</Text>
           </View>
           <Text style={styles.heroText}>
-            {ahead
+            {friends.length === 0
+              ? 'Ajoute des amis dans l’onglet Amis pour te comparer à eux.'
+              : ahead
               ? `Encore ${formatDuration(ahead.seconds - weekSeconds + 60)} pour dépasser ${ahead.name}`
               : weekSeconds > 0
                 ? 'Tu es en tête cette semaine. Ne lâche rien.'

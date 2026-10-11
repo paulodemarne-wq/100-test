@@ -1,11 +1,9 @@
-import { File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 
 /**
- * Lets the user pick (or take) a square profile photo and copies it into the app's
- * documents folder, since picker results live in a cache the system may clear.
- * Returns the saved file URI, or null if cancelled.
+ * Lets the user pick (or take) a square profile photo.
+ * Returns the local file URI (to upload right away), or null if cancelled.
  */
 export async function pickProfilePhoto(source: 'library' | 'camera'): Promise<string | null> {
   const permission =
@@ -31,11 +29,7 @@ export async function pickProfilePhoto(source: 'library' | 'camera'): Promise<st
   const result =
     source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
   if (result.canceled || !result.assets[0]) return null;
-
-  // Unique name so the <Image> doesn't show a cached older photo.
-  const saved = new File(Paths.document, `avatar-${Date.now()}.jpg`);
-  new File(result.assets[0].uri).copy(saved);
-  return saved.uri;
+  return result.assets[0].uri;
 }
 
 export function askProfilePhoto(onPicked: (uri: string) => void, onRemove?: () => void) {

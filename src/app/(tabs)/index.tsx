@@ -6,7 +6,9 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../../components/Avatar';
 import { ProgressRing } from '../../components/ProgressRing';
-import { askProfilePhoto } from '../../lib/photo';
+import { useAuth } from '../../lib/auth';
+import { pickProfilePhoto } from '../../lib/photo';
+import { useSocial } from '../../lib/social';
 import { MAX_AWAY_MS, Notice, useLockin, useNow } from '../../lib/store';
 import { card, colors, SUBJECTS, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
@@ -19,11 +21,13 @@ const NOTICE_STYLE: Record<Notice['kind'], { bg: string; fg: string; icon: keyof
   warning: { bg: colors.warningSoft, fg: colors.warning, icon: 'warning' },
   done: { bg: colors.successSoft, fg: colors.success, icon: 'checkmark-circle' },
   tooShort: { bg: colors.fill, fg: colors.secondary, icon: 'information-circle' },
+  error: { bg: colors.warningSoft, fg: colors.warning, icon: 'cloud-offline' },
 };
 
 export default function FocusScreen() {
-  const { profile, setProfile, active, notice, clearNotice, startSession, stopSession, weekSeconds, streak } =
-    useLockin();
+  const { profile, setPhoto, signOut } = useAuth();
+  const { myWeekSeconds, myStreak, nudges, markNudgesSeen } = useSocial();
+  const { active, notice, clearNotice, startSession, stopSession } = useLockin();
   const [subject, setSubject] = useState(SUBJECTS[0]);
   const now = useNow();
 
@@ -31,12 +35,32 @@ export default function FocusScreen() {
   const blocks = Math.floor(elapsedSec / FOCUS_BLOCK_SEC);
   const ringProgress = active ? (elapsedSec % FOCUS_BLOCK_SEC) / FOCUS_BLOCK_SEC : 0;
 
-  const editPhoto = () => {
+  const changePhoto = async (source: 'library' | 'camera' | 'remove') => {
+    try {
+      if (source === 'remove') return await setPhoto(null);
+      const uri = await pickProfilePhoto(source);
+      if (uri) await setPhoto(uri);
+    } catch (e) {
+      Alert.alert('Oups', (e as Error).message);
+    }
+  };
+
+  const openProfileMenu = () => {
     if (!profile) return;
-    askProfilePhoto(
-      (photoUri) => setProfile({ ...profile, photoUri }),
-      profile.photoUri ? () => setProfile({ ...profile, photoUri: null }) : undefined,
-    );
+    Alert.alert(profile.display_name, `@${profile.username}`, [
+      { text: 'Prendre une photo', onPress: () => changePhoto('camera') },
+      { text: 'Choisir une photo', onPress: () => changePhoto('library') },
+      ...(profile.avatar_url ? [{ text: 'Supprimer la photo', onPress: () => changePhoto('remove') }] : []),
+      {
+        text: 'Se déconnecter',
+        style: 'destructive' as const,
+        onPress: () => {
+          if (active) stopSession();
+          signOut();
+        },
+      },
+      { text: 'Annuler', style: 'cancel' as const },
+    ]);
   };
 
   const start = () => {
@@ -63,18 +87,29 @@ export default function FocusScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <View>
-            <Text style={type.footnote}>Salut {profile?.name}</Text>
+            <Text style={type.footnote}>Salut {profile?.display_name}</Text>
             <Text style={type.largeTitle}>Focus</Text>
           </View>
-          <Pressable onPress={editPhoto} hitSlop={8}>
-            <Avatar name={profile?.name ?? '?'} photoUri={profile?.photoUri} size={40} live={!!active} />
+          <Pressable onPress={openProfileMenu} hitSlop={8}>
+            <Avatar name={profile?.display_name ?? '?'} photoUri={profile?.avatar_url} size={40} live={!!active} />
           </Pressable>
         </View>
 
         <View style={styles.stats}>
-          <Stat icon="time-outline" label="Cette semaine" value={formatDuration(weekSeconds)} />
-          <Stat icon="flame-outline" label="Série" value={`${streak} j`} />
+          <Stat icon="time-outline" label="Cette semaine" value={formatDuration(myWeekSeconds)} />
+          <Stat icon="flame-outline" label="Série" value={`${myStreak} j`} />
         </View>
+
+        {nudges.length > 0 && (
+          <Pressable onPress={markNudgesSeen} style={[styles.notice, { backgroundColor: colors.accentSoft }]}>
+            <Avatar name={nudges[0].from.display_name} photoUri={nudges[0].from.avatar_url} size={28} />
+            <Text style={styles.noticeText}>
+              <Text style={{ fontWeight: '600' }}>{nudges[0].from.display_name}</Text>
+              {nudges.length > 1 ? ` et ${nudges.length - 1} autre${nudges.length > 2 ? 's' : ''}` : ''} te
+              relance{nudges.length > 1 ? 'nt' : ''} : viens bosser ! 📣
+            </Text>
+          </Pressable>
+        )}
 
         {notice && (
           <Pressable onPress={clearNotice} style={[styles.notice, { backgroundColor: NOTICE_STYLE[notice.kind].bg }]}>

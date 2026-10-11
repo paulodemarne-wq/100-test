@@ -1,136 +1,146 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { dayKey, startOfWeek } from './time';
+import { useAuth } from './auth';
+import { useSocial } from './social';
+import { supabase } from './supabase';
 
 /** Leaving the app for longer than this ends the session as abandoned. */
 export const MAX_AWAY_MS = 10_000;
-/** Completed sessions shorter than this are not saved. */
+/** Completed sessions shorter than this are not counted. */
 export const MIN_SESSION_SEC = 60;
-
-export type Session = {
-  id: string;
-  subject: string;
-  startedAt: number;
-  endedAt: number;
-  durationSec: number;
-  status: 'done' | 'abandoned';
-  /** Short trips outside the app that were tolerated. */
-  leaves: number;
-};
+/** How often a running session tells friends it is still alive. */
+const HEARTBEAT_MS = 60_000;
 
 export type ActiveSession = {
+  /** Row id in study_sessions, once created. */
+  remoteId: string | null;
   subject: string;
   startedAt: number;
+  /** Short trips outside the app that were tolerated. */
   leaves: number;
   /** Set while the app is in the background. */
   leftAt: number | null;
 };
 
-export type Profile = { name: string; photoUri: string | null };
+export type Notice = { kind: 'abandoned' | 'warning' | 'done' | 'tooShort' | 'error'; message: string };
 
-type PersistedState = {
-  profile: Profile | null;
-  sessions: Session[];
-  active: ActiveSession | null;
-};
-
-export type Notice = { kind: 'abandoned' | 'warning' | 'done' | 'tooShort'; message: string };
-
-type Store = PersistedState & {
+type Store = {
   loaded: boolean;
+  active: ActiveSession | null;
   notice: Notice | null;
   clearNotice: () => void;
-  setProfile: (profile: Profile) => void;
   startSession: (subject: string) => void;
   stopSession: () => void;
-  weekSeconds: number;
-  streak: number;
 };
 
-const STORAGE_KEY = 'lockin/state/v1';
 const StoreContext = createContext<Store | null>(null);
 
-function endSession(active: ActiveSession, endedAt: number, status: Session['status']): Session {
-  return {
-    id: String(active.startedAt),
-    subject: active.subject,
-    startedAt: active.startedAt,
-    endedAt,
-    durationSec: Math.max(0, Math.floor((endedAt - active.startedAt) / 1000)),
-    status,
-    leaves: active.leaves,
-  };
-}
+type Ending = { status: 'done' | 'abandoned'; endedAt: number } | { status: 'discard' };
 
-function computeStreak(sessions: Session[], now = new Date()): number {
-  const days = new Set(sessions.filter((s) => s.status === 'done').map((s) => dayKey(new Date(s.startedAt))));
-  const cursor = new Date(now);
-  // Today does not break the streak until it is over.
-  if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
-  let streak = 0;
-  while (days.has(dayKey(cursor))) {
-    streak++;
-    cursor.setDate(cursor.getDate() - 1);
+/** Saves the end of a session on the server. */
+async function finishRemote(active: ActiveSession, ending: Ending) {
+  if (!active.remoteId) return;
+  if (ending.status === 'discard') {
+    await supabase.from('study_sessions').delete().eq('id', active.remoteId);
+    return;
   }
-  return streak;
+  const durationSec = Math.min(43_200, Math.max(0, Math.round((ending.endedAt - active.startedAt) / 1000)));
+  await supabase
+    .from('study_sessions')
+    .update({
+      status: ending.status,
+      ended_at: new Date(ending.endedAt).toISOString(),
+      last_seen_at: new Date(ending.endedAt).toISOString(),
+      duration_sec: durationSec,
+      leaves: active.leaves,
+    })
+    .eq('id', active.remoteId);
 }
 
 export function LockinProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<PersistedState>({ profile: null, sessions: [], active: null });
+  const { userId } = useAuth();
+  const { refresh } = useSocial();
+  const storageKey = userId ? `lockin/active/${userId}` : null;
+  const [active, setActive] = useState<ActiveSession | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const stateRef = useRef(state);
-  stateRef.current = state;
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  // Sessions ended before the server returned their id, keyed by startedAt.
+  const pendingEnds = useRef(new Map<number, Ending>());
 
-  // Load saved state. A session still running when the app was killed counts as abandoned.
+  const end = useCallback(
+    (session: ActiveSession, ending: Ending) => {
+      setActive(null);
+      if (!session.remoteId) {
+        pendingEnds.current.set(session.startedAt, ending);
+        return;
+      }
+      finishRemote(session, ending)
+        .then(refresh)
+        .catch(() => setNotice({ kind: 'error', message: "La session n'a pas pu être enregistrée (pas de connexion ?)." }));
+    },
+    [refresh],
+  );
+
+  // Restore a session that was running when the app was killed: it counts as abandoned.
   useEffect(() => {
+    if (!storageKey) return;
+    setLoaded(false);
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const raw = await AsyncStorage.getItem(storageKey);
         if (raw) {
-          const saved = JSON.parse(raw) as PersistedState;
-          // v1 profiles had an emoji instead of a photo.
-          if (saved.profile) saved.profile = { name: saved.profile.name, photoUri: saved.profile.photoUri ?? null };
-          if (saved.active) {
-            const endedAt = saved.active.leftAt ?? Date.now();
-            saved.sessions = [endSession(saved.active, endedAt, 'abandoned'), ...saved.sessions];
-            saved.active = null;
-            setNotice({ kind: 'abandoned', message: "Ta dernière session a été abandonnée : tu as fermé l'app." });
-          }
-          setState(saved);
+          const saved = JSON.parse(raw) as ActiveSession;
+          await AsyncStorage.removeItem(storageKey);
+          await finishRemote(saved, { status: 'abandoned', endedAt: saved.leftAt ?? Date.now() }).catch(() => {});
+          setNotice({ kind: 'abandoned', message: "Ta dernière session a été abandonnée : tu as fermé l'app." });
+          refresh();
         }
       } catch {
-        // Corrupted storage: start fresh.
+        // Corrupted storage: ignore.
       }
+      setActive(null);
       setLoaded(true);
     })();
-  }, []);
+  }, [storageKey, refresh]);
 
   useEffect(() => {
-    if (loaded) AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {});
-  }, [state, loaded]);
+    if (!loaded || !storageKey) return;
+    if (active) AsyncStorage.setItem(storageKey, JSON.stringify(active)).catch(() => {});
+    else AsyncStorage.removeItem(storageKey).catch(() => {});
+  }, [active, loaded, storageKey]);
+
+  // Heartbeat so friends see the session as live.
+  useEffect(() => {
+    if (!active?.remoteId) return;
+    const id = active.remoteId;
+    const beat = () => {
+      if (AppState.currentState !== 'active') return;
+      supabase.from('study_sessions').update({ last_seen_at: new Date().toISOString() }).eq('id', id).then(() => {});
+    };
+    const interval = setInterval(beat, HEARTBEAT_MS);
+    return () => clearInterval(interval);
+  }, [active?.remoteId]);
 
   // Anti-cheat: watch the app going to the background during a session.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      const { active } = stateRef.current;
-      if (!active) return;
-      if (next === 'background' && active.leftAt === null) {
-        setState((s) => (s.active ? { ...s, active: { ...s.active, leftAt: Date.now() } } : s));
-      } else if (next === 'active' && active.leftAt !== null) {
-        const awayMs = Date.now() - active.leftAt;
+      const current = activeRef.current;
+      if (!current) return;
+      if (next === 'background' && current.leftAt === null) {
+        setActive({ ...current, leftAt: Date.now() });
+      } else if (next === 'active' && current.leftAt !== null) {
+        const awayMs = Date.now() - current.leftAt;
         if (awayMs > MAX_AWAY_MS) {
-          const leftAt = active.leftAt;
-          setState((s) =>
-            s.active ? { ...s, sessions: [endSession(s.active, leftAt, 'abandoned'), ...s.sessions], active: null } : s,
-          );
+          end(current, { status: 'abandoned', endedAt: current.leftAt });
           setNotice({
             kind: 'abandoned',
             message: `Session abandonnée 😬 Tu as quitté Lockin pendant ${Math.round(awayMs / 1000)} s. Tes amis le verront.`,
           });
         } else {
-          setState((s) => (s.active ? { ...s, active: { ...s.active, leaves: s.active.leaves + 1, leftAt: null } } : s));
+          setActive({ ...current, leaves: current.leaves + 1, leftAt: null });
           setNotice({
             kind: 'warning',
             message: `Attention 👀 Au-delà de ${MAX_AWAY_MS / 1000} s hors de l'app, ta session est perdue.`,
@@ -139,50 +149,59 @@ export function LockinProvider({ children }: { children: ReactNode }) {
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [end]);
 
-  const setProfile = useCallback((profile: Profile) => setState((s) => ({ ...s, profile })), []);
-
-  const startSession = useCallback((subject: string) => {
-    setNotice(null);
-    setState((s) => (s.active ? s : { ...s, active: { subject, startedAt: Date.now(), leaves: 0, leftAt: null } }));
-  }, []);
+  const startSession = useCallback(
+    (subject: string) => {
+      if (activeRef.current) return;
+      const startedAt = Date.now();
+      setNotice(null);
+      setActive({ remoteId: null, subject, startedAt, leaves: 0, leftAt: null });
+      supabase
+        .from('study_sessions')
+        .insert({ subject, started_at: new Date(startedAt).toISOString(), last_seen_at: new Date(startedAt).toISOString() })
+        .select('id')
+        .single()
+        .then(({ data, error }) => {
+          if (error || !data) {
+            setNotice({ kind: 'error', message: 'Pas de connexion : tes amis ne verront pas cette session.' });
+            return;
+          }
+          const ending = pendingEnds.current.get(startedAt);
+          if (ending) {
+            // Already ended locally while the insert was in flight.
+            pendingEnds.current.delete(startedAt);
+            const ended = { remoteId: data.id, subject, startedAt, leaves: 0, leftAt: null };
+            finishRemote(ended, ending).then(refresh);
+            return;
+          }
+          setActive((a) => (a && a.startedAt === startedAt ? { ...a, remoteId: data.id } : a));
+          refresh();
+        });
+    },
+    [refresh],
+  );
 
   const stopSession = useCallback(() => {
-    const { active } = stateRef.current;
-    if (!active) return;
-    const session = endSession(active, Date.now(), 'done');
-    if (session.durationSec < MIN_SESSION_SEC) {
-      setState((s) => ({ ...s, active: null }));
+    const current = activeRef.current;
+    if (!current) return;
+    const endedAt = Date.now();
+    if ((endedAt - current.startedAt) / 1000 < MIN_SESSION_SEC) {
+      end(current, { status: 'discard' });
       setNotice({ kind: 'tooShort', message: 'Session trop courte (moins d’une minute), elle n’est pas comptée.' });
       return;
     }
-    setState((s) => ({ ...s, sessions: [session, ...s.sessions], active: null }));
+    end(current, { status: 'done', endedAt });
     setNotice({ kind: 'done', message: 'Bien joué 💪 Session enregistrée.' });
-  }, []);
+  }, [end]);
 
-  const weekSeconds = useMemo(() => {
-    const from = startOfWeek();
-    return state.sessions
-      .filter((s) => s.status === 'done' && s.startedAt >= from)
-      .reduce((sum, s) => sum + s.durationSec, 0);
-  }, [state.sessions]);
-
-  const streak = useMemo(() => computeStreak(state.sessions), [state.sessions]);
-
-  const value: Store = {
-    ...state,
-    loaded,
-    notice,
-    clearNotice: () => setNotice(null),
-    setProfile,
-    startSession,
-    stopSession,
-    weekSeconds,
-    streak,
-  };
-
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return (
+    <StoreContext.Provider
+      value={{ loaded, active, notice, clearNotice: () => setNotice(null), startSession, stopSession }}
+    >
+      {children}
+    </StoreContext.Provider>
+  );
 }
 
 export function useLockin(): Store {

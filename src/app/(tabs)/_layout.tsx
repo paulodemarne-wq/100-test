@@ -1,6 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, ColorValue, View } from 'react-native';
+import { useAuth } from '../../lib/auth';
+import { useSocial } from '../../lib/social';
 import { useLockin } from '../../lib/store';
 import { colors } from '../../lib/theme';
 
@@ -13,17 +15,19 @@ function tabIcon(active: IconName, inactive: IconName) {
 }
 
 export default function TabsLayout() {
-  const { loaded, profile } = useLockin();
+  const { ready, session, profile, profileReady } = useAuth();
+  const { loaded } = useLockin();
+  const { incomingRequests } = useSocial();
 
-  if (!loaded) {
+  if (ready && !session) return <Redirect href="/login" />;
+  if (ready && profileReady && !profile) return <Redirect href="/setup-profile" />;
+  if (!ready || !profileReady || !loaded) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center' }}>
         <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
-  if (!profile) return <Redirect href="/onboarding" />;
-
   return (
     <Tabs
       screenOptions={{
@@ -36,7 +40,14 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Focus', tabBarIcon: tabIcon('timer', 'timer-outline') }} />
-      <Tabs.Screen name="feed" options={{ title: 'Amis', tabBarIcon: tabIcon('people', 'people-outline') }} />
+      <Tabs.Screen
+        name="feed"
+        options={{
+          title: 'Amis',
+          tabBarIcon: tabIcon('people', 'people-outline'),
+          tabBarBadge: incomingRequests.length > 0 ? incomingRequests.length : undefined,
+        }}
+      />
       <Tabs.Screen
         name="ranking"
         options={{ title: 'Classement', tabBarIcon: tabIcon('trophy', 'trophy-outline') }}

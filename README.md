@@ -4,15 +4,19 @@ Révise avec tes potes. Ceux qui lâchent sont démasqués.
 
 Lockin est une app de révision sociale : tu lances une session « Je bosse », tes amis te voient bosser en direct, et si tu quittes l'app pour aller sur TikTok, ils le savent.
 
-## Version 1 (actuelle)
+## Fonctionnalités
 
-- **Accueil / onboarding** : prénom + photo de profil (galerie ou appareil photo).
+- **Compte** : e-mail + mot de passe, puis prénom, pseudo et photo de profil.
 - **Focus** : choix de la matière, chrono en direct dans un anneau de progression (blocs de 25 min). L'écran reste allumé pendant la session.
 - **Anti-triche** : quitter l'app plus de 10 s pendant une session = session abandonnée (visible par les amis). Une sortie plus courte donne un avertissement.
-- **Amis** : qui bosse en ce moment, qui a abandonné, bouton « Relancer ».
-- **Classement** de la semaine (remis à zéro le lundi) + série de jours 🔥.
+- **Amis** : ajout par pseudo, demandes à accepter, qui bosse en direct, qui a abandonné, bouton « Relancer ».
+- **Classement** de la semaine entre amis (remis à zéro le lundi) + série de jours 🔥.
 
-Les amis sont pour l'instant **des amis de démo** et les données restent sur le téléphone. Les vrais comptes et vrais amis arriveront avec le backend (Supabase).
+## Backend (Supabase)
+
+Les comptes, amis, sessions et photos sont stockés sur [Supabase](https://supabase.com).
+Le schéma de la base est dans `supabase/schema.sql` : à exécuter une fois dans **SQL Editor** (on peut le relancer sans risque après une mise à jour).
+La sécurité repose sur les règles « row level security » de ce fichier : chacun ne voit que ses sessions et celles de ses amis.
 
 ## Tester sur ton iPhone (sans Mac)
 
@@ -33,22 +37,27 @@ Le téléphone et l'ordinateur doivent être sur le même Wi-Fi (sinon : `npx ex
 ```
 src/app/                 écrans (Expo Router : chaque fichier = un écran)
   _layout.tsx            racine
-  onboarding.tsx         premier lancement
+  login.tsx              connexion / création de compte
+  setup-profile.tsx      prénom, pseudo, photo
+  add-friend.tsx         ajouter un ami par pseudo
   (tabs)/index.tsx       écran Focus + chrono
   (tabs)/feed.tsx        fil des amis
   (tabs)/ranking.tsx     classement
-src/components/          Avatar (photo ou initiales), anneau de progression
+src/components/          Avatar, anneau de progression, boutons et champs
 src/lib/
-  store.tsx              état de l'app, sessions, anti-triche, sauvegarde
-  demoFriends.ts         faux amis (en attendant le backend)
+  supabase.ts            connexion à Supabase
+  auth.tsx               compte et profil
+  social.tsx             amis, sessions des amis, relances (temps réel)
+  store.tsx              session en cours, anti-triche
+  stats.ts               total de la semaine, séries
   photo.ts               choix de la photo de profil
   theme.ts, time.ts      couleurs, typo, matières, formatage du temps
 ```
 
 ## Prochaines étapes
 
-- [ ] Comptes et vrais amis (Supabase) : ajout par pseudo ou lien d'invitation
-- [ ] Statuts en temps réel entre amis
+- [x] Comptes et vrais amis (Supabase)
+- [x] Statuts en temps réel entre amis
 - [ ] Notifications push (« Léa vient de commencer à bosser », relances)
 - [x] Design clair façon iOS
 - [ ] Icône et écran de démarrage Lockin
