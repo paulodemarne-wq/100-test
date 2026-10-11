@@ -68,7 +68,9 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   };
   const top = slab(0.35, 1.4, 0.06, -0.09, TILE_COLORS.grass[0]);
   // A perfectly flat lawn on top (the bevelled slab alone shades unevenly).
-  kit.add(base, new THREE.ShapeGeometry(top, 10), kit.mat('#8BD46B'), [0, -0.004, 0], [1, -1, 1], [-Math.PI / 2, 0, 0]);
+  // Matte material: a big flat lawn shows banding with the shiny standard one.
+  const lawnMat = new THREE.MeshLambertMaterial({ color: TILE_COLORS.grass[0] });
+  kit.add(base, new THREE.ShapeGeometry(top, 10), lawnMat, [0, -0.004, 0], [1, -1, 1], [-Math.PI / 2, 0, 0]);
   slab(0.3, 1.4, 0.45, -0.17, '#B07D52');
   slab(-0.6, 1.8, 0.5, -0.62, '#94663F');
   const flatBase = flatten(base);
@@ -307,6 +309,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     dispose() {
       removeWalkers();
       [flatBase, ground, objects].forEach((g) => g && disposeGeometries(g));
+      lawnMat.dispose();
       kit.dispose();
     },
   };
@@ -345,6 +348,16 @@ export class IslandCamera {
     this.target.x = Math.max(-1, Math.min(WORLD_SIZE + 1, this.target.x));
     this.target.z = Math.max(-1, Math.min(WORLD_SIZE + 1, this.target.z));
     this.apply();
+  }
+
+  /** Moves smoothly toward a point (call every frame). Returns true once there. */
+  glideTo(p: THREE.Vector3, dt: number, closeDistance = 11): boolean {
+    const k = 1 - Math.pow(0.002, dt);
+    this.target.lerp(new THREE.Vector3(p.x, 0, p.z), k);
+    const want = Math.min(this.distance, closeDistance);
+    this.distance += (want - this.distance) * k;
+    this.apply();
+    return this.target.distanceTo(new THREE.Vector3(p.x, 0, p.z)) < 0.05 && Math.abs(this.distance - want) < 0.05;
   }
 
   zoom(factor: number) {

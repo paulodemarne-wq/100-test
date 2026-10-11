@@ -102,7 +102,10 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
 }
 
 /** Renders an island with pets walking on it. Drag to move, wheel to zoom. */
-function mountWorld(canvas: HTMLCanvasElement, opts: { world?: World; pets: PetSpec[]; yaw?: number; distance?: number }) {
+function mountWorld(
+  canvas: HTMLCanvasElement,
+  opts: { world?: World; pets: PetSpec[]; yaw?: number; distance?: number; names?: Record<string, string>; onVisit?: (id: string) => void },
+) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(3, Math.max(2, window.devicePixelRatio || 1)));
   const scene = new THREE.Scene();
@@ -116,19 +119,63 @@ function mountWorld(canvas: HTMLCanvasElement, opts: { world?: World; pets: PetS
   renderer.setClearColor(island.sky, 1);
 
   let dragging = false;
+  let moved = 0;
   let last = [0, 0];
+  let focusId: string | null = null;
+  let gliding = false;
+  // Bubble above a clicked pet: name + "visit" button (same as the app).
+  const bubble = document.createElement('div');
+  bubble.style.cssText =
+    'position:absolute;left:0;top:0;display:none;transform:translate(-50%,-100%);background:#fff;border-radius:16px;padding:10px 14px;' +
+    'box-shadow:0 6px 20px rgba(0,0,0,.18);font:600 15px system-ui,sans-serif;color:#1B1A2E;text-align:center;pointer-events:auto;white-space:nowrap';
+  if (canvas.parentElement) canvas.parentElement.appendChild(bubble);
+  const focus = (id: string | null) => {
+    focusId = id;
+    island.setFocus(id);
+    gliding = !!id;
+    bubble.style.display = id ? 'block' : 'none';
+    if (!id) return;
+    bubble.innerHTML = '';
+    const name = document.createElement('div');
+    name.textContent = opts.names?.[id] ?? 'Ami';
+    name.style.cssText = 'font-size:17px;font-weight:800;margin-bottom:6px';
+    bubble.appendChild(name);
+    if (opts.onVisit) {
+      const btn = document.createElement('button');
+      btn.textContent = '🏝️ Voir son île';
+      btn.style.cssText = 'border:none;border-radius:999px;background:#5856D6;color:#fff;font:700 14px system-ui;padding:8px 14px;cursor:pointer';
+      btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btn.addEventListener('click', () => {
+        const target = id;
+        focus(null);
+        opts.onVisit?.(target);
+      });
+      bubble.appendChild(btn);
+    }
+  };
   canvas.style.touchAction = 'none';
   canvas.addEventListener('pointerdown', (e) => {
     dragging = true;
+    gliding = false;
+    moved = 0;
     last = [e.clientX, e.clientY];
     canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!dragging) return;
+    moved += Math.abs(e.clientX - last[0]) + Math.abs(e.clientY - last[1]);
     cam.pan(e.clientX - last[0], e.clientY - last[1], canvas.clientHeight);
     last = [e.clientX, e.clientY];
   });
-  canvas.addEventListener('pointerup', () => (dragging = false));
+  canvas.addEventListener('pointerup', (e) => {
+    dragging = false;
+    if (moved > 6) return;
+    const r = canvas.getBoundingClientRect();
+    // The canvas may be scaled (zoomed design canvas): work in its own CSS pixels.
+    const x = ((e.clientX - r.left) / r.width) * canvas.clientWidth;
+    const y = ((e.clientY - r.top) / r.height) * canvas.clientHeight;
+    focus(island.pickPet(cam.ray(x, y, canvas.clientWidth, canvas.clientHeight)));
+  });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     cam.zoom(e.deltaY < 0 ? 1.1 : 0.9);
@@ -145,18 +192,28 @@ function mountWorld(canvas: HTMLCanvasElement, opts: { world?: World; pets: PetS
     if (canvas.width !== Math.round(w * renderer.getPixelRatio())) renderer.setSize(w, h, false);
     cam.camera.aspect = w / h;
     cam.camera.updateProjectionMatrix();
+    const target = focusId ? island.petPosition(focusId) : null;
+    if (target && gliding && cam.glideTo(target, Math.min(0.1, (now - prev) / 1000))) gliding = false;
     island.update((now - start) / 1000, Math.min(0.1, (now - prev) / 1000), cam.camera.position);
     prev = now;
     renderer.render(scene, cam.camera);
+    if (target) {
+      const p = cam.project(target, w, h);
+      if (p) {
+        bubble.style.left = canvas.offsetLeft + p.x + 'px';
+        bubble.style.top = canvas.offsetTop + p.y - 8 + 'px';
+      }
+    }
   };
   frame();
   return {
     setWorld: (world: World) => island.setWorld(world),
-    setFocus: (id: string | null) => island.setFocus(id),
+    setFocus: focus,
     destroy() {
       cancelAnimationFrame(raf);
       island.dispose();
       renderer.dispose();
+      bubble.remove();
     },
   };
 }

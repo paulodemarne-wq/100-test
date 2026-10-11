@@ -37,10 +37,10 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = 
   const [shown, setShown] = useState<Label[]>([]);
   // Bubble position, moved every frame without re-rendering.
   const bubble = useRef(new Animated.ValueXY({ x: -1000, y: -1000 })).current;
-  const focus = useRef<{ id: string | null; glideUntil: number }>({ id: null, glideUntil: 0 });
+  const focus = useRef<{ id: string | null; gliding: boolean }>({ id: null, gliding: false });
 
   useEffect(() => {
-    focus.current = { id: focusId, glideUntil: focusId ? Date.now() + 800 : 0 };
+    focus.current = { id: focusId, gliding: !!focusId };
     islandRef.current?.setFocus(focusId);
     if (!focusId) bubble.setValue({ x: -1000, y: -1000 });
   }, [focusId, bubble]);
@@ -94,6 +94,8 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = 
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
         start = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY, time: Date.now() };
+        // Touching the island stops the camera from gliding to a pet.
+        focus.current.gliding = false;
         moved = false;
         prev = { dx: 0, dy: 0, touches: 1, dist: 0, angle: 0 };
       },
@@ -168,11 +170,7 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = 
       const f = focus.current;
       const target = f.id ? island.petPosition(f.id) : null;
       // Glide the camera toward a tapped pet.
-      if (target && now < f.glideUntil) {
-        cam.target.lerp(new THREE.Vector3(target.x, 0, target.z), 0.12);
-        cam.distance += (Math.min(cam.distance, 11) - cam.distance) * 0.12;
-        cam.apply();
-      }
+      if (target && f.gliding && cam.glideTo(target, Math.min(0.1, (now - last) / 1000))) f.gliding = false;
       island.update((now - start) / 1000, Math.min(0.1, (now - last) / 1000), cam.camera.position);
       last = now;
       if (target) {
