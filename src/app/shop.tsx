@@ -13,27 +13,41 @@ import { formatDuration } from '../lib/time';
 
 export default function Shop() {
   const { profile, reloadProfile } = useAuth();
-  const { pets, inventory, buyItem, equipItem } = useSocial();
+  const { pets, inventory, buyItem, equipItem, deals, buyDeal, claimedGifts, featured } = useSocial();
   const params = useLocalSearchParams<{ tab?: string }>();
-  const [tab, setTab] = useState<'pet' | 'garden'>(params.tab === 'garden' ? 'garden' : 'pet');
+  const [tab, setTab] = useState<'pet' | 'garden' | 'deals'>(
+    params.tab === 'garden' ? 'garden' : params.tab === 'deals' ? 'deals' : 'pet',
+  );
+  const dealFor = (item: ShopItem) => (tab === 'deals' ? deals.find((d) => d.item_id === item.id) ?? null : null);
+  /** Price in hours, with the deal applied on the featured shop. */
+  const priceOf = (item: ShopItem) => {
+    const d = dealFor(item);
+    return d ? Math.round(item.costHours * (100 - d.percent)) / 100 : item.costHours;
+  };
   const [preview, setPreview] = useState<ShopItem | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
   const pet = pets[0] ?? null;
   const balance = Math.max(0, (profile?.total_seconds ?? 0) - (profile?.spent_seconds ?? 0));
 
   const buy = (item: ShopItem) => {
-    if (balance < item.costHours * 3600) {
-      Alert.alert("Pas assez d'heures", `Il te manque ${formatDuration(item.costHours * 3600 - balance)} de lock in 💪`);
+    const deal = dealFor(item);
+    const price = priceOf(item);
+    if (balance < price * 3600) {
+      Alert.alert("Pas assez d'heures", `Il te manque ${formatDuration(price * 3600 - balance)} de lock in 💪`);
       return;
     }
-    Alert.alert(`Acheter ${item.name} ?`, `Pour ${item.costHours} h de lock in.`, [
+    Alert.alert(
+      price === 0 ? `Prendre ${item.name} ?` : `Acheter ${item.name} ?`,
+      price === 0 ? 'C’est offert 🎁' : deal ? `Pour ${price} h au lieu de ${item.costHours} h.` : `Pour ${item.costHours} h de lock in.`,
+      [
       { text: 'Annuler', style: 'cancel' },
       {
-        text: 'Acheter',
+        text: price === 0 ? 'Le prendre' : 'Acheter',
         onPress: async () => {
           setBuying(item.id);
           try {
-            await buyItem(item.id);
+            if (deal) await buyDeal(item.id);
+            else await buyItem(item.id);
             await reloadProfile();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             if (item.kind === 'egg') {
@@ -69,14 +83,26 @@ export default function Shop() {
           }
         },
       },
-    ]);
+      ],
+    );
   };
 
   const trying = preview?.kind === 'accessory' ? preview : null;
   const equippedPreview = pet ? { ...pet.equipped, ...(trying?.slot ? { [trying.slot]: trying.id } : {}) } : undefined;
   // Sections of the shop, in order.
   const sections: { title: string; items: ShopItem[] }[] =
-    tab === 'garden'
+    tab === 'deals'
+      ? [
+          {
+            title: `Boutique de ${featured[0]?.display_name ?? 'la vedette'}`,
+            items: deals
+              .slice()
+              .sort((a, b) => b.percent - a.percent)
+              .map((d) => SHOP_ITEMS.find((i) => i.id === d.item_id))
+              .filter((i): i is ShopItem => !!i),
+          },
+        ]
+      : tab === 'garden'
       ? [
           { title: 'Agrandir l’île', items: SHOP_ITEMS.filter((i) => i.kind === 'upgrade') },
           ...(['house', 'tree', 'deco', 'boat', 'ground'] as const).map((slot) => ({
@@ -131,7 +157,7 @@ export default function Shop() {
 
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.tabs}>
-          {(['pet', 'garden'] as const).map((t) => (
+          {(deals.length > 0 ? (['pet', 'garden', 'deals'] as const) : (['pet', 'garden'] as const)).map((t) => (
             <Pressable
               key={t}
               onPress={() => {
@@ -140,12 +166,14 @@ export default function Shop() {
               }}
               style={[styles.tab, tab === t && styles.tabActive]}
             >
-              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t === 'pet' ? 'Animal' : 'Île'}</Text>
+              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t === 'pet' ? 'Animal' : t === 'garden' ? 'Île' : '⭐ Promos'}</Text>
             </Pressable>
           ))}
         </View>
         <Text style={type.subhead}>
-          {tab === 'garden'
+          {tab === 'deals'
+            ? 'Les promos de la boutique vedette : grosses réductions et un cadeau offert.'
+            : tab === 'garden'
             ? 'Agrandis ton île, ajoute la mer et des bateaux. Un objet débloqué se pose autant de fois que tu veux.'
             : 'Chaque heure de lock in = 1 h à dépenser ici.'}
         </Text>
@@ -154,9 +182,11 @@ export default function Shop() {
         <Text style={styles.sectionTitle}>{section.title.toUpperCase()}</Text>
         <View style={styles.grid}>
           {section.items.map((item) => {
-            const owned = item.kind !== 'egg' && ownsItem(item, inventory);
+            const deal = dealFor(item);
+            const price = priceOf(item);
+            const owned = (item.kind !== 'egg' && ownsItem(item, inventory)) || (deal?.percent === 100 && claimedGifts.includes(item.id));
             const locked = owned ? null : lockedBy(item);
-            const affordable = balance >= item.costHours * 3600;
+            const affordable = balance >= price * 3600;
             const color = item.kind === 'egg' ? colors.accent : RARITY_COLORS[item.rarity];
             return (
               <Pressable
@@ -164,8 +194,15 @@ export default function Shop() {
                 onPress={() => setPreview(item)}
                 style={[styles.item, preview?.id === item.id && { borderColor: color }]}
               >
-                <View style={[styles.rarity, { backgroundColor: color }]}>
-                  <Text style={styles.rarityText}>{item.kind === 'egg' ? 'Nouvel animal' : item.rarity}</Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <View style={[styles.rarity, { backgroundColor: color }]}>
+                    <Text style={styles.rarityText}>{item.kind === 'egg' ? 'Nouvel animal' : item.rarity}</Text>
+                  </View>
+                  {deal && (
+                    <View style={[styles.rarity, { backgroundColor: deal.percent === 100 ? colors.success : colors.danger }]}>
+                      <Text style={styles.rarityText}>{deal.percent === 100 ? '🎁 Offert' : `-${deal.percent} %`}</Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.itemName} numberOfLines={2}>
                   {item.emoji ? `${item.emoji} ` : ''}
@@ -187,8 +224,13 @@ export default function Shop() {
                     style={[styles.buy, { backgroundColor: affordable ? colors.accent : colors.fill }]}
                   >
                     <Ionicons name="hourglass" size={13} color={affordable ? colors.onAccent : colors.secondary} />
+                    {deal && price < item.costHours && (
+                      <Text style={[styles.buyText, styles.oldPrice, { color: affordable ? colors.onAccent : colors.secondary }]}>
+                        {item.costHours} h
+                      </Text>
+                    )}
                     <Text style={[styles.buyText, { color: affordable ? colors.onAccent : colors.secondary }]}>
-                      {buying === item.id ? '…' : `${item.costHours} h`}
+                      {buying === item.id ? '…' : price === 0 ? 'Gratuit' : `${price} h`}
                     </Text>
                   </Pressable>
                 )}
@@ -241,5 +283,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 9,
   },
+  oldPrice: { textDecorationLine: 'line-through', opacity: 0.7, fontSize: 13 },
   buyText: { fontWeight: '700', fontSize: 15 },
 });

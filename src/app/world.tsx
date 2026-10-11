@@ -39,8 +39,11 @@ const OBJECTS = SHOP_ITEMS.filter((i) => i.kind === 'garden' && i.slot !== 'grou
 export default function WorldScreen() {
   const params = useLocalSearchParams<{ user?: string; edit?: string; item?: string; grow?: string; sea?: string }>();
   const { profile, reloadProfile } = useAuth();
-  const { pets, friends, friendPets, inventory, saveWorld } = useSocial();
-  const host = params.user ? friends.find((f) => f.profile.id === params.user)?.profile : profile;
+  const { pets, friends, friendPets, inventory, saveWorld, featured } = useSocial();
+  const host = params.user
+    ? (friends.find((f) => f.profile.id === params.user)?.profile ?? featured.find((p) => p.id === params.user))
+    : profile;
+  const hostFeatured = !!host?.featured && host.id !== profile?.id;
   const mine = !params.user || params.user === profile?.id;
 
   const saved = useMemo(() => readWorld(host?.world), [host?.world]);
@@ -80,9 +83,11 @@ export default function WorldScreen() {
     };
     if (profile) add(profile.id, 'Toi', pets[0]);
     if (mine) for (const f of friends) add(f.profile.id, f.profile.display_name, friendPets[f.profile.id]);
-    else if (host) add(host.id, host.display_name, friendPets[host.id]);
+    else if (host && !host.featured) add(host.id, host.display_name, friendPets[host.id]);
+    // Featured accounts visit every island.
+    for (const f of featured) if (!owners[friendPets[f.id]?.id ?? '']) add(f.id, `⭐ ${f.display_name}`, friendPets[f.id]);
     return { specs, labels, owners };
-  }, [profile, pets, friends, friendPets, mine, host]);
+  }, [profile, pets, friends, friendPets, mine, host, featured]);
 
   if (!host) {
     return (
@@ -165,14 +170,14 @@ export default function WorldScreen() {
     const pet = [...pets, ...Object.values(friendPets)].find((p) => p.id === petId);
     if (!pet) return null;
     const ownerId = owners[petId];
-    const friend = friends.find((f) => f.profile.id === ownerId);
+    const friend = friends.find((f) => f.profile.id === ownerId)?.profile ?? featured.find((p) => p.id === ownerId);
     const level = levelFor(pet.xp_seconds);
     const tier = tierFor(level);
     const onTheirIsland = params.user === ownerId;
     return (
       <>
         <Text style={styles.focusName} numberOfLines={1}>
-          {friend ? friend.profile.display_name : 'Toi'}
+          {friend ? `${friend.featured ? '⭐ ' : ''}${friend.display_name}` : 'Toi'}
         </Text>
         <Text style={[styles.focusPet, { color: tier.color }]} numberOfLines={1}>
           {displayName(speciesById(pet.species), level)} · Niv. {level}
@@ -181,11 +186,11 @@ export default function WorldScreen() {
           <Pressable
             onPress={() => {
               setPicked(null);
-              router.setParams({ user: friend.profile.id });
+              router.setParams({ user: friend.id });
             }}
             style={styles.focusButton}
           >
-            <Text style={styles.focusButtonText}>🏝️ Voir son île</Text>
+            <Text style={styles.focusButtonText}>{friend.featured ? '🛍️ Voir son île et sa boutique' : '🏝️ Voir son île'}</Text>
           </Pressable>
         ) : !friend && !mine ? (
           <Pressable
@@ -241,9 +246,14 @@ export default function WorldScreen() {
                   {mine ? 'Mon île' : `Île de ${host.display_name}`}
                 </Text>
                 <Text style={styles.subtitle}>
-                  {mine ? `${specs.length - 1} ami${specs.length - 1 > 1 ? 's' : ''} sur ton île` : 'Tu es en visite'}
+                  {mine ? `${specs.length - 1} animal${specs.length - 1 > 1 ? 'aux' : ''} en visite` : 'Tu es en visite'}
                 </Text>
               </View>
+              {hostFeatured && (
+                <Pressable onPress={() => router.push({ pathname: '/shop', params: { tab: 'deals' } })} style={[styles.pill, styles.pillAccent]}>
+                  <Text style={[styles.pillText, { color: colors.onAccent }]}>🛍️ Boutique</Text>
+                </Pressable>
+              )}
               {mine && (
                 <Pressable onPress={() => setDraft(saved)} style={[styles.pill, styles.pillAccent]}>
                   <Ionicons name="hammer" size={15} color={colors.onAccent} />
@@ -254,12 +264,24 @@ export default function WorldScreen() {
           )}
         </View>
 
-        {!editing && friends.length > 0 && (
+        {!editing && (friends.length > 0 || featured.length > 0) && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.visits}>
             <Pressable onPress={() => router.setParams({ user: '' })} style={[styles.visit, mine && styles.visitActive]}>
               <Text style={{ fontSize: 18 }}>🏝️</Text>
               <Text style={styles.visitText}>Chez moi</Text>
             </Pressable>
+            {featured.map((f) => (
+              <Pressable
+                key={f.id}
+                onPress={() => router.setParams({ user: f.id })}
+                style={[styles.visit, styles.visitFeatured, params.user === f.id && styles.visitActive]}
+              >
+                <Text style={{ fontSize: 16 }}>⭐</Text>
+                <Text style={styles.visitText} numberOfLines={1}>
+                  {f.display_name}
+                </Text>
+              </Pressable>
+            ))}
             {friends.map((f) => (
               <Pressable
                 key={f.profile.id}
@@ -404,6 +426,7 @@ const styles = StyleSheet.create({
   visits: { gap: 8, paddingHorizontal: 16, paddingTop: 10 },
   visit: { ...glass, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, maxWidth: 150 },
   visitActive: { borderWidth: 2, borderColor: colors.accent },
+  visitFeatured: { backgroundColor: '#FFF4D6' },
   visitText: { fontSize: 13, fontWeight: '600', color: colors.text },
   bottom: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   palette: { ...glass, margin: 10, borderRadius: 20, paddingVertical: 10, gap: 8 },

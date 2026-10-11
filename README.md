@@ -30,6 +30,13 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 - **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis 10 h → légendaire 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 100 animaux.
 - **Rappel quotidien** à l'heure choisie et **joker de série** : un jour raté par mois est pardonné.
 
+### Compte vedette
+
+`supabase/admin.sql` transforme un compte en compte vedette (à lancer après `schema.sql`, en mettant son pseudo) :
+tous les objets, 19 dragons niveau 40, une île 32×32 avec la mer, son animal visible sur l'île de tout le monde,
+et une boutique promo sur son île (table `deals` : `percent` = réduction, 100 = offert une fois par joueur).
+Le fichier est généré par `scripts/admin/make-admin-sql.ts`.
+
 ## Backend (Supabase)
 
 Les comptes, amis, sessions et photos sont stockés sur [Supabase](https://supabase.com).

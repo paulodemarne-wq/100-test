@@ -35,6 +35,9 @@ export type PersonStatus =
   | (SessionInfo & { kind: 'done'; durationSec: number; at: number })
   | { kind: 'idle' };
 
+/** A deal on the featured island's shop: percent off (100 = offered). */
+export type Deal = { item_id: string; percent: number; label: string | null };
+
 export type Person = {
   profile: ProfileRow;
   status: PersonStatus;
@@ -93,6 +96,14 @@ type Social = {
   setGarden: (slot: string, itemId: string | null) => Promise<void>;
   /** Saves my island. Reload the profile afterwards. */
   saveWorld: (world: unknown) => Promise<void>;
+  /** Featured accounts (not me): their pet walks on every island, their island has a shop with deals. */
+  featured: ProfileRow[];
+  /** Deals of the featured shop. */
+  deals: Deal[];
+  /** Offered items I already took. */
+  claimedGifts: string[];
+  /** Buys an item at its deal price. Reload the profile afterwards. */
+  buyDeal: (itemId: string) => Promise<void>;
   /** Nudges received and not yet seen, with the sender's profile. */
   nudges: { id: string; from: ProfileRow }[];
   refresh: () => Promise<void>;
@@ -162,6 +173,9 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [reactionRows, setReactionRows] = useState<ReactionRow[]>([]);
   const [petRows, setPetRows] = useState<PetRow[]>([]);
   const [inventory, setInventory] = useState<string[]>([]);
+  const [featuredRows, setFeaturedRows] = useState<ProfileRow[]>([]);
+  const [dealRows, setDealRows] = useState<Deal[]>([]);
+  const [claimedGifts, setClaimedGifts] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
 
   const refresh = useCallback(async () => {
@@ -236,10 +250,17 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     setProfiles(Object.fromEntries(((profilesRes.data ?? []) as ProfileRow[]).map((p) => [p.id, p])));
     setSessions(merged);
     setReactionRows((reactionsData ?? []) as ReactionRow[]);
-    const [petsRes, invRes] = await Promise.all([
+    const [petsRes, invRes, featuredRes, dealsRes, giftsRes] = await Promise.all([
       supabase.from('pets').select('*').order('created_at'),
       supabase.from('inventory').select('item_id').eq('user_id', userId),
+      // Featured accounts (the app's creator): their pet visits every island, their island has a shop.
+      supabase.from('profiles').select('*').eq('featured', true),
+      supabase.from('deals').select('*'),
+      supabase.from('claimed_gifts').select('item_id').eq('user_id', userId),
     ]);
+    setFeaturedRows(((featuredRes.data ?? []) as ProfileRow[]).filter((p) => p.id !== userId));
+    setDealRows((dealsRes.data ?? []) as Deal[]);
+    setClaimedGifts(((giftsRes.data ?? []) as { item_id: string }[]).map((r) => r.item_id));
     setPetRows((petsRes.data ?? []) as PetRow[]);
     setInventory(((invRes.data ?? []) as { item_id: string }[]).map((r) => r.item_id));
     setNow(Date.now());
@@ -378,7 +399,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       .filter((p) => p.user_id === userId)
       .sort((a, b) => (a.id === profile?.active_pet_id ? -1 : b.id === profile?.active_pet_id ? 1 : 0));
     const friendPets: Record<string, PetRow> = {};
-    for (const p of Object.values(allProfiles)) {
+    for (const p of [...Object.values(allProfiles), ...featuredRows]) {
       const pet = petRows.find((r) => r.id === p.active_pet_id);
       if (pet && p.id !== userId) friendPets[p.id] = pet;
     }
@@ -412,6 +433,10 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       setActivePet: (petId) => run(() => supabase.rpc('set_active_pet', { pet: petId })),
       setGarden: (slot, itemId) => run(() => supabase.rpc('set_garden', { slot, item: itemId })),
       saveWorld: (world) => run(() => supabase.rpc('save_world', { world })),
+      featured: featuredRows,
+      deals: dealRows,
+      claimedGifts,
+      buyDeal: (itemId) => run(() => supabase.rpc('buy_deal', { item: itemId })),
       react: async (sessionId, emoji) => {
         if (!userId) return;
         // Optimistic: show the reaction right away.
@@ -520,6 +545,9 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     reactionRows,
     petRows,
     inventory,
+    featuredRows,
+    dealRows,
+    claimedGifts,
     now,
     userId,
     refresh,

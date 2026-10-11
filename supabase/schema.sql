@@ -834,7 +834,8 @@ begin
 end $$;
 
 -- ─── Shop and pet actions (the only way to change them) ─────────────────────
-create or replace function public.buy_item(item text)
+-- Internal: pays `price` seconds for `item`. Only buy_item and buy_deal call it (never clients directly).
+create or replace function public.purchase(item text, price int)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
   me public.profiles;
@@ -847,7 +848,7 @@ begin
   if it.cost_seconds = 0 then raise exception 'Déjà acheté' using errcode = 'P0001'; end if;
   -- Lock the profile row so two purchases can't spend the same hours.
   select * into me from public.profiles where id = auth.uid() for update;
-  if me.total_seconds - me.spent_seconds < it.cost_seconds then
+  if me.total_seconds - me.spent_seconds < price then
     raise exception 'Pas assez d''heures' using errcode = 'P0001';
   end if;
   -- A bigger island needs the size just below it first.
@@ -865,8 +866,14 @@ begin
   else
     insert into public.pets (user_id) values (me.id) returning id into new_pet;
   end if;
-  update public.profiles set spent_seconds = spent_seconds + it.cost_seconds where id = me.id;
+  update public.profiles set spent_seconds = spent_seconds + price where id = me.id;
   return new_pet;
+end $$;
+
+create or replace function public.buy_item(item text)
+returns uuid language plpgsql security definer set search_path = public as $$
+begin
+  return public.purchase(item, (select cost_seconds from public.shop_items where id = item));
 end $$;
 
 create or replace function public.set_active_pet(pet uuid)
@@ -987,6 +994,7 @@ end $$;
 revoke execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text),
   public.set_garden(text, text), public.save_world(jsonb), public.owns_item(uuid, text), public.hatch_if_ready(uuid)
   from public, anon;
+revoke execute on function public.purchase(text, int) from public, anon, authenticated;
 grant execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text),
   public.set_garden(text, text), public.save_world(jsonb) to authenticated;
 
@@ -1002,3 +1010,60 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- v8: featured accounts (the app's creator): their pet walks on everyone's island
+-- and their island has a shop with deals. Only set from the SQL Editor (see admin.sql).
+-- ═════════════════════════════════════════════════════════════════════════════
+alter table public.profiles add column if not exists featured boolean not null default false;
+
+-- Everyone can see the pets of featured accounts.
+drop policy if exists "see featured pets" on public.pets;
+create policy "see featured pets" on public.pets
+  for select to authenticated using (
+    exists (select 1 from public.profiles p where p.id = pets.user_id and p.featured)
+  );
+
+-- Deals sold on a featured island: percent off (100 = offered). Read-only for players.
+create table if not exists public.deals (
+  item_id text primary key references public.shop_items (id),
+  percent int not null check (percent between 1 and 100),
+  label text
+);
+alter table public.deals enable row level security;
+drop policy if exists "deals readable" on public.deals;
+create policy "deals readable" on public.deals for select to authenticated using (true);
+revoke insert, update, delete on public.deals from anon, authenticated;
+
+create or replace function public.buy_deal(item text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  d public.deals;
+  cost int;
+begin
+  select * into d from public.deals where item_id = item;
+  if d.item_id is null then raise exception 'Cette promo n''existe plus' using errcode = 'P0001'; end if;
+  select cost_seconds into cost from public.shop_items where id = item;
+  -- An offered item is free, but each player gets it only once (eggs too).
+  if d.percent = 100 and exists (select 1 from public.claimed_gifts where user_id = auth.uid() and item_id = item) then
+    raise exception 'Déjà acheté' using errcode = 'P0001';
+  end if;
+  if d.percent = 100 then
+    insert into public.claimed_gifts (user_id, item_id) values (auth.uid(), item);
+  end if;
+  return public.purchase(item, (cost * (100 - d.percent)) / 100);
+end $$;
+
+create table if not exists public.claimed_gifts (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  item_id text not null,
+  claimed_at timestamptz not null default now(),
+  primary key (user_id, item_id)
+);
+alter table public.claimed_gifts enable row level security;
+drop policy if exists "see own gifts" on public.claimed_gifts;
+create policy "see own gifts" on public.claimed_gifts for select to authenticated using (user_id = auth.uid());
+revoke insert, update, delete on public.claimed_gifts from anon, authenticated;
+
+revoke execute on function public.buy_deal(text) from public, anon;
+grant execute on function public.buy_deal(text) to authenticated;

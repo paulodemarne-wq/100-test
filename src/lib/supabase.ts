@@ -40,6 +40,8 @@ export type ProfileRow = {
   garden: Partial<Record<'house' | 'tree' | 'deco' | 'ground', string>>;
   /** The island (see src/world/world.ts). Null until first saved. */
   world: unknown;
+  /** The app's creator: their pet visits every island and their island has a shop. */
+  featured: boolean;
 };
 
 export type PetRow = {
