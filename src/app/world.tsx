@@ -102,14 +102,17 @@ export default function WorldScreen() {
     );
   }
 
-  const tapCell = (x: number, z: number) => {
-    if (!draft) return;
+  /** In the editor: apply the tool on a cell. Returns whether something changed (the cell lights green or red). */
+  const tapCell = (x: number, z: number, object: [number, number] | null): boolean => {
+    if (!draft) return false;
     let next = draft;
+    // Erasing / turning works on the object under the finger (tapping its roof counts).
+    if ((tool.kind === 'erase' || tool.kind === 'rotate') && object) [x, z] = object;
     if (tool.kind === 'tile') next = setTile(draft, x, z, tool.id);
     else if (tool.kind === 'object') {
       if (!objectAt(draft, x, z) && draft.objects.length >= MAX_OBJECTS) {
         Alert.alert('Île pleine', `${MAX_OBJECTS} objets maximum. Enlève-en avec la gomme.`);
-        return;
+        return false;
       }
       if (!canPlace(draft, tool.id, x, z)) {
         if (isBoat(tool.id))
@@ -117,15 +120,15 @@ export default function WorldScreen() {
             'Un bateau va sur l’eau',
             draft.sea ? 'Pose-le sur la mer autour de l’île, ou sur de l’eau peinte sur l’île.' : 'Pose-le sur de l’eau peinte sur l’île, ou achète la mer dans la boutique.',
           );
-        return;
+        return false;
       }
       next = placeObject(draft, x, z, tool.id);
     } else if (tool.kind === 'erase') next = removeAt(draft, x, z);
     else next = rotateAt(draft, x, z);
-    if (next !== draft) {
-      Haptics.selectionAsync();
-      setDraft(next);
-    }
+    if (next === draft) return false;
+    Haptics.selectionAsync();
+    setDraft(next);
+    return true;
   };
 
   const openShop = (title: string, message: string) =>
@@ -169,10 +172,11 @@ export default function WorldScreen() {
   };
 
   /** Outside the editor: tapping the shop building opens today's shop. */
-  const tapIsland = (x: number, z: number) => {
+  const tapIsland = (x: number, z: number, object: [number, number] | null) => {
     setPicked(null);
     if (!shopIsland) return;
-    const nearShop = world.objects.some((o) => o[0] === 'boutique' && Math.abs(o[1] - x) <= 1 && Math.abs(o[2] - z) <= 1);
+    const isShop = (cx: number, cz: number) => world.objects.some((o) => o[0] === 'boutique' && Math.abs(o[1] - cx) <= 1 && Math.abs(o[2] - cz) <= 1);
+    const nearShop = isShop(x, z) || (!!object && isShop(object[0], object[1]));
     if (nearShop) {
       Haptics.selectionAsync();
       router.push({ pathname: '/shop', params: { tab: 'deals' } });
@@ -385,6 +389,12 @@ export default function WorldScreen() {
               <>
               {tab === 'objects' && (
                 <View style={styles.categories}>
+                  <Pressable
+                    onPress={() => setTool({ kind: 'erase' })}
+                    style={[styles.category, tool.kind === 'erase' && { backgroundColor: colors.danger }]}
+                  >
+                    <Text style={[styles.categoryText, tool.kind === 'erase' && { color: colors.onAccent }]}>🧽 Gomme</Text>
+                  </Pressable>
                   {(['house', 'tree', 'deco', 'boat'] as const).map((c) => (
                     <Pressable key={c} onPress={() => setCategory(c)} style={[styles.category, category === c && styles.categoryActive]}>
                       <Text style={[styles.categoryText, category === c && { color: colors.onAccent }]}>{GARDEN_SLOT_NAMES[c]}</Text>
@@ -463,7 +473,7 @@ const styles = StyleSheet.create({
   itemPrice: { fontSize: 11, fontWeight: '700' },
   tools: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
   toolItem: { height: 78, justifyContent: 'center' },
-  categories: { flexDirection: 'row', gap: 6, paddingHorizontal: 12 },
+  categories: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 12 },
   category: { borderRadius: 999, backgroundColor: colors.card, paddingHorizontal: 12, paddingVertical: 5 },
   categoryActive: { backgroundColor: colors.accent },
   categoryText: { fontSize: 13, fontWeight: '700', color: colors.text },

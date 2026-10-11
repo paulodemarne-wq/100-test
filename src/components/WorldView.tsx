@@ -14,7 +14,8 @@ type Props = {
   labels?: Record<string, string>;
   /** Fixed tags above places of the island (e.g. the shop building). */
   markers?: { id: string; x: number; y: number; z: number; text: string }[];
-  onTapCell?: (x: number, z: number) => void;
+  /** Return true/false to light the cell green/red (editor feedback). */
+  onTapCell?: (x: number, z: number, object: [number, number] | null) => boolean | void;
   onTapPet?: (petId: string) => void;
   /** Tapped pet: it stops, faces the camera and gets a bubble above its head. */
   focusId?: string | null;
@@ -120,21 +121,27 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
           const p = pinch(touches);
           if (prev.touches >= 2) {
             cam.zoom(p.dist / Math.max(1, prev.dist));
-            cam.rotate(-(p.angle - prev.angle));
+            // Turning the fingers clockwise turns the map clockwise.
+            let turn = p.angle - prev.angle;
+            turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+            cam.rotate(turn);
           }
           prev = { dx: g.dx, dy: g.dy, touches: touches.length, ...p };
           moved = true;
           return;
         }
         if (prev.touches !== 1) prev = { ...prev, dx: g.dx, dy: g.dy, touches: 1 };
-        if (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6) moved = true;
-        cam.pan(g.dx - prev.dx, g.dy - prev.dy, size.current.height);
+        // A small wobble of the finger is still a tap (to place things), not a drag.
+        if (!moved && Math.hypot(g.dx, g.dy) < 12) return;
+        moved = true;
+        const { width, height } = size.current;
+        cam.grab(start.x + prev.dx, start.y + prev.dy, start.x + g.dx, start.y + g.dy, width, height);
         prev = { ...prev, dx: g.dx, dy: g.dy };
       },
       onPanResponderRelease: () => {
         const cam = camRef.current;
         const island = islandRef.current;
-        if (moved || !cam || !island || Date.now() - start.time > 600) return;
+        if (moved || !cam || !island || Date.now() - start.time > 800) return;
         const ray = cam.ray(start.x, start.y, size.current.width, size.current.height);
         const pet = island.pickPet(ray);
         if (pet && callbacks.current.onTapPet) {
@@ -142,7 +149,15 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
           return;
         }
         const cell = island.pickCell(ray);
-        if (cell) callbacks.current.onTapCell?.(cell[0], cell[1]);
+        // The object under the finger (even its roof, which is over another ground cell).
+        const object = island.pickObject(ray);
+        if (!cell && !object) return;
+        const [x, z] = cell ?? object!;
+        const ok = callbacks.current.onTapCell?.(x, z, object);
+        if (typeof ok === 'boolean') {
+          const [fx, fz] = ok && object && !cell ? object : [x, z];
+          island.flashCell(fx, fz, ok);
+        }
       },
     });
   }, []);

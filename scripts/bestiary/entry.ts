@@ -167,7 +167,10 @@ function mountWorld(
   canvas.addEventListener('pointermove', (e) => {
     if (!dragging) return;
     moved += Math.abs(e.clientX - last[0]) + Math.abs(e.clientY - last[1]);
-    cam.pan(e.clientX - last[0], e.clientY - last[1], canvas.clientHeight);
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.clientWidth / r.width;
+    const sy = canvas.clientHeight / r.height;
+    cam.grab((last[0] - r.left) * sx, (last[1] - r.top) * sy, (e.clientX - r.left) * sx, (e.clientY - r.top) * sy, canvas.clientWidth, canvas.clientHeight);
     last = [e.clientX, e.clientY];
   });
   canvas.addEventListener('pointerup', (e) => {

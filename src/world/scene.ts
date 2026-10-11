@@ -137,6 +137,15 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   };
   let seaHandle: ReturnType<typeof buildSea> | null = null;
 
+  // A soft square that lights up on the cell just tapped in the editor.
+  const flashMat = new THREE.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0, depthWrite: false });
+  const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.96), flashMat);
+  flash.rotation.x = -Math.PI / 2;
+  flash.visible = false;
+  root.add(flash);
+  let flashUntil = 0;
+  let flashColor = '#FFFFFF';
+
   // Boats float on their own (not merged) so they can bob on the waves.
   let boats: Boat[] = [];
   const boatGroup = new THREE.Group();
@@ -206,14 +215,25 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     return flat;
   };
 
+  /** Where each object really is in 3D (its box), to pick it with a tap even on its roof. */
+  let objectBoxes: { x: number; z: number; box: THREE.Box3 }[] = [];
   const buildObjects = () => {
     const g = new THREE.Group();
+    objectBoxes = [];
     for (const [id, x, z, turns] of world.objects) {
-      if (isBoat(id)) continue;
       const o = buildDecor(id, kit);
       o.scale.setScalar(DECOR_SCALE[id] ?? 1);
-      o.position.set(x + 0.5, 0, z + 0.5);
+      o.position.set(x + 0.5, isBoat(id) ? (inside(world, x, z) ? -0.04 : -0.36) : 0, z + 0.5);
       o.rotation.y = (turns * Math.PI) / 2;
+      o.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(o);
+      // Flat things (paths of flowers…) still get a tappable height.
+      box.max.y = Math.max(box.max.y, 0.3);
+      objectBoxes.push({ x, z, box });
+      if (isBoat(id)) {
+        disposeGeometries(o);
+        continue;
+      }
       g.add(o);
     }
     const flat = flatten(g);
@@ -339,8 +359,20 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       if (id !== focusId) focusSince = -1;
       focusId = id;
     },
+    /** Lights up a cell for a moment (green: placed, red: not allowed). */
+    flashCell(x: number, z: number, ok = true) {
+      flash.position.set(x + 0.5, inside(world, x, z) ? 0.06 : -0.25, z + 0.5);
+      flashColor = ok ? '#7CFF9B' : '#FF6B6B';
+      flashMat.color.set(flashColor);
+      flashUntil = -1;
+    },
     update(t: number, dt: number, camera?: THREE.Vector3) {
       seaAnim.forEach((a) => a(t));
+      if (flashUntil === -1) flashUntil = t + 0.6;
+      if (flashUntil > t) {
+        flash.visible = true;
+        flashMat.opacity = 0.65 * ((flashUntil - t) / 0.6);
+      } else flash.visible = false;
       for (const b of boats) {
         b.group.position.y = b.baseY + Math.sin(t * 1.4 + b.seed) * 0.04;
         b.group.rotation.z = Math.sin(t * 1.1 + b.seed) * 0.05;
@@ -404,6 +436,21 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       const m = world.sea ? SEA : 0;
       return x >= -m && z >= -m && x < world.size + m && z < world.size + m ? [x, z] : null;
     },
+    /** The object hit by a ray (a tap), nearest first: its cell. */
+    pickObject(ray: THREE.Ray): [number, number] | null {
+      let best: [number, number] | null = null;
+      let bestD = Infinity;
+      const hit = new THREE.Vector3();
+      for (const o of objectBoxes) {
+        if (!ray.intersectBox(o.box, hit)) continue;
+        const d = hit.distanceTo(ray.origin);
+        if (d < bestD) {
+          bestD = d;
+          best = [o.x, o.z];
+        }
+      }
+      return best;
+    },
     /** The pet closest to a ray (a tap), if any. */
     pickPet(ray: THREE.Ray): string | null {
       let best: string | null = null;
@@ -433,6 +480,8 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       [base, ground, objects].forEach((g) => g && disposeGeometries(g));
       boats.forEach((b) => disposeGeometries(b.group));
       seaHandle?.dispose();
+      flash.geometry.dispose();
+      flashMat.dispose();
       lawnMat.dispose();
       kit.dispose();
     },
@@ -471,6 +520,27 @@ export class IslandCamera {
     const sin = Math.sin(this.yaw);
     this.target.x -= (dx * cos + dy * sin) * k;
     this.target.z -= (-dx * sin + dy * cos) * k;
+    const m = SEA + 1;
+    this.target.x = Math.max(-m, Math.min(this.size + m, this.target.x));
+    this.target.z = Math.max(-m, Math.min(this.size + m, this.target.z));
+    this.apply();
+  }
+
+  /** The point of the ground (y = 0) under a point of the view, if any. */
+  groundAt(x: number, y: number, width: number, height: number): THREE.Vector3 | null {
+    const hit = this.ray(x, y, width, height).intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+    // Too close to the horizon: ignore, it would fling the view away.
+    if (!hit || hit.distanceTo(this.camera.position) > this.distance * 4) return null;
+    return hit;
+  }
+
+  /** Drags the map like a sheet: the ground under the finger stays under the finger. */
+  grab(fromX: number, fromY: number, toX: number, toY: number, width: number, height: number) {
+    const a = this.groundAt(fromX, fromY, width, height);
+    const b = this.groundAt(toX, toY, width, height);
+    if (!a || !b) return;
+    this.target.x += a.x - b.x;
+    this.target.z += a.z - b.z;
     const m = SEA + 1;
     this.target.x = Math.max(-m, Math.min(this.size + m, this.target.x));
     this.target.z = Math.max(-m, Math.min(this.size + m, this.target.z));
