@@ -38,6 +38,16 @@ export default function Shop() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             if (item.kind === 'egg') {
               Alert.alert('Nouvel œuf 🥚', "Il est dans ta collection. Choisis-le comme animal actif pour le faire éclore.");
+            } else if (item.kind === 'upgrade') {
+              const sea = item.id === 'sea';
+              Alert.alert(
+                sea ? 'La mer arrive 🌊' : 'Ton île s’agrandit 🏝️',
+                sea ? 'Tu peux maintenant mettre des bateaux autour de ton île.' : 'Tout ce que tu as construit reste au milieu.',
+                [
+                  { text: 'Plus tard', style: 'cancel' },
+                  { text: 'Voir mon île', onPress: () => router.replace({ pathname: '/world', params: sea ? { edit: '1', sea: '1' } : { edit: '1', grow: '1' } }) },
+                ],
+              );
             } else if (item.kind === 'garden' && item.slot) {
               Alert.alert(`${item.name} débloqué 🎉`, 'Tu peux en poser autant que tu veux sur ton île.', [
                 { text: 'Plus tard', style: 'cancel' },
@@ -64,9 +74,40 @@ export default function Shop() {
 
   const trying = preview?.kind === 'accessory' ? preview : null;
   const equippedPreview = pet ? { ...pet.equipped, ...(trying?.slot ? { [trying.slot]: trying.id } : {}) } : undefined;
-  const items = SHOP_ITEMS.filter((i) => (tab === 'garden' ? i.kind === 'garden' : i.kind !== 'garden'));
+  // Sections of the shop, in order.
+  const sections: { title: string; items: ShopItem[] }[] =
+    tab === 'garden'
+      ? [
+          { title: 'Agrandir l’île', items: SHOP_ITEMS.filter((i) => i.kind === 'upgrade') },
+          ...(['house', 'tree', 'deco', 'boat', 'ground'] as const).map((slot) => ({
+            title: { house: 'Maisons', tree: 'Arbres et plantes', deco: 'Déco', boat: 'Bateaux', ground: 'Sols' }[slot],
+            items: SHOP_ITEMS.filter((i) => i.kind === 'garden' && i.slot === slot),
+          })),
+        ]
+      : [
+          { title: 'Œuf', items: SHOP_ITEMS.filter((i) => i.kind === 'egg') },
+          ...(['head', 'eyes', 'neck', 'back'] as const).map((slot) => ({
+            title: { head: 'Chapeaux', eyes: 'Lunettes', neck: 'Cou', back: 'Dos' }[slot],
+            items: SHOP_ITEMS.filter((i) => i.kind === 'accessory' && i.slot === slot),
+          })),
+        ];
+  /** Bigger islands are bought in order: 20×20 before 24×24, etc. */
+  const lockedBy = (item: ShopItem): string | null => {
+    const m = /^size(\d+)$/.exec(item.id);
+    if (!m || m[1] === '20') return null;
+    const before = `size${Number(m[1]) - 4}`;
+    return inventory.includes(before) ? null : `Après ${Number(m[1]) - 4}×${Number(m[1]) - 4}`;
+  };
   const slotName = (item: ShopItem) =>
     item.kind === 'garden' ? GARDEN_SLOT_NAMES[item.slot as GardenSlot] : SLOT_NAMES[item.slot as Slot];
+  const describe = (item: ShopItem) =>
+    item.kind === 'upgrade'
+      ? item.id === 'sea'
+        ? 'Pour mettre des bateaux'
+        : 'Plus de place pour construire'
+      : item.slot
+        ? slotName(item)
+        : 'Éclot en un animal au hasard';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -105,12 +146,16 @@ export default function Shop() {
         </View>
         <Text style={type.subhead}>
           {tab === 'garden'
-            ? 'Débloque un objet une fois, pose-le autant de fois que tu veux sur ton île. Tes amis le verront en visite.'
+            ? 'Agrandis ton île, ajoute la mer et des bateaux. Un objet débloqué se pose autant de fois que tu veux.'
             : 'Chaque heure de lock in = 1 h à dépenser ici.'}
         </Text>
+        {sections.map((section) => (
+        <View key={section.title} style={{ gap: 8 }}>
+        <Text style={styles.sectionTitle}>{section.title.toUpperCase()}</Text>
         <View style={styles.grid}>
-          {items.map((item) => {
+          {section.items.map((item) => {
             const owned = item.kind !== 'egg' && ownsItem(item, inventory);
+            const locked = owned ? null : lockedBy(item);
             const affordable = balance >= item.costHours * 3600;
             const color = item.kind === 'egg' ? colors.accent : RARITY_COLORS[item.rarity];
             return (
@@ -126,10 +171,14 @@ export default function Shop() {
                   {item.emoji ? `${item.emoji} ` : ''}
                   {item.name}
                 </Text>
-                <Text style={type.footnote}>{item.slot ? slotName(item) : 'Éclot en un animal au hasard'}</Text>
+                <Text style={type.footnote}>{describe(item)}</Text>
                 {owned ? (
                   <View style={[styles.buy, { backgroundColor: colors.successSoft }]}>
                     <Text style={[styles.buyText, { color: colors.success }]}>{item.costHours === 0 ? 'Gratuit ✓' : 'Possédé ✓'}</Text>
+                  </View>
+                ) : locked ? (
+                  <View style={[styles.buy, { backgroundColor: colors.fill }]}>
+                    <Text style={[styles.buyText, { color: colors.secondary, fontSize: 13 }]}>🔒 {locked}</Text>
                   </View>
                 ) : (
                   <Pressable
@@ -147,6 +196,8 @@ export default function Shop() {
             );
           })}
         </View>
+        </View>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -176,6 +227,7 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 15, fontWeight: '600', color: colors.secondary },
   tabTextActive: { color: colors.text },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  sectionTitle: { ...type.footnote, fontWeight: '700', marginTop: 8, marginLeft: 4 },
   item: { ...card, width: '48%', flexGrow: 1, padding: 12, gap: 6, borderWidth: 2, borderColor: 'transparent' },
   rarity: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   rarityText: { color: '#FFF', fontSize: 11, fontWeight: '800', textTransform: 'capitalize' },

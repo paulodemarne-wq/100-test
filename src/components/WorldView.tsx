@@ -47,7 +47,11 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = 
   const petsKey = JSON.stringify(pets);
 
   useEffect(() => {
-    islandRef.current?.setWorld(world);
+    const island = islandRef.current;
+    if (!island) return;
+    const grew = island.size !== world.size;
+    island.setWorld(world);
+    if (grew) camRef.current?.fit(world.size, size.current.width < size.current.height);
   }, [world]);
 
   useEffect(() => {
@@ -158,8 +162,7 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = 
     islandRef.current = island;
     const cam = new IslandCamera(width / height);
     // On a tall phone screen, start a bit closer so pets are visible.
-    if (width < height) cam.distance = 18;
-    cam.apply();
+    cam.fit(latest.current.world.size, width < height);
     camRef.current = cam;
 
     const start = Date.now();

@@ -23,9 +23,10 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 - **Mon animal** 🐾 : un œuf qui éclot en un des **100 animaux** (16 corps différents : slime, golem, dragon, pieuvre, escargot…), à faire tourner en 3D.
   Il gagne l'expérience de tes sessions : **40 niveaux**, un changement visible à chaque niveau, 3 formes d'évolution,
   et les paliers Bébé → Rare → Super rare → Épique → Mythique → Légendaire. Le niveau max demande ~2 190 h (2 ans à 3 h/jour).
-- **Mon île** 🏝️ : une île de 16×16 cases à décorer comme on veut : peindre le sol (herbe, chemin, pavés, eau, sable, neige, nuages…)
-  et poser jusqu'à 150 objets (maisons, arbres, clôtures, bancs, feu de camp, fontaine, château…). Un objet débloqué se pose autant de fois qu'on veut.
-  **Les animaux de tous tes amis se promènent sur ton île**, et tu peux aller visiter la leur.
+- **Mon île** 🏝️ : une île qui commence vide et qu'on décore comme on veut : peindre le sol (herbe, chemin, pavés, eau, sable, neige, nuages…)
+  et poser jusqu'à 200 objets (plus de 50 : maisons, igloo, moulin, phare, arbres, balançoire, trampoline, coffre au trésor…).
+  On peut **l'agrandir** (16×16 → 32×32), **ajouter la mer** autour et y mettre **des bateaux** (barque, pédalo canard, voilier, yacht, bateau pirate).
+  **Les animaux de tous tes amis se promènent sur ton île** : touche-en un, il se tourne vers toi avec son nom et un bouton pour visiter son île.
 - **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis 10 h → légendaire 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 100 animaux.
 - **Rappel quotidien** à l'heure choisie et **joker de série** : un jour raté par mois est pardonné.
 

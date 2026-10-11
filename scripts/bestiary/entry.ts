@@ -110,9 +110,11 @@ function mountWorld(
   renderer.setPixelRatio(Math.min(3, Math.max(2, window.devicePixelRatio || 1)));
   const scene = new THREE.Scene();
   addLights(scene);
-  const island = buildIsland(opts.world ?? defaultWorld(), opts.pets);
+  const world0 = opts.world ?? defaultWorld();
+  const island = buildIsland(world0, opts.pets);
   scene.add(island.group);
   const cam = new IslandCamera(1);
+  cam.fit(world0.size);
   if (opts.yaw !== undefined) cam.yaw = opts.yaw;
   if (opts.distance !== undefined) cam.distance = opts.distance;
   cam.apply();
@@ -207,7 +209,11 @@ function mountWorld(
   };
   frame();
   return {
-    setWorld: (world: World) => island.setWorld(world),
+    setWorld: (world: World) => {
+      const grew = world.size !== island.size;
+      island.setWorld(world);
+      if (grew) cam.fit(world.size);
+    },
     setFocus: focus,
     destroy() {
       cancelAnimationFrame(raf);

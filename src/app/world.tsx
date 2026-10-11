@@ -6,12 +6,28 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { WorldView } from '../components/WorldView';
-import { displayName, levelFor, ownsItem, RARITY_COLORS, SHOP_ITEMS, ShopItem, speciesById, tierFor } from '../creatures/species';
+import { displayName, GARDEN_SLOT_NAMES, GardenSlot, levelFor, ownsItem, RARITY_COLORS, SHOP_ITEMS, ShopItem, speciesById, tierFor } from '../creatures/species';
 import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { colors, type } from '../lib/theme';
 import { PetSpec } from '../world/scene';
-import { isTile, MAX_OBJECTS, objectAt, placeObject, readWorld, removeAt, rotateAt, setTile, World } from '../world/world';
+import {
+  canPlace,
+  isBoat,
+  isTile,
+  MAX_OBJECTS,
+  objectAt,
+  ownedSize,
+  ownsSea,
+  placeObject,
+  readWorld,
+  removeAt,
+  resizeWorld,
+  rotateAt,
+  setTile,
+  SIZES,
+  World,
+} from '../world/world';
 
 type Tool = { kind: 'tile'; id: string } | { kind: 'object'; id: string } | { kind: 'erase' } | { kind: 'rotate' };
 type Tab = 'tiles' | 'objects' | 'tools';
@@ -21,19 +37,29 @@ const OBJECTS = SHOP_ITEMS.filter((i) => i.kind === 'garden' && i.slot !== 'grou
 
 /** An island: mine (editable, all my friends' pets live on it) or a friend's (visit). */
 export default function WorldScreen() {
-  const params = useLocalSearchParams<{ user?: string; edit?: string; item?: string }>();
+  const params = useLocalSearchParams<{ user?: string; edit?: string; item?: string; grow?: string; sea?: string }>();
   const { profile, reloadProfile } = useAuth();
   const { pets, friends, friendPets, inventory, saveWorld } = useSocial();
   const host = params.user ? friends.find((f) => f.profile.id === params.user)?.profile : profile;
   const mine = !params.user || params.user === profile?.id;
 
   const saved = useMemo(() => readWorld(host?.world), [host?.world]);
-  const [draft, setDraft] = useState<World | null>(params.edit && mine ? saved : null);
+  // Coming from the shop after buying a bigger island or the sea: apply it right away.
+  const [draft, setDraft] = useState<World | null>(() => {
+    if (!params.edit || !mine) return null;
+    let w = saved;
+    if (params.grow) w = resizeWorld(w, ownedSize(inventory));
+    if (params.sea && ownsSea(inventory)) w = { ...w, sea: true };
+    return w;
+  });
   const [tab, setTab] = useState<Tab>(params.item && isTile(params.item) ? 'tiles' : 'objects');
   const [tool, setTool] = useState<Tool>(
     params.item ? (isTile(params.item) ? { kind: 'tile', id: params.item } : { kind: 'object', id: params.item }) : { kind: 'object', id: 'pine' },
   );
   const [saving, setSaving] = useState(false);
+  const [category, setCategory] = useState<GardenSlot>(
+    (params.item && SHOP_ITEMS.find((i) => i.id === params.item)?.slot as GardenSlot) || 'house',
+  );
   const [picked, setPicked] = useState<string | null>(null);
   const editing = draft !== null;
 
@@ -78,6 +104,14 @@ export default function WorldScreen() {
         Alert.alert('Île pleine', `${MAX_OBJECTS} objets maximum. Enlève-en avec la gomme.`);
         return;
       }
+      if (!canPlace(draft, tool.id, x, z)) {
+        if (isBoat(tool.id))
+          Alert.alert(
+            'Un bateau va sur l’eau',
+            draft.sea ? 'Pose-le sur la mer autour de l’île, ou sur de l’eau peinte sur l’île.' : 'Pose-le sur de l’eau peinte sur l’île, ou achète la mer dans la boutique.',
+          );
+        return;
+      }
       next = placeObject(draft, x, z, tool.id);
     } else if (tool.kind === 'erase') next = removeAt(draft, x, z);
     else next = rotateAt(draft, x, z);
@@ -86,6 +120,12 @@ export default function WorldScreen() {
       setDraft(next);
     }
   };
+
+  const openShop = (title: string, message: string) =>
+    Alert.alert(title, message, [
+      { text: 'Plus tard', style: 'cancel' },
+      { text: 'Boutique', onPress: () => router.push({ pathname: '/shop', params: { tab: 'garden' } }) },
+    ]);
 
   const choose = (item: ShopItem) => {
     if (!ownsItem(item, inventory)) {
@@ -161,7 +201,7 @@ export default function WorldScreen() {
       </>
     );
   };
-  const items = tab === 'tiles' ? TILES : OBJECTS;
+  const items = tab === 'tiles' ? TILES : OBJECTS.filter((i) => i.slot === category);
   const selectedId = tool.kind === 'tile' || tool.kind === 'object' ? tool.id : null;
 
   return (
@@ -253,21 +293,63 @@ export default function WorldScreen() {
               ))}
             </View>
             {tab === 'tools' ? (
-              <View style={styles.tools}>
-                {(
-                  [
-                    ['erase', 'Gomme', 'trash-outline'],
-                    ['rotate', 'Tourner', 'refresh'],
-                  ] as const
-                ).map(([k, label, icon]) => (
-                  <Pressable key={k} onPress={() => setTool({ kind: k })} style={[styles.item, styles.toolItem, tool.kind === k && styles.itemActive]}>
-                    <Ionicons name={icon} size={24} color={colors.text} />
-                    <Text style={styles.itemName}>{label}</Text>
+              <View style={{ gap: 8 }}>
+                <View style={styles.tools}>
+                  {(
+                    [
+                      ['erase', 'Gomme', 'trash-outline'],
+                      ['rotate', 'Tourner', 'refresh'],
+                    ] as const
+                  ).map(([k, label, icon]) => (
+                    <Pressable key={k} onPress={() => setTool({ kind: k })} style={[styles.item, styles.toolItem, tool.kind === k && styles.itemActive]}>
+                      <Ionicons name={icon} size={24} color={colors.text} />
+                      <Text style={styles.itemName}>{label}</Text>
+                    </Pressable>
+                  ))}
+                  <Pressable
+                    onPress={() => {
+                      if (!ownsSea(inventory)) return openShop('La mer', 'Achète la mer pour entourer ton île d’eau et y mettre des bateaux.');
+                      setDraft({ ...world, sea: !world.sea });
+                    }}
+                    style={[styles.item, styles.toolItem, world.sea && styles.itemActive]}
+                  >
+                    <Text style={[styles.itemEmoji, !ownsSea(inventory) && { opacity: 0.35 }]}>🌊</Text>
+                    <Text style={styles.itemName}>{world.sea ? 'Mer ✓' : 'Mer'}</Text>
                   </Pressable>
-                ))}
-                <Text style={[type.footnote, { flex: 1 }]}>Touche un objet sur l'île pour l'enlever ou le tourner.</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.items}>
+                  {SIZES.map((size) => {
+                    const unlocked = size <= ownedSize(inventory);
+                    return (
+                      <Pressable
+                        key={size}
+                        onPress={() => {
+                          if (!unlocked) return openShop(`Île ${size}×${size}`, 'Agrandis ton île dans la boutique.');
+                          if (size < world.size) return Alert.alert('Ton île est déjà plus grande', 'On ne peut pas la rétrécir.');
+                          setDraft(resizeWorld(world, size));
+                        }}
+                        style={[styles.sizeChip, world.size === size && styles.itemActive]}
+                      >
+                        <Text style={[styles.itemName, !unlocked && { color: colors.tertiary }]}>
+                          {unlocked ? '' : '🔒 '}
+                          {size}×{size}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
               </View>
             ) : (
+              <>
+              {tab === 'objects' && (
+                <View style={styles.categories}>
+                  {(['house', 'tree', 'deco', 'boat'] as const).map((c) => (
+                    <Pressable key={c} onPress={() => setCategory(c)} style={[styles.category, category === c && styles.categoryActive]}>
+                      <Text style={[styles.categoryText, category === c && { color: colors.onAccent }]}>{GARDEN_SLOT_NAMES[c]}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.items}>
                 {items.map((item) => {
                   const owned = ownsItem(item, inventory);
@@ -284,6 +366,7 @@ export default function WorldScreen() {
                   );
                 })}
               </ScrollView>
+              </>
             )}
             <Text style={styles.hint}>
               {tool.kind === 'tile'
@@ -293,6 +376,7 @@ export default function WorldScreen() {
                   : tool.kind === 'erase'
                     ? 'Touche un objet pour l’enlever.'
                     : 'Touche un objet pour le tourner.'}
+              {tool.kind === 'object' && isBoat(tool.id) ? ' Les bateaux vont sur la mer ou sur l’eau.' : ''}
             </Text>
           </View>
         </SafeAreaView>
@@ -336,6 +420,11 @@ const styles = StyleSheet.create({
   itemPrice: { fontSize: 11, fontWeight: '700' },
   tools: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
   toolItem: { height: 78, justifyContent: 'center' },
+  categories: { flexDirection: 'row', gap: 6, paddingHorizontal: 12 },
+  category: { borderRadius: 999, backgroundColor: colors.card, paddingHorizontal: 12, paddingVertical: 5 },
+  categoryActive: { backgroundColor: colors.accent },
+  categoryText: { fontSize: 13, fontWeight: '700', color: colors.text },
+  sizeChip: { borderRadius: 999, backgroundColor: colors.card, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 2, borderColor: 'transparent' },
   hint: { ...type.footnote, marginHorizontal: 14 },
   focusName: { fontSize: 17, fontWeight: '800', color: colors.text },
   focusPet: { fontSize: 13, fontWeight: '700' },

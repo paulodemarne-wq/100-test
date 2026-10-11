@@ -4,7 +4,7 @@ import { buildCreature, Creature } from '../creatures/build';
 import { Equipped } from '../creatures/species';
 import { buildDecor, makeKit, TILE_COLORS, tileDetails } from './decor';
 import { disposeGeometries, flatten } from './flatten';
-import { tileAt, walkable, World, WORLD_SIZE } from './world';
+import { inside, isBoat, MIN_SIZE, SEA, tileAt, walkable, World } from './world';
 
 export type PetSpec = { id: string; species: number | null; level: number; equipped?: Equipped };
 
@@ -30,7 +30,25 @@ const LAYER: Record<string, number> = {
 const DECOR_SCALE: Record<string, number> = {
   tent: 1.3, doghouse: 1.3, cabin: 1.35, cottage: 1.4, mushroom: 1.4, castle: 1.5,
   pine: 1.3, apple: 1.35, palm: 1.35, sakura: 1.35, crystal: 1.3, fountain: 1.15, well: 1.1, rainbow: 1.6,
+  igloo: 1.35, treehouse: 1.5, windmill: 1.5, autumn: 1.35, bamboo: 1.2, lighthouse: 1.5,
+  rowboat: 1.2, duckboat: 1.2, sailboat: 1.6, yacht: 1.7, pirateship: 2.2,
 };
+
+type Boat = { group: THREE.Group; baseY: number; seed: number };
+
+/** A rounded square from lo to hi (in shape x/y). */
+function roundedSquare<T extends THREE.Path>(shape: T, lo: number, hi: number, radius: number): T {
+  shape.moveTo(lo + radius, lo);
+  shape.lineTo(hi - radius, lo);
+  shape.quadraticCurveTo(hi, lo, hi, lo + radius);
+  shape.lineTo(hi, hi - radius);
+  shape.quadraticCurveTo(hi, hi, hi - radius, hi);
+  shape.lineTo(lo + radius, hi);
+  shape.quadraticCurveTo(lo, hi, lo, hi - radius);
+  shape.lineTo(lo, lo + radius);
+  shape.quadraticCurveTo(lo, lo, lo + radius, lo);
+  return shape;
+}
 
 export type IslandScene = ReturnType<typeof buildIsland>;
 
@@ -45,37 +63,103 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   let focusId: string | null = null;
   let focusSince = -1;
 
-  // The island's earth underneath, never changes.
-  // Soft rounded corners: a cartoon island, not a grid of squares.
-  const base = new THREE.Group();
-  const slab = (margin: number, radius: number, depth: number, y: number, color: string) => {
-    const lo = -margin;
-    const hi = WORLD_SIZE + margin;
-    const shape = new THREE.Shape();
-    shape.moveTo(lo + radius, lo);
-    shape.lineTo(hi - radius, lo);
-    shape.quadraticCurveTo(hi, lo, hi, lo + radius);
-    shape.lineTo(hi, hi - radius);
-    shape.quadraticCurveTo(hi, hi, hi - radius, hi);
-    shape.lineTo(lo + radius, hi);
-    shape.quadraticCurveTo(lo, hi, lo, hi - radius);
-    shape.lineTo(lo, lo + radius);
-    shape.quadraticCurveTo(lo, lo, lo + radius, lo);
-    const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: 0.12, bevelThickness: 0.08, bevelSegments: 3, curveSegments: 10 });
-    // Shape is drawn in x/y; lay it flat so it extends downward from y.
-    kit.add(base, geo, kit.mat(color), [0, y, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
-    return shape;
-  };
-  const top = slab(0.35, 1.4, 0.06, -0.09, TILE_COLORS.grass[0]);
-  // A perfectly flat lawn on top (the bevelled slab alone shades unevenly).
-  // Matte material: a big flat lawn shows banding with the shiny standard one.
+  // The island's earth (rebuilt when the island grows), with soft rounded corners.
   const lawnMat = new THREE.MeshLambertMaterial({ color: TILE_COLORS.grass[0] });
-  kit.add(base, new THREE.ShapeGeometry(top, 10), lawnMat, [0, -0.004, 0], [1, -1, 1], [-Math.PI / 2, 0, 0]);
-  slab(0.3, 1.4, 0.45, -0.17, '#B07D52');
-  slab(-0.6, 1.8, 0.5, -0.62, '#94663F');
-  const flatBase = flatten(base);
-  root.add(flatBase);
-  disposeGeometries(base);
+  let base: THREE.Group | null = null;
+  let baseSize = 0;
+  const buildBase = (size: number) => {
+    const b = new THREE.Group();
+    const slab = (margin: number, radius: number, depth: number, y: number, color: string) => {
+      const shape = roundedSquare(new THREE.Shape(), -margin, size + margin, radius);
+      const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: 0.12, bevelThickness: 0.08, bevelSegments: 3, curveSegments: 10 });
+      // Shape is drawn in x/y; lay it flat so it extends downward from y.
+      kit.add(b, geo, kit.mat(color), [0, y, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+      return shape;
+    };
+    const top = slab(0.35, 1.4, 0.06, -0.09, TILE_COLORS.grass[0]);
+    // A perfectly flat, matte lawn on top (the bevelled, shiny slab alone shades unevenly).
+    kit.add(b, new THREE.ShapeGeometry(top, 10), lawnMat, [0, -0.004, 0], [1, -1, 1], [-Math.PI / 2, 0, 0]);
+    slab(0.3, 1.4, 0.45, -0.17, '#B07D52');
+    slab(-0.6, 1.8, 0.5, -0.62, '#94663F');
+    const flat = flatten(b);
+    disposeGeometries(b);
+    return flat;
+  };
+
+  // The sea: a wide water plane, a foam ring around the island and glints that drift.
+  let sea: THREE.Group | null = null;
+  const seaAnim: ((t: number) => void)[] = [];
+  const buildSea = (size: number) => {
+    const g = new THREE.Group();
+    const c = size / 2;
+    const water = new THREE.Mesh(new THREE.CircleGeometry(size * 2.2 + 30, 64), new THREE.MeshLambertMaterial({ color: '#4FB6EA' }));
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(c, -0.3, c);
+    g.add(water);
+    const foamMat = new THREE.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0.55, depthWrite: false });
+    // Foam hugging the island's rounded shore, breathing in and out.
+    const foamShape = roundedSquare(new THREE.Shape(), -c - 1.0, c + 1.0, 2.0);
+    foamShape.holes.push(roundedSquare(new THREE.Path(), -c - 0.3, c + 0.3, 1.5));
+    const foam = new THREE.Mesh(new THREE.ShapeGeometry(foamShape, 12), foamMat);
+    foam.rotation.x = -Math.PI / 2;
+    foam.position.set(c, -0.28, c);
+    g.add(foam);
+    seaAnim.push((t) => {
+      const k = 1 + Math.sin(t * 1.2) * (0.6 / size);
+      foam.scale.set(k, k, 1);
+      foamMat.opacity = 0.45 + Math.sin(t * 1.2) * 0.12;
+    });
+    const glintMat = new THREE.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0.7, depthWrite: false });
+    const glintGeo = new THREE.PlaneGeometry(0.5, 0.06);
+    for (let i = 0; i < 40; i++) {
+      const glint = new THREE.Mesh(glintGeo, glintMat);
+      glint.rotation.x = -Math.PI / 2;
+      const a = (i / 40) * Math.PI * 2 + i;
+      const r = size * 0.75 + 1 + ((i * 37) % 13);
+      glint.position.set(c + Math.cos(a) * r, -0.29, c + Math.sin(a) * r);
+      g.add(glint);
+      seaAnim.push((t) => {
+        glint.position.x = c + Math.cos(a) * r + Math.sin(t * 0.6 + i) * 0.4;
+        glint.scale.x = 0.6 + Math.abs(Math.sin(t * 1.5 + i)) * 0.8;
+      });
+    }
+    return {
+      group: g,
+      dispose: () => {
+        g.traverse((o) => {
+          if (o instanceof THREE.Mesh) o.geometry.dispose();
+        });
+        (water.material as THREE.Material).dispose();
+        foamMat.dispose();
+        glintMat.dispose();
+      },
+    };
+  };
+  let seaHandle: ReturnType<typeof buildSea> | null = null;
+
+  // Boats float on their own (not merged) so they can bob on the waves.
+  let boats: Boat[] = [];
+  const boatGroup = new THREE.Group();
+  root.add(boatGroup);
+  const buildBoats = () => {
+    boats.forEach((b) => {
+      boatGroup.remove(b.group);
+      disposeGeometries(b.group);
+    });
+    boats = [];
+    world.objects.forEach(([id, x, z, turns], i) => {
+      if (!isBoat(id)) return;
+      const model = buildDecor(id, kit);
+      model.scale.setScalar(DECOR_SCALE[id] ?? 1);
+      const flat = flatten(model);
+      disposeGeometries(model);
+      flat.position.set(x + 0.5, 0, z + 0.5);
+      flat.rotation.y = (turns * Math.PI) / 2;
+      boatGroup.add(flat);
+      // On the sea the water is lower than on a pond inside the island.
+      boats.push({ group: flat, baseY: inside(world, x, z) ? -0.04 : -0.36, seed: i * 1.7 });
+    });
+  };
 
   /** A flat 1×1 square whose outer corners are rounded (corners in order: nw, ne, se, sw). */
   const cellShape = (round: [boolean, boolean, boolean, boolean]) => {
@@ -96,8 +180,9 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   };
   const buildGround = () => {
     const g = new THREE.Group();
-    for (let z = 0; z < WORLD_SIZE; z++)
-      for (let x = 0; x < WORLD_SIZE; x++) {
+    const size = world.size;
+    for (let z = 0; z < size; z++)
+      for (let x = 0; x < size; x++) {
         const id = tileAt(world, x, z);
         // Painted ground: squares that round their outer corners, so paths and ponds look smooth.
         if (id !== 'grass') {
@@ -105,7 +190,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
           const same = (dx: number, dz: number) => {
             const nx = x + dx;
             const nz = z + dz;
-            return nx < 0 || nz < 0 || nx >= WORLD_SIZE || nz >= WORLD_SIZE ? false : tileAt(world, nx, nz) === id;
+            return inside(world, nx, nz) && tileAt(world, nx, nz) === id;
           };
           const n = same(0, -1);
           const sTile = same(0, 1);
@@ -114,7 +199,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
           const shape = cellShape([!n && !w, !n && !e, !sTile && !e, !sTile && !w]);
           kit.add(g, shape, kit.mat(top, id === 'water' ? 0.12 : 0), [x + 0.5, LAYER[id] ?? 0.004, z + 0.5], [1, 1, 1], [-Math.PI / 2, 0, 0]);
         }
-        tileDetails(id, kit, g, x, z, z * WORLD_SIZE + x + 1);
+        tileDetails(id, kit, g, x, z, z * size + x + 1);
       }
     const flat = flatten(g);
     disposeGeometries(g);
@@ -124,6 +209,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   const buildObjects = () => {
     const g = new THREE.Group();
     for (const [id, x, z, turns] of world.objects) {
+      if (isBoat(id)) continue;
       const o = buildDecor(id, kit);
       o.scale.setScalar(DECOR_SCALE[id] ?? 1);
       o.position.set(x + 0.5, 0, z + 0.5);
@@ -143,9 +229,9 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     for (let tries = 0; tries < 40; tries++) {
       const r = w ? rand(w) : Math.random();
       const r2 = w ? rand(w) : Math.random();
-      const x = nearX === undefined ? Math.floor(r * WORLD_SIZE) : Math.round(nearX - 0.5 + (r - 0.5) * 7);
-      const z = nearZ === undefined ? Math.floor(r2 * WORLD_SIZE) : Math.round(nearZ - 0.5 + (r2 - 0.5) * 7);
-      if (x >= 0 && z >= 0 && x < WORLD_SIZE && z < WORLD_SIZE && canWalk[z * WORLD_SIZE + x]) return [x + 0.5, z + 0.5];
+      const x = nearX === undefined ? Math.floor(r * world.size) : Math.round(nearX - 0.5 + (r - 0.5) * 7);
+      const z = nearZ === undefined ? Math.floor(r2 * world.size) : Math.round(nearZ - 0.5 + (r2 - 0.5) * 7);
+      if (inside(world, x, z) && canWalk[z * world.size + x]) return [x + 0.5, z + 0.5];
     }
     return null;
   };
@@ -176,8 +262,30 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   const setWorld = (next: World) => {
     const tilesChanged = !ground || next.tiles !== world.tiles;
     const objectsChanged = !objects || next.objects !== world.objects;
+    const seaChanged = !!seaHandle !== next.sea || (next.sea && baseSize !== next.size);
     world = next;
     canWalk = walkable(world);
+    if (baseSize !== world.size) {
+      if (base) {
+        root.remove(base);
+        disposeGeometries(base);
+      }
+      base = buildBase(world.size);
+      baseSize = world.size;
+      root.add(base);
+    }
+    if (seaChanged) {
+      if (seaHandle) {
+        root.remove(seaHandle.group);
+        seaHandle.dispose();
+        seaHandle = null;
+        seaAnim.length = 0;
+      }
+      if (world.sea) {
+        seaHandle = buildSea(world.size);
+        root.add(seaHandle.group);
+      }
+    }
     if (tilesChanged) {
       if (ground) {
         root.remove(ground);
@@ -193,11 +301,13 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       }
       objects = buildObjects();
       root.add(objects);
+      buildBoats();
     }
     // Pets standing where something was just placed hop to a free spot.
     for (const w of walkers) {
-      const cell = Math.floor(w.z) * WORLD_SIZE + Math.floor(w.x);
-      if (!canWalk[cell]) {
+      const cx = Math.floor(w.x);
+      const cz = Math.floor(w.z);
+      if (!inside(world, cx, cz) || !canWalk[cz * world.size + cx]) {
         const spot = freeCell(w, w.x, w.z) ?? freeCell(w);
         if (spot) [w.x, w.z, w.tx, w.tz] = [spot[0], spot[1], spot[0], spot[1]];
       }
@@ -217,6 +327,10 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   return {
     group: root,
     sky: '#CFEBFF',
+    /** Current island size (cells per side). */
+    get size() {
+      return world.size;
+    },
     setWorld,
     setPets,
     /** Moves the pets around. dt in seconds. */
@@ -226,6 +340,12 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       focusId = id;
     },
     update(t: number, dt: number, camera?: THREE.Vector3) {
+      seaAnim.forEach((a) => a(t));
+      for (const b of boats) {
+        b.group.position.y = b.baseY + Math.sin(t * 1.4 + b.seed) * 0.04;
+        b.group.rotation.z = Math.sin(t * 1.1 + b.seed) * 0.05;
+        b.group.rotation.x = Math.sin(t * 0.9 + b.seed * 2) * 0.03;
+      }
       for (const w of walkers) {
         if (w.spec.id === focusId) {
           if (focusSince < 0) focusSince = t;
@@ -261,7 +381,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
         const nx = w.x + (dx / d) * step;
         const nz = w.z + (dz / d) * step;
         // Stop at obstacles (something placed on the way, water).
-        if (!canWalk[Math.floor(nz) * WORLD_SIZE + Math.floor(nx)]) {
+        if (!inside(world, Math.floor(nx), Math.floor(nz)) || !canWalk[Math.floor(nz) * world.size + Math.floor(nx)]) {
           w.wait = 0.5;
           continue;
         }
@@ -280,7 +400,9 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       if (!hit) return null;
       const x = Math.floor(hit.x);
       const z = Math.floor(hit.z);
-      return x >= 0 && z >= 0 && x < WORLD_SIZE && z < WORLD_SIZE ? [x, z] : null;
+      // With the sea, cells around the island can be picked too (for boats).
+      const m = world.sea ? SEA : 0;
+      return x >= -m && z >= -m && x < world.size + m && z < world.size + m ? [x, z] : null;
     },
     /** The pet closest to a ray (a tap), if any. */
     pickPet(ray: THREE.Ray): string | null {
@@ -308,7 +430,9 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     },
     dispose() {
       removeWalkers();
-      [flatBase, ground, objects].forEach((g) => g && disposeGeometries(g));
+      [base, ground, objects].forEach((g) => g && disposeGeometries(g));
+      boats.forEach((b) => disposeGeometries(b.group));
+      seaHandle?.dispose();
       lawnMat.dispose();
       kit.dispose();
     },
@@ -318,8 +442,10 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
 /** Orbit camera around a point of the island. */
 export class IslandCamera {
   camera: THREE.PerspectiveCamera;
-  target = new THREE.Vector3(WORLD_SIZE / 2, 0, WORLD_SIZE / 2);
+  target = new THREE.Vector3(MIN_SIZE / 2, 0, MIN_SIZE / 2);
   distance = 22;
+  /** Island size, to keep the view on it. */
+  size = MIN_SIZE;
   yaw = 0;
   pitch = 0.85;
 
@@ -345,8 +471,9 @@ export class IslandCamera {
     const sin = Math.sin(this.yaw);
     this.target.x -= (dx * cos + dy * sin) * k;
     this.target.z -= (-dx * sin + dy * cos) * k;
-    this.target.x = Math.max(-1, Math.min(WORLD_SIZE + 1, this.target.x));
-    this.target.z = Math.max(-1, Math.min(WORLD_SIZE + 1, this.target.z));
+    const m = SEA + 1;
+    this.target.x = Math.max(-m, Math.min(this.size + m, this.target.x));
+    this.target.z = Math.max(-m, Math.min(this.size + m, this.target.z));
     this.apply();
   }
 
@@ -361,7 +488,15 @@ export class IslandCamera {
   }
 
   zoom(factor: number) {
-    this.distance = Math.max(4, Math.min(32, this.distance / factor));
+    this.distance = Math.max(4, Math.min(this.size * 2 + 6, this.distance / factor));
+    this.apply();
+  }
+
+  /** Frames a whole island of this size. */
+  fit(size: number, closer = false) {
+    this.size = size;
+    this.target.set(size / 2, 0, size / 2);
+    this.distance = size * (closer ? 1.15 : 1.4);
     this.apply();
   }
 

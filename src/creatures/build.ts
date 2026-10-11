@@ -997,6 +997,26 @@ function addAccessories(A: Anchors, c: Ctx, eq: Equipped) {
         c.animators.push((t) => (h.position.y = R * 0.35 + Math.sin(t * 2.5) * 0.04));
         break;
       }
+      case 'party':
+        c.add(hat, c.cone(R * 0.32, R * 0.9), c.mat('#FF6FA8'), [0, R * 0.38, 0], [1, 1, 1], [0, 0, 0.12]);
+        for (let i = 0; i < 3; i++) c.add(hat, new THREE.TorusGeometry(R * (0.27 - i * 0.07), 0.02, 6, 20), c.mat(['#FFD43B', '#3BA7F5', '#7FE0A0'][i]), [0.03 * i, R * (0.12 + i * 0.22), 0], [1, 1, 1], [Math.PI / 2, 0, 0.12]);
+        c.add(hat, c.sphere(0.06, 10), c.mat('#FFD43B'), [R * 0.1, R * 0.85, 0]);
+        break;
+      case 'headphones':
+        c.add(hat, new THREE.TorusGeometry(R * 0.7, 0.035, 8, 30, Math.PI), c.mat('#2B2B33'), [0, -R * 0.35, 0]);
+        for (const s of [-1, 1]) c.add(hat, c.cyl(R * 0.22, R * 0.22, 0.1), c.mat('#E5484D'), [s * R * 0.7, -R * 0.4, 0], [1, 1, 1], [0, 0, Math.PI / 2]);
+        break;
+      case 'pirate':
+        c.add(hat, c.cyl(R * 0.5, R * 0.6, R * 0.35), c.mat('#22222A'), [0, R * 0.05, 0]);
+        c.add(hat, c.box(R * 1.5, R * 0.1, R * 0.6), c.mat('#22222A'), [0, -R * 0.1, 0]);
+        c.add(hat, c.sphere(R * 0.12, 10), c.mat('#FFFFFF'), [0, R * 0.08, R * 0.5], [1, 1, 0.3]);
+        c.add(hat, c.box(R * 1.52, 0.02, R * 0.62), c.mat(GOLD, { metal: true }), [0, -R * 0.04, 0]);
+        break;
+      case 'viking':
+        c.add(hat, new THREE.SphereGeometry(R * 0.6, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), c.mat('#A1A1AA', { metal: true }), [0, -R * 0.15, 0]);
+        c.add(hat, new THREE.TorusGeometry(R * 0.6, 0.04, 8, 30), c.mat('#8A5C35'), [0, -R * 0.15, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+        for (const s of [-1, 1]) c.add(hat, c.cone(0.08, R * 0.7), c.mat('#FFF4DC'), [s * R * 0.68, R * 0.15, 0], [1, 1, 1], [0, 0, -s * 0.9]);
+        break;
       case 'crown':
         c.add(hat, new THREE.CylinderGeometry(R * 0.45, R * 0.42, R * 0.3, 24, 1, true), c.mat(GOLD, { metal: true }), [0, R * 0.05, 0]);
         for (let i = 0; i < 6; i++) {
@@ -1014,6 +1034,16 @@ function addAccessories(A: Anchors, c: Ctx, eq: Equipped) {
       const sides = eq.eyes === 'monocle' ? [1] : [-1, 1];
       for (const s of sides) c.add(g, new THREE.TorusGeometry(R * 0.23, 0.02, 8, 24), c.mat(eq.eyes === 'monocle' ? GOLD : '#2B2B33', { metal: eq.eyes === 'monocle' }), [s * ex, 0, 0]);
       if (eq.eyes === 'glasses') c.add(g, c.cyl(0.012, 0.012, ex * 0.6), c.mat('#2B2B33'), [0, 0.02, 0], [1, 1, 1], [0, 0, Math.PI / 2]);
+    } else if (eq.eyes === 'hearts') {
+      for (const s of [-1, 1]) {
+        c.add(g, c.sphere(R * 0.13, 12), c.mat('#FF4D8D', { glow: 0.3 }), [s * ex - R * 0.07, R * 0.04, 0.02], [1, 1, 0.4]);
+        c.add(g, c.sphere(R * 0.13, 12), c.mat('#FF4D8D', { glow: 0.3 }), [s * ex + R * 0.07, R * 0.04, 0.02], [1, 1, 0.4]);
+        c.add(g, c.cone(R * 0.18, R * 0.22, 12), c.mat('#FF4D8D', { glow: 0.3 }), [s * ex, -R * 0.1, 0.02], [1, 1, 0.4], [Math.PI, 0, 0]);
+      }
+      c.add(g, c.box(ex * 0.8, 0.02, 0.02), c.mat('#FF4D8D'), [0, R * 0.06, 0]);
+    } else if (eq.eyes === 'patch') {
+      c.add(g, c.sphere(R * 0.22, 14), c.mat('#16161C'), [ex, 0, 0.02], [1, 0.9, 0.3]);
+      c.add(g, new THREE.TorusGeometry(R * 0.95, 0.015, 6, 30), c.mat('#16161C'), [0, R * 0.1, -A.faceZ * 0.5], [1, 1, 1], [0.1, 0, 0.35]);
     } else if (eq.eyes === 'shades') {
       for (const s of [-1, 1]) c.add(g, c.sphere(R * 0.24, 16), c.mat('#111116', { metal: true }), [s * ex, 0, 0.02], [1.15, 0.8, 0.3]);
       c.add(g, c.box(ex * 2.4, 0.03, 0.03), c.mat('#111116'), [0, R * 0.12, 0]);
@@ -1034,6 +1064,15 @@ function addAccessories(A: Anchors, c: Ctx, eq: Equipped) {
       case 'medal':
         c.add(g, new THREE.TorusGeometry(r * 0.9, 0.02, 8, 30), c.mat('#3D7DD8'), [0, 0, 0], [1, 1, 1], [Math.PI / 2 + 0.3, 0, 0]);
         c.add(g, c.cyl(0.09, 0.09, 0.025), c.mat(GOLD, { metal: true }), [0, -0.2, r * 0.95], [1, 1, 1], [Math.PI / 2, 0, 0]);
+        break;
+      case 'tie':
+        c.add(g, c.box(0.08, 0.06, 0.04), c.mat('#3D7DD8'), [0, 0, r * 0.98]);
+        c.add(g, c.cone(0.07, 0.32, 4), c.mat('#3D7DD8'), [0, -0.19, r * 0.98], [1, 1, 0.35], [Math.PI, Math.PI / 4, 0]);
+        break;
+      case 'bandana':
+        c.add(g, new THREE.TorusGeometry(r * 0.95, 0.05, 10, 30), c.mat('#E5484D'), [0, 0, 0], [1, 1, 0.9], [Math.PI / 2, 0, 0]);
+        c.add(g, c.cone(0.16, 0.22, 3), c.mat('#E5484D'), [0, -0.1, r * 0.9], [1, 1, 0.3], [Math.PI, 0, 0]);
+        for (let i = 0; i < 3; i++) c.add(g, c.sphere(0.02, 6), c.mat('#FFFFFF'), [-0.05 + i * 0.05, -0.08 - (i % 2) * 0.04, r * 0.96]);
         break;
       case 'diamonds':
         for (let i = 0; i < 12; i++) {
@@ -1058,6 +1097,19 @@ function addAccessories(A: Anchors, c: Ctx, eq: Equipped) {
           const w = c.add(g, c.sphere(0.32, 16), c.mat('#FFFFFF', { glow: 0.5 }), [s * 0.32, 0.18, -0.05], [0.9, 0.55, 0.12], [0, 0, s * 0.5]);
           c.animators.push((t) => (w.rotation.z = s * (0.5 + Math.sin(t * 3) * 0.12)));
         }
+        break;
+      case 'balloons': {
+        const colors = ['#E5484D', '#FFD43B', '#3BA7F5'];
+        colors.forEach((col, i) => {
+          const b = c.add(g, c.sphere(0.16, 14), c.mat(col), [(i - 1) * 0.18, 0.95 + (i % 2) * 0.15, -0.15], [1, 1.15, 1]);
+          c.add(g, c.cyl(0.004, 0.004, 0.9), c.mat('#FFFFFF'), [(i - 1) * 0.09, 0.45, -0.12], [1, 1, 1], [0, 0, (1 - i) * 0.18]);
+          c.animators.push((t) => (b.position.y = 0.95 + (i % 2) * 0.15 + Math.sin(t * 2 + i) * 0.04));
+        });
+        break;
+      }
+      case 'surfboard':
+        c.add(g, c.capsule(0.14, 0.75), c.mat('#7FE0FF'), [0, 0.05, -0.12], [1, 1, 0.22], [0, 0, 0.35]);
+        c.add(g, c.box(0.04, 0.7, 0.02), c.mat('#FF8A1F'), [0, 0.05, -0.155], [1, 1, 1], [0, 0, 0.35]);
         break;
       case 'jetpack':
         for (const s of [-1, 1]) {

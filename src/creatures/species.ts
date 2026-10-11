@@ -344,13 +344,14 @@ export type Slot = 'head' | 'eyes' | 'neck' | 'back';
 
 export const SLOT_NAMES: Record<Slot, string> = { head: 'Tête', eyes: 'Yeux', neck: 'Cou', back: 'Dos' };
 
-export type GardenSlot = 'house' | 'tree' | 'deco' | 'ground';
+export type GardenSlot = 'house' | 'tree' | 'deco' | 'ground' | 'boat';
 
 export const GARDEN_SLOT_NAMES: Record<GardenSlot, string> = {
   house: 'Maison',
   tree: 'Arbre',
   deco: 'Déco',
   ground: 'Sol',
+  boat: 'Bateau',
 };
 
 /** Whether the player can use this item (bought, or free). */
@@ -361,7 +362,7 @@ export function ownsItem(item: ShopItem, inventory: string[]): boolean {
 export type ShopItem = {
   id: string;
   name: string;
-  kind: 'accessory' | 'egg' | 'garden';
+  kind: 'accessory' | 'egg' | 'garden' | 'upgrade';
   slot: Slot | GardenSlot | null;
   rarity: Rarity;
   /** Price in hours of lock in (0 = free for everyone). Must match supabase/schema.sql (shop_items). */
@@ -388,6 +389,16 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'cape', name: 'Cape de héros', kind: 'accessory', slot: 'back', rarity: 'épique', costHours: 80 },
   { id: 'angel', name: "Ailes d'ange", kind: 'accessory', slot: 'back', rarity: 'mythique', costHours: 200 },
   { id: 'jetpack', name: 'Jetpack', kind: 'accessory', slot: 'back', rarity: 'légendaire', costHours: 400 },
+  { id: 'party', name: 'Chapeau de fête', kind: 'accessory', slot: 'head', rarity: 'commune', costHours: 10 },
+  { id: 'headphones', name: 'Casque audio', kind: 'accessory', slot: 'head', rarity: 'rare', costHours: 30 },
+  { id: 'pirate', name: 'Chapeau de pirate', kind: 'accessory', slot: 'head', rarity: 'épique', costHours: 80 },
+  { id: 'viking', name: 'Casque viking', kind: 'accessory', slot: 'head', rarity: 'mythique', costHours: 200 },
+  { id: 'hearts', name: 'Lunettes cœur', kind: 'accessory', slot: 'eyes', rarity: 'rare', costHours: 30 },
+  { id: 'patch', name: 'Cache-œil de pirate', kind: 'accessory', slot: 'eyes', rarity: 'épique', costHours: 80 },
+  { id: 'tie', name: 'Cravate', kind: 'accessory', slot: 'neck', rarity: 'commune', costHours: 10 },
+  { id: 'bandana', name: 'Bandana', kind: 'accessory', slot: 'neck', rarity: 'rare', costHours: 30 },
+  { id: 'surfboard', name: 'Planche de surf', kind: 'accessory', slot: 'back', rarity: 'rare', costHours: 30 },
+  { id: 'balloons', name: 'Ballons', kind: 'accessory', slot: 'back', rarity: 'épique', costHours: 80 },
   // Island: ground tiles to paint and objects to place. Free ones (0 h) are owned by everyone.
   { id: 'grass', name: 'Herbe', kind: 'garden', slot: 'ground', rarity: 'commune', costHours: 0, emoji: '🟩' },
   { id: 'path', name: 'Chemin de terre', kind: 'garden', slot: 'ground', rarity: 'commune', costHours: 0, emoji: '🟫' },
@@ -424,6 +435,37 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'fountain', name: 'Fontaine', kind: 'garden', slot: 'deco', rarity: 'épique', costHours: 80, emoji: '⛲' },
   { id: 'statue', name: 'Statue en or', kind: 'garden', slot: 'deco', rarity: 'mythique', costHours: 200, emoji: '🏆' },
   { id: 'rainbow', name: 'Arc-en-ciel', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 400, emoji: '🌈' },
+  { id: 'igloo', name: 'Igloo', kind: 'garden', slot: 'house', rarity: 'épique', costHours: 80, emoji: '🧊' },
+  { id: 'treehouse', name: 'Cabane dans l\'arbre', kind: 'garden', slot: 'house', rarity: 'mythique', costHours: 200, emoji: '🌳' },
+  { id: 'windmill', name: 'Moulin', kind: 'garden', slot: 'house', rarity: 'mythique', costHours: 200, emoji: '🌬️' },
+  { id: 'cactus', name: 'Cactus', kind: 'garden', slot: 'tree', rarity: 'commune', costHours: 10, emoji: '🌵' },
+  { id: 'sunflower', name: 'Tournesols', kind: 'garden', slot: 'tree', rarity: 'commune', costHours: 10, emoji: '🌻' },
+  { id: 'autumn', name: 'Arbre d\'automne', kind: 'garden', slot: 'tree', rarity: 'rare', costHours: 30, emoji: '🍁' },
+  { id: 'bamboo', name: 'Bambous', kind: 'garden', slot: 'tree', rarity: 'rare', costHours: 30, emoji: '🎋' },
+  { id: 'mailbox', name: 'Boîte aux lettres', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '📫' },
+  { id: 'signpost', name: 'Panneau', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '🪧' },
+  { id: 'snowman', name: 'Bonhomme de neige', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '⛄' },
+  { id: 'umbrella', name: 'Parasol', kind: 'garden', slot: 'deco', rarity: 'commune', costHours: 10, emoji: '⛱️' },
+  { id: 'deckchair', name: 'Transat', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🏖️' },
+  { id: 'swing', name: 'Balançoire', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🛝' },
+  { id: 'slide', name: 'Toboggan', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🎢' },
+  { id: 'hammock', name: 'Hamac', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🌴' },
+  { id: 'trampoline', name: 'Trampoline', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🤸' },
+  { id: 'pier', name: 'Ponton', kind: 'garden', slot: 'deco', rarity: 'rare', costHours: 30, emoji: '🪵' },
+  { id: 'treasure', name: 'Coffre au trésor', kind: 'garden', slot: 'deco', rarity: 'épique', costHours: 80, emoji: '💰' },
+  { id: 'telescope', name: 'Télescope', kind: 'garden', slot: 'deco', rarity: 'épique', costHours: 80, emoji: '🔭' },
+  { id: 'lighthouse', name: 'Phare', kind: 'garden', slot: 'deco', rarity: 'mythique', costHours: 200, emoji: '🗼' },
+  { id: 'rowboat', name: 'Barque', kind: 'garden', slot: 'boat', rarity: 'commune', costHours: 10, emoji: '🛶' },
+  { id: 'duckboat', name: 'Pédalo canard', kind: 'garden', slot: 'boat', rarity: 'rare', costHours: 30, emoji: '🦆' },
+  { id: 'sailboat', name: 'Voilier', kind: 'garden', slot: 'boat', rarity: 'épique', costHours: 80, emoji: '⛵' },
+  { id: 'yacht', name: 'Yacht', kind: 'garden', slot: 'boat', rarity: 'mythique', costHours: 200, emoji: '🛥️' },
+  { id: 'pirateship', name: 'Bateau pirate', kind: 'garden', slot: 'boat', rarity: 'légendaire', costHours: 400, emoji: '🏴‍☠️' },
+  // Island upgrades: bigger island (bought in order) and the sea around it (needed for boats).
+  { id: 'sea', name: 'La mer autour de l\'île', kind: 'upgrade', slot: null, rarity: 'commune', costHours: 20, emoji: '🌊' },
+  { id: 'size20', name: 'Île 20×20', kind: 'upgrade', slot: null, rarity: 'rare', costHours: 50, emoji: '🏝️' },
+  { id: 'size24', name: 'Île 24×24', kind: 'upgrade', slot: null, rarity: 'épique', costHours: 120, emoji: '🏝️' },
+  { id: 'size28', name: 'Île 28×28', kind: 'upgrade', slot: null, rarity: 'mythique', costHours: 250, emoji: '🏝️' },
+  { id: 'size32', name: 'Île 32×32', kind: 'upgrade', slot: null, rarity: 'légendaire', costHours: 500, emoji: '🏝️' },
 ];
 
 export function itemById(id: string | null | undefined): ShopItem | null {

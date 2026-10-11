@@ -26,6 +26,16 @@ export function makeKit() {
     }
     return m;
   };
+  /** For open shapes seen from above (boat hulls): lit on both sides. */
+  const matTwoSided = (color: string) => {
+    const key = `${color}|two-sided`;
+    let m = materials.get(key);
+    if (!m) {
+      m = new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.02, side: THREE.DoubleSide });
+      materials.set(key, m);
+    }
+    return m;
+  };
   const add = (
     parent: THREE.Object3D,
     geometry: THREE.BufferGeometry,
@@ -49,6 +59,7 @@ export function makeKit() {
   };
   return {
     mat,
+    matTwoSided,
     add,
     group,
     materials,
@@ -56,6 +67,7 @@ export function makeKit() {
     box: (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d),
     cyl: (r1: number, r2: number, h: number, seg = 20) => new THREE.CylinderGeometry(r1, r2, h, seg),
     cone: (r: number, h: number, seg = 18) => new THREE.ConeGeometry(r, h, seg),
+    capsuleGeo: (r: number, len: number) => new THREE.CapsuleGeometry(r, len, 6, 14),
     dispose: () => materials.forEach((m) => m.dispose()),
   };
 }
@@ -293,6 +305,216 @@ export function buildDecor(id: string, k: Kit): THREE.Group {
       for (const s of [-1, 1]) add(g, new THREE.TorusGeometry(0.08, 0.02, 6, 14, Math.PI), mat('#F5B400', 0.2), [s * 0.17, 0.62, 0], [1, 1, 1], [0, 0, s * Math.PI / 2]);
       add(g, new THREE.OctahedronGeometry(0.05), mat('#FFFFFF', 1), [0, 0.86, 0]);
       break;
+    // ─── New houses ────────────────────────────────────────────────────────
+    case 'igloo': {
+      add(g, new THREE.SphereGeometry(0.42, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('#F4F8FF'));
+      for (let i = 1; i < 4; i++) add(g, new THREE.TorusGeometry(0.42 * Math.cos((i * Math.PI) / 9), 0.008, 4, 28), mat('#C9D6E8'), [0, 0.42 * Math.sin((i * Math.PI) / 9), 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+      add(g, new THREE.CylinderGeometry(0.16, 0.16, 0.3, 14, 1, false, 0, Math.PI), mat('#F4F8FF'), [0, 0, 0.42], [1, 1, 1], [Math.PI / 2, 0, -Math.PI / 2]);
+      add(g, cyl(0.11, 0.11, 0.02, 14), mat('#26405E'), [0, 0.08, 0.57], [1, 1, 1.2], [Math.PI / 2, 0, 0]);
+      break;
+    }
+    case 'treehouse': {
+      add(g, cyl(0.1, 0.14, 1.0, 10), mat('#8A5C35'), [0, 0.5, 0]);
+      add(g, sphere(0.45, 14), mat('#4FAE48'), [0, 1.35, -0.05]);
+      add(g, sphere(0.3, 12), mat('#5DBB4C'), [0.3, 1.2, 0.1]);
+      add(g, box(0.62, 0.05, 0.62), mat('#B5824F'), [0, 0.72, 0]);
+      add(g, box(0.45, 0.32, 0.4), mat('#C08A55'), [0, 0.9, 0.05]);
+      add(g, cone(0.4, 0.25, 4), mat('#E2574C'), [0, 1.18, 0.05], [1, 1, 0.9], [0, Math.PI / 4, 0]);
+      add(g, box(0.12, 0.18, 0.02), mat('#4A2E1B'), [0, 0.84, 0.26]);
+      for (let i = 0; i < 6; i++) add(g, box(0.18, 0.02, 0.03), mat('#8A5C35'), [0.2, 0.08 + i * 0.11, 0.3]);
+      for (const x of [0.12, 0.28]) add(g, box(0.02, 0.7, 0.02), mat('#8A5C35'), [x, 0.35, 0.3]);
+      break;
+    }
+    case 'windmill': {
+      add(g, cyl(0.24, 0.34, 0.95, 12), mat('#F2E6D0'), [0, 0.475, 0]);
+      add(g, cone(0.32, 0.35, 12), mat('#B0574A'), [0, 1.12, 0]);
+      add(g, box(0.14, 0.24, 0.02), mat('#6B4A2A'), [0, 0.12, 0.33]);
+      const blades = k.group(g, [0, 0.95, 0.3]);
+      for (let i = 0; i < 4; i++) {
+        const arm = k.group(blades);
+        arm.rotation.z = (i * Math.PI) / 2 + 0.3;
+        add(arm, box(0.04, 0.6, 0.02), mat('#8A5C35'), [0, 0.3, 0]);
+        add(arm, box(0.16, 0.42, 0.01), mat('#FFFFFF'), [0.09, 0.36, 0]);
+      }
+      add(g, sphere(0.05, 8), mat('#6B4A2A'), [0, 0.95, 0.31]);
+      break;
+    }
+
+    // ─── New trees ─────────────────────────────────────────────────────────
+    case 'cactus':
+      add(g, k.capsuleGeo(0.11, 0.55), mat('#4CAF50'), [0, 0.38, 0]);
+      add(g, k.capsuleGeo(0.07, 0.2), mat('#4CAF50'), [0.18, 0.42, 0]);
+      add(g, k.capsuleGeo(0.07, 0.16), mat('#4CAF50'), [-0.17, 0.32, 0]);
+      add(g, sphere(0.05, 8), mat('#FF6FA8'), [0, 0.74, 0]);
+      add(g, cyl(0.2, 0.16, 0.12, 12), mat('#C46A3C'), [0, 0.06, 0]);
+      break;
+    case 'sunflower':
+      for (const [x, z, h] of [[-0.18, 0.05, 0.75], [0.15, -0.1, 0.9], [0.05, 0.2, 0.6]] as V3[]) {
+        add(g, cyl(0.02, 0.025, h, 6), mat('#4E9A3A'), [x, h / 2, z]);
+        add(g, cyl(0.15, 0.15, 0.03, 14), mat('#FFC928'), [x, h, z + 0.02], [1, 1, 1], [Math.PI / 2 - 0.3, 0, 0]);
+        add(g, cyl(0.07, 0.07, 0.04, 12), mat('#6B4226'), [x, h + 0.01, z + 0.04], [1, 1, 1], [Math.PI / 2 - 0.3, 0, 0]);
+        add(g, sphere(0.06, 8), mat('#4E9A3A'), [x + 0.05, h * 0.5, z], [1.4, 0.4, 0.8]);
+      }
+      break;
+    case 'autumn':
+      trunk(0.55);
+      add(g, sphere(0.36, 14), mat('#E8702A'), [0, 0.85, 0]);
+      add(g, sphere(0.26, 12), mat('#F2A93B'), [-0.25, 0.75, 0.1]);
+      add(g, sphere(0.25, 12), mat('#D9481F'), [0.25, 0.78, -0.05]);
+      for (let i = 0; i < 6; i++) add(g, sphere(0.04, 6), mat(i % 2 ? '#E8702A' : '#F2A93B'), [Math.cos(i * 1.4) * 0.35, 0.01, Math.sin(i * 1.4) * 0.35], [1, 0.3, 1]);
+      break;
+    case 'bamboo':
+      for (const [x, z, h] of [[-0.15, 0, 1.0], [0.1, -0.12, 1.25], [0.12, 0.14, 0.85], [-0.05, 0.2, 1.1]] as V3[]) {
+        for (let y = 0; y < h; y += 0.25) {
+          add(g, cyl(0.035, 0.035, 0.23, 8), mat('#7CC36A'), [x, y + 0.12, z]);
+          add(g, cyl(0.04, 0.04, 0.02, 8), mat('#5E9E4E'), [x, y + 0.24, z]);
+        }
+        add(g, box(0.22, 0.01, 0.05), mat('#5DBB4C'), [x + 0.1, h - 0.1, z], [1, 1, 1], [0, 0.4, -0.4]);
+      }
+      break;
+
+    // ─── New decorations ───────────────────────────────────────────────────
+    case 'mailbox':
+      add(g, box(0.05, 0.5, 0.05), mat('#8A5C35'), [0, 0.25, 0]);
+      add(g, k.capsuleGeo(0.11, 0.22), mat('#3D7DD8'), [0, 0.58, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+      add(g, box(0.02, 0.14, 0.02), mat('#E5484D'), [0.12, 0.66, -0.05]);
+      add(g, box(0.06, 0.06, 0.02), mat('#E5484D'), [0.12, 0.74, -0.02]);
+      break;
+    case 'signpost':
+      add(g, box(0.05, 0.7, 0.05), mat('#8A5C35'), [0, 0.35, 0]);
+      add(g, box(0.5, 0.14, 0.03), mat('#C08A55'), [0.12, 0.58, 0.03]);
+      add(g, cone(0.08, 0.1, 3), mat('#C08A55'), [0.41, 0.58, 0.03], [1, 1, 0.3], [0, 0, -Math.PI / 2]);
+      add(g, box(0.4, 0.12, 0.03), mat('#B5824F'), [-0.08, 0.4, 0.03]);
+      break;
+    case 'snowman':
+      add(g, sphere(0.22, 14), mat('#FFFFFF'), [0, 0.2, 0]);
+      add(g, sphere(0.16, 14), mat('#FFFFFF'), [0, 0.5, 0]);
+      add(g, cone(0.03, 0.14, 8), mat('#FF8C2B'), [0, 0.51, 0.18], [1, 1, 1], [Math.PI / 2, 0, 0]);
+      for (const x of [-0.06, 0.06]) add(g, sphere(0.02, 6), mat('#222222'), [x, 0.56, 0.14]);
+      add(g, cyl(0.12, 0.12, 0.03, 12), mat('#222222'), [0, 0.65, 0]);
+      add(g, cyl(0.08, 0.08, 0.14, 12), mat('#222222'), [0, 0.72, 0]);
+      add(g, new THREE.TorusGeometry(0.14, 0.03, 6, 18), mat('#E5484D'), [0, 0.38, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+      break;
+    case 'umbrella':
+      add(g, cyl(0.015, 0.015, 0.9, 6), mat('#EEEEEE'), [0, 0.45, 0], [1, 1, 1], [0, 0, 0.1]);
+      for (let i = 0; i < 8; i++) {
+        const seg = k.group(g, [0.04, 0.9, 0]);
+        seg.rotation.y = (i * Math.PI) / 4;
+        add(seg, new THREE.CylinderGeometry(0, 0.45, 0.18, 2, 1, true, 0, Math.PI / 4), mat(i % 2 ? '#FFFFFF' : '#E5484D'));
+      }
+      add(g, box(0.4, 0.02, 0.6), mat('#3BA7F5'), [0.15, 0.01, 0.15]);
+      break;
+    case 'deckchair':
+      add(g, box(0.36, 0.03, 0.4), mat('#3BA7F5'), [0, 0.2, 0.12], [1, 1, 1], [0.2, 0, 0]);
+      add(g, box(0.36, 0.03, 0.4), mat('#3BA7F5'), [0, 0.38, -0.18], [1, 1, 1], [-0.9, 0, 0]);
+      for (const x of [-0.17, 0.17]) {
+        add(g, box(0.03, 0.03, 0.7), mat('#FFFFFF'), [x, 0.2, 0], [1, 1, 1], [0.2, 0, 0]);
+        add(g, box(0.03, 0.45, 0.03), mat('#FFFFFF'), [x, 0.2, -0.2], [1, 1, 1], [-0.5, 0, 0]);
+      }
+      break;
+    case 'swing':
+      for (const x of [-0.38, 0.38]) {
+        add(g, box(0.05, 0.85, 0.05), mat('#C08A55'), [x, 0.42, 0.18], [1, 1, 1], [0.2, 0, 0]);
+        add(g, box(0.05, 0.85, 0.05), mat('#C08A55'), [x, 0.42, -0.18], [1, 1, 1], [-0.2, 0, 0]);
+      }
+      add(g, cyl(0.03, 0.03, 0.85, 8), mat('#8A5C35'), [0, 0.82, 0], [1, 1, 1], [0, 0, Math.PI / 2]);
+      for (const x of [-0.12, 0.12]) add(g, cyl(0.006, 0.006, 0.55, 4), mat('#555555'), [x, 0.53, 0]);
+      add(g, box(0.3, 0.03, 0.12), mat('#E5484D'), [0, 0.25, 0]);
+      break;
+    case 'slide':
+      add(g, box(0.3, 0.6, 0.3), mat('#3BA7F5'), [-0.25, 0.3, 0]);
+      add(g, box(0.28, 0.03, 0.85), mat('#FFC928'), [0.08, 0.3, 0], [1, 1, 1], [0, 0, 0], );
+      g.children[g.children.length - 1].rotation.set(0, Math.PI / 2, -0.62);
+      for (let i = 0; i < 4; i++) add(g, box(0.3, 0.03, 0.05), mat('#E5484D'), [-0.25, 0.12 + i * 0.15, -0.17]);
+      break;
+    case 'hammock': {
+      for (const x of [-0.42, 0.42]) {
+        add(g, cyl(0.04, 0.05, 0.7, 8), mat('#8A5C35'), [x, 0.35, 0]);
+        add(g, sphere(0.15, 10), mat('#4FAE48'), [x, 0.75, 0]);
+      }
+      const net = new THREE.SphereGeometry(0.42, 16, 6, 0, Math.PI * 2, Math.PI * 0.6, Math.PI * 0.4);
+      add(g, net, mat('#F2D59B'), [0, 0.6, 0], [1, 0.45, 0.4]);
+      break;
+    }
+    case 'trampoline':
+      add(g, new THREE.TorusGeometry(0.38, 0.04, 8, 28), mat('#3BA7F5'), [0, 0.22, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+      add(g, cyl(0.36, 0.36, 0.01, 24), mat('#22222A'), [0, 0.21, 0]);
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.4;
+        add(g, cyl(0.02, 0.02, 0.22, 6), mat('#A1A1AA'), [Math.cos(a) * 0.36, 0.1, Math.sin(a) * 0.36]);
+      }
+      break;
+    case 'pier':
+      add(g, box(0.5, 0.05, 1.0), mat('#C08A55'), [0, 0.12, 0]);
+      for (let i = 0; i < 5; i++) add(g, box(0.5, 0.01, 0.02), mat('#8A5C35'), [0, 0.15, -0.4 + i * 0.2]);
+      for (const x of [-0.22, 0.22]) for (const z of [-0.42, 0.42]) add(g, cyl(0.04, 0.04, 0.4, 8), mat('#8A5C35'), [x, 0.0, z]);
+      break;
+    case 'treasure':
+      add(g, box(0.5, 0.28, 0.34), mat('#8A5C35'), [0, 0.14, 0]);
+      add(g, new THREE.CylinderGeometry(0.17, 0.17, 0.5, 14, 1, false, 0, Math.PI), mat('#9C6B3F'), [0, 0.28, 0], [1, 1, 1], [0, 0, Math.PI / 2]);
+      for (const x of [-0.18, 0.18]) add(g, box(0.05, 0.3, 0.36), mat('#F5B400', 0.1), [x, 0.15, 0]);
+      add(g, box(0.08, 0.1, 0.03), mat('#F5B400', 0.2), [0, 0.26, 0.18]);
+      for (let i = 0; i < 4; i++) add(g, cyl(0.05, 0.05, 0.015, 10), mat('#FFD43B', 0.3), [0.32 + (i % 2) * 0.06, 0.01 + i * 0.015, 0.15]);
+      break;
+    case 'telescope':
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        add(g, cyl(0.015, 0.015, 0.5, 6), mat('#6B4A2A'), [Math.cos(a) * 0.1, 0.23, Math.sin(a) * 0.1], [1, 1, 1], [Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3]);
+      }
+      add(g, cyl(0.05, 0.08, 0.55, 12), mat('#C9A227', 0.1), [0, 0.55, 0.05], [1, 1, 1], [-1.0, 0, 0]);
+      add(g, cyl(0.085, 0.085, 0.03, 12), mat('#2B2B33'), [0, 0.67, 0.27], [1, 1, 1], [-1.0, 0, 0]);
+      break;
+    case 'lighthouse':
+      for (let i = 0; i < 4; i++) add(g, cyl(0.3 - i * 0.04, 0.32 - i * 0.04, 0.3, 16), mat(i % 2 ? '#FFFFFF' : '#E5484D'), [0, 0.15 + i * 0.3, 0]);
+      add(g, cyl(0.2, 0.2, 0.06, 16), mat('#2B2B33'), [0, 1.23, 0]);
+      add(g, cyl(0.14, 0.14, 0.2, 12), mat('#FFE08A', 1), [0, 1.36, 0]);
+      add(g, cone(0.2, 0.22, 16), mat('#E5484D'), [0, 1.57, 0]);
+      add(g, box(0.12, 0.2, 0.02), mat('#4A2E1B'), [0, 0.1, 0.31]);
+      break;
+
+    // ─── Boats (hull bottom at y=0, waterline around y=0.35) ─────────────────
+    case 'rowboat':
+      add(g, new THREE.SphereGeometry(0.4, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), k.matTwoSided('#9C6B3F'), [0, 0.4, 0], [0.55, 0.6, 1.1]);
+      add(g, box(0.4, 0.03, 0.1), mat('#C08A55'), [0, 0.38, 0]);
+      for (const s2 of [-1, 1]) add(g, box(0.03, 0.03, 0.7), mat('#C08A55'), [s2 * 0.32, 0.45, 0.1], [1, 1, 1], [0.3, s2 * 0.4, 0]);
+      break;
+    case 'duckboat':
+      add(g, k.capsuleGeo(0.28, 0.35), mat('#FFFFFF'), [0, 0.32, 0], [1, 0.55, 1], [Math.PI / 2, 0, 0]);
+      add(g, sphere(0.2, 14), mat('#FFD43B'), [0, 0.62, 0.32]);
+      add(g, cone(0.07, 0.16, 10), mat('#FF8C2B'), [0, 0.6, 0.53], [1, 1, 0.6], [Math.PI / 2, 0, 0]);
+      for (const x of [-0.08, 0.08]) add(g, sphere(0.025, 6), mat('#222222'), [x, 0.68, 0.48]);
+      add(g, sphere(0.22, 14), mat('#FFD43B'), [0, 0.5, -0.05], [1, 0.6, 1.3]);
+      break;
+    case 'sailboat':
+      add(g, new THREE.SphereGeometry(0.4, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), k.matTwoSided('#FFFFFF'), [0, 0.4, 0], [0.55, 0.6, 1.2]);
+      add(g, box(0.42, 0.03, 0.9), mat('#C08A55'), [0, 0.39, 0]);
+      add(g, cyl(0.02, 0.02, 1.1, 6), mat('#8A5C35'), [0, 0.95, 0.05]);
+      add(g, cone(0.35, 0.85, 3), mat('#FFFFFF'), [0.0, 1.0, -0.12], [0.05, 1, 1], [0, 0, 0]);
+      add(g, cone(0.25, 0.6, 3), mat('#3BA7F5'), [0.0, 0.85, 0.3], [0.05, 1, 1], [0, Math.PI, 0]);
+      add(g, box(0.12, 0.06, 0.01), mat('#E5484D'), [0.06, 1.48, 0.05]);
+      break;
+    case 'yacht':
+      add(g, k.capsuleGeo(0.25, 0.7), mat('#FFFFFF'), [0, 0.3, 0], [1, 0.6, 1], [Math.PI / 2, 0, 0]);
+      add(g, box(0.4, 0.04, 0.95), mat('#26405E'), [0, 0.26, 0]);
+      add(g, box(0.36, 0.22, 0.45), mat('#FFFFFF'), [0, 0.55, -0.08]);
+      add(g, box(0.37, 0.08, 0.4), mat('#26405E', 0.2), [0, 0.58, -0.08]);
+      add(g, box(0.26, 0.16, 0.25), mat('#FFFFFF'), [0, 0.74, -0.12]);
+      add(g, box(0.27, 0.05, 0.2), mat('#26405E', 0.2), [0, 0.76, -0.12]);
+      break;
+    case 'pirateship': {
+      add(g, new THREE.SphereGeometry(0.4, 18, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), k.matTwoSided('#6B4226'), [0, 0.42, 0], [0.6, 0.65, 1.15]);
+      add(g, box(0.46, 0.03, 0.9), mat('#9C6B3F'), [0, 0.4, 0]);
+      add(g, box(0.48, 0.18, 0.22), mat('#6B4226'), [0, 0.5, -0.38]);
+      for (const z of [-0.15, 0.25]) {
+        add(g, cyl(0.02, 0.025, 0.95, 6), mat('#4A2E1B'), [0, 0.85, z]);
+        add(g, box(0.5, 0.32, 0.02), mat('#F2E6D0'), [0, 0.95, z + 0.02], [1, 1, 1], [0.12, 0, 0]);
+      }
+      add(g, box(0.18, 0.12, 0.01), mat('#16161C'), [0.1, 1.38, 0.25]);
+      add(g, sphere(0.025, 6), mat('#FFFFFF'), [0.1, 1.39, 0.26]);
+      for (const s2 of [-1, 1]) for (const z of [-0.1, 0.15]) add(g, cyl(0.035, 0.035, 0.12, 8), mat('#2B2B33'), [s2 * 0.25, 0.44, z], [1, 1, 1], [0, 0, Math.PI / 2]);
+      break;
+    }
+
     case 'rainbow': {
       const colors = ['#FF4D4D', '#FF9F43', '#FFE14D', '#4CD964', '#4DA6FF', '#9B6BFF'];
       colors.forEach((c, i) => add(g, new THREE.TorusGeometry(1.0 - i * 0.06, 0.035, 6, 32, Math.PI), mat(c, 0.25)));

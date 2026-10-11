@@ -659,10 +659,10 @@ create table if not exists public.shop_items (
 
 -- v5: garden items (house, tree, deco, ground).
 alter table public.shop_items drop constraint if exists shop_items_kind_check;
-alter table public.shop_items add constraint shop_items_kind_check check (kind in ('accessory', 'egg', 'garden'));
+alter table public.shop_items add constraint shop_items_kind_check check (kind in ('accessory', 'egg', 'garden', 'upgrade'));
 alter table public.shop_items drop constraint if exists shop_items_slot_check;
 alter table public.shop_items add constraint shop_items_slot_check
-  check (slot in ('head', 'eyes', 'neck', 'back', 'house', 'tree', 'deco', 'ground'));
+  check (slot in ('head', 'eyes', 'neck', 'back', 'house', 'tree', 'deco', 'ground', 'boat'));
 -- v6: some island items are free (0 h) and owned by everyone.
 alter table public.shop_items drop constraint if exists shop_items_cost_seconds_check;
 alter table public.shop_items add constraint shop_items_cost_seconds_check check (cost_seconds >= 0);
@@ -720,7 +720,47 @@ insert into public.shop_items (id, kind, slot, rarity, cost_seconds) values
   ('well', 'garden', 'deco', 'rare', 30 * 3600),
   ('fountain', 'garden', 'deco', 'épique', 80 * 3600),
   ('statue', 'garden', 'deco', 'mythique', 200 * 3600),
-  ('rainbow', 'garden', 'deco', 'légendaire', 400 * 3600)
+  ('rainbow', 'garden', 'deco', 'légendaire', 400 * 3600),
+  ('party', 'accessory', 'head', 'commune', 10 * 3600),
+  ('headphones', 'accessory', 'head', 'rare', 30 * 3600),
+  ('pirate', 'accessory', 'head', 'épique', 80 * 3600),
+  ('viking', 'accessory', 'head', 'mythique', 200 * 3600),
+  ('hearts', 'accessory', 'eyes', 'rare', 30 * 3600),
+  ('patch', 'accessory', 'eyes', 'épique', 80 * 3600),
+  ('tie', 'accessory', 'neck', 'commune', 10 * 3600),
+  ('bandana', 'accessory', 'neck', 'rare', 30 * 3600),
+  ('surfboard', 'accessory', 'back', 'rare', 30 * 3600),
+  ('balloons', 'accessory', 'back', 'épique', 80 * 3600),
+  ('igloo', 'garden', 'house', 'épique', 80 * 3600),
+  ('treehouse', 'garden', 'house', 'mythique', 200 * 3600),
+  ('windmill', 'garden', 'house', 'mythique', 200 * 3600),
+  ('cactus', 'garden', 'tree', 'commune', 10 * 3600),
+  ('sunflower', 'garden', 'tree', 'commune', 10 * 3600),
+  ('autumn', 'garden', 'tree', 'rare', 30 * 3600),
+  ('bamboo', 'garden', 'tree', 'rare', 30 * 3600),
+  ('mailbox', 'garden', 'deco', 'commune', 10 * 3600),
+  ('signpost', 'garden', 'deco', 'commune', 10 * 3600),
+  ('snowman', 'garden', 'deco', 'commune', 10 * 3600),
+  ('umbrella', 'garden', 'deco', 'commune', 10 * 3600),
+  ('deckchair', 'garden', 'deco', 'rare', 30 * 3600),
+  ('swing', 'garden', 'deco', 'rare', 30 * 3600),
+  ('slide', 'garden', 'deco', 'rare', 30 * 3600),
+  ('hammock', 'garden', 'deco', 'rare', 30 * 3600),
+  ('trampoline', 'garden', 'deco', 'rare', 30 * 3600),
+  ('pier', 'garden', 'deco', 'rare', 30 * 3600),
+  ('treasure', 'garden', 'deco', 'épique', 80 * 3600),
+  ('telescope', 'garden', 'deco', 'épique', 80 * 3600),
+  ('lighthouse', 'garden', 'deco', 'mythique', 200 * 3600),
+  ('rowboat', 'garden', 'boat', 'commune', 10 * 3600),
+  ('duckboat', 'garden', 'boat', 'rare', 30 * 3600),
+  ('sailboat', 'garden', 'boat', 'épique', 80 * 3600),
+  ('yacht', 'garden', 'boat', 'mythique', 200 * 3600),
+  ('pirateship', 'garden', 'boat', 'légendaire', 400 * 3600),
+  ('sea', 'upgrade', null, 'commune', 20 * 3600),
+  ('size20', 'upgrade', null, 'rare', 50 * 3600),
+  ('size24', 'upgrade', null, 'épique', 120 * 3600),
+  ('size28', 'upgrade', null, 'mythique', 250 * 3600),
+  ('size32', 'upgrade', null, 'légendaire', 500 * 3600)
 on conflict (id) do update set kind = excluded.kind, slot = excluded.slot, rarity = excluded.rarity, cost_seconds = excluded.cost_seconds;
 
 alter table public.shop_items enable row level security;
@@ -810,7 +850,14 @@ begin
   if me.total_seconds - me.spent_seconds < it.cost_seconds then
     raise exception 'Pas assez d''heures' using errcode = 'P0001';
   end if;
-  if it.kind in ('accessory', 'garden') then
+  -- A bigger island needs the size just below it first.
+  if it.id in ('size24', 'size28', 'size32') and not exists (
+    select 1 from public.inventory
+    where user_id = me.id and item_id = 'size' || (substring(it.id from 5)::int - 4)::text
+  ) then
+    raise exception 'Agrandis d''abord à la taille d''avant' using errcode = 'P0001';
+  end if;
+  if it.kind in ('accessory', 'garden', 'upgrade') then
     if exists (select 1 from public.inventory where user_id = me.id and item_id = it.id) then
       raise exception 'Déjà acheté' using errcode = 'P0001';
     end if;
@@ -884,16 +931,29 @@ $$;
 create or replace function public.save_world(world jsonb)
 returns void language plpgsql security definer set search_path = public as $$
 declare
+  size int;
+  sea boolean := coalesce((world->>'sea')::boolean, false);
   tiles text := world->>'tiles';
   objects jsonb := world->'objects';
   tile_items constant jsonb := '{"g":"grass","p":"path","o":"cobble","w":"water","f":"meadow","s":"beach","d":"wood","n":"snow","c":"clouds"}';
   ch text;
   o jsonb;
+  x int;
+  z int;
+  boat boolean;
 begin
   if auth.uid() is null then raise exception 'Non connecté'; end if;
-  if tiles is null or length(tiles) <> 256 or tiles !~ '^[gpowfsdnc]+$' then raise exception 'Île invalide'; end if;
-  if objects is null or jsonb_typeof(objects) <> 'array' or jsonb_array_length(objects) > 150 then
-    raise exception 'Trop d''objets (150 max)';
+  size := coalesce((world->>'size')::int, 16);
+  if size not in (16, 20, 24, 28, 32) then raise exception 'Île invalide'; end if;
+  if size > 16 and not exists (select 1 from public.inventory where user_id = auth.uid() and item_id = 'size' || size) then
+    raise exception 'Agrandissement non acheté';
+  end if;
+  if sea and not exists (select 1 from public.inventory where user_id = auth.uid() and item_id = 'sea') then
+    raise exception 'Mer non achetée';
+  end if;
+  if tiles is null or length(tiles) <> size * size or tiles !~ '^[gpowfsdnc]+$' then raise exception 'Île invalide'; end if;
+  if objects is null or jsonb_typeof(objects) <> 'array' or jsonb_array_length(objects) > 200 then
+    raise exception 'Trop d''objets (200 max)';
   end if;
   for ch in select distinct c from regexp_split_to_table(tiles, '') as c loop
     if not public.owns_item(auth.uid(), tile_items->>ch) then raise exception 'Sol non possédé'; end if;
@@ -901,18 +961,26 @@ begin
   for o in select * from jsonb_array_elements(objects) loop
     if jsonb_typeof(o) <> 'array' or jsonb_array_length(o) <> 4
       or jsonb_typeof(o->1) <> 'number' or jsonb_typeof(o->2) <> 'number' or jsonb_typeof(o->3) <> 'number'
-      or (o->>1)::numeric not in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)
-      or (o->>2)::numeric not in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)
-      or (o->>3)::numeric not in (0,1,2,3) then
+      or (o->>1)::numeric <> floor((o->>1)::numeric) or (o->>2)::numeric <> floor((o->>2)::numeric)
+      or (o->>3)::numeric not in (0, 1, 2, 3) then
       raise exception 'Objet mal placé';
     end if;
+    x := (o->>1)::numeric::int;
+    z := (o->>2)::numeric::int;
     if not exists (select 1 from public.shop_items where id = o->>0 and kind = 'garden' and slot <> 'ground')
       or not public.owns_item(auth.uid(), o->>0) then
       raise exception 'Objet non possédé';
     end if;
+    boat := exists (select 1 from public.shop_items where id = o->>0 and slot = 'boat');
+    if x >= 0 and z >= 0 and x < size and z < size then
+      -- On the island: boats only on water tiles.
+      if boat and substr(tiles, z * size + x + 1, 1) <> 'w' then raise exception 'Un bateau doit être sur l''eau'; end if;
+    elsif not (boat and sea and x >= -4 and z >= -4 and x < size + 4 and z < size + 4) then
+      raise exception 'Objet mal placé';
+    end if;
   end loop;
   update public.profiles
-  set world = jsonb_build_object('v', 1, 'tiles', tiles, 'objects', objects)
+  set world = jsonb_build_object('v', 2, 'size', size, 'sea', sea, 'tiles', tiles, 'objects', objects)
   where id = auth.uid();
 end $$;
 
