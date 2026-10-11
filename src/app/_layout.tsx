@@ -6,7 +6,7 @@ import { colors } from '../lib/theme';
 export default function RootLayout() {
   return (
     <LockinProvider>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
     </LockinProvider>
   );

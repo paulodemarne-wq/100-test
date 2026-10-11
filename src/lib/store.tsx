@@ -27,7 +27,7 @@ export type ActiveSession = {
   leftAt: number | null;
 };
 
-type Profile = { name: string; emoji: string };
+export type Profile = { name: string; photoUri: string | null };
 
 type PersistedState = {
   profile: Profile | null;
@@ -90,6 +90,8 @@ export function LockinProvider({ children }: { children: ReactNode }) {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
           const saved = JSON.parse(raw) as PersistedState;
+          // v1 profiles had an emoji instead of a photo.
+          if (saved.profile) saved.profile = { name: saved.profile.name, photoUri: saved.profile.photoUri ?? null };
           if (saved.active) {
             const endedAt = saved.active.leftAt ?? Date.now();
             saved.sessions = [endSession(saved.active, endedAt, 'abandoned'), ...saved.sessions];

@@ -1,10 +1,15 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, ColorValue, View } from 'react-native';
 import { useLockin } from '../../lib/store';
 import { colors } from '../../lib/theme';
 
-function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
-  return <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>;
+type IconName = keyof typeof Ionicons.glyphMap;
+
+function tabIcon(active: IconName, inactive: IconName) {
+  return ({ focused, color }: { focused: boolean; color: ColorValue }) => (
+    <Ionicons name={focused ? active : inactive} size={26} color={color} />
+  );
 }
 
 export default function TabsLayout() {
@@ -24,22 +29,17 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: colors.bg },
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.cardBorder },
+        tabBarStyle: { backgroundColor: 'rgba(249,249,249,0.97)', borderTopColor: colors.separator },
         tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarInactiveTintColor: colors.secondary,
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '500' },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Bosser', tabBarIcon: ({ focused }) => <TabIcon emoji="🔒" focused={focused} /> }}
-      />
-      <Tabs.Screen
-        name="feed"
-        options={{ title: 'Amis', tabBarIcon: ({ focused }) => <TabIcon emoji="👥" focused={focused} /> }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Focus', tabBarIcon: tabIcon('timer', 'timer-outline') }} />
+      <Tabs.Screen name="feed" options={{ title: 'Amis', tabBarIcon: tabIcon('people', 'people-outline') }} />
       <Tabs.Screen
         name="ranking"
-        options={{ title: 'Classement', tabBarIcon: ({ focused }) => <TabIcon emoji="🏆" focused={focused} /> }}
+        options={{ title: 'Classement', tabBarIcon: tabIcon('trophy', 'trophy-outline') }}
       />
     </Tabs>
   );

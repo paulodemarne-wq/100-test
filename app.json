@@ -5,13 +5,13 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0B0B0F",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -22,14 +22,21 @@
       "favicon": "./assets/favicon.png"
     },
     "scheme": "lockin",
-    "backgroundColor": "#0B0B0F",
+    "backgroundColor": "#F2F2F7",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B0B0F"
+      "backgroundColor": "#FFFFFF"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Lockin utilise tes photos pour ta photo de profil.",
+          "cameraPermission": "Lockin utilise l’appareil photo pour ta photo de profil."
+        }
+      ]
     ]
   }
 }
