@@ -7,7 +7,7 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 ## Fonctionnalités
 
 - **Compte** : e-mail + mot de passe, puis prénom, pseudo et photo de profil.
-- **Focus** : choix de la matière, chrono en direct dans un anneau de progression (blocs de 25 min). L'écran reste allumé pendant la session.
+- **Focus** : sujet libre et facultatif (« partiel de compta »…), chrono en direct dans un anneau de progression (blocs de 25 min). L'écran reste allumé pendant la session.
 - **Anti-triche** : quitter l'app plus de 10 s pendant une session = session abandonnée (visible par les amis). Une sortie plus courte donne un avertissement.
 - **Amis** : ajout par pseudo, demandes à accepter, qui bosse en direct, qui a abandonné, bouton « Relancer ».
 - **Classement** de la semaine entre amis (remis à zéro le lundi) + série de jours 🔥.
@@ -51,7 +51,7 @@ src/lib/
   store.tsx              session en cours, anti-triche
   stats.ts               total de la semaine, séries
   photo.ts               choix de la photo de profil
-  theme.ts, time.ts      couleurs, typo, matières, formatage du temps
+  theme.ts, time.ts      couleurs, typo, formatage du temps
 ```
 
 ## Prochaines étapes

@@ -39,4 +39,5 @@ export const card: ViewStyle = {
   }),
 };
 
-export const SUBJECTS = ['Maths', 'Français', 'Anglais', 'Histoire', 'Sciences', 'Éco', 'Code', 'Autre'];
+/** Label saved when the user doesn't say what they're working on. */
+export const DEFAULT_LABEL = 'Focus';

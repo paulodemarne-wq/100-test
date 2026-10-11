@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../../components/Avatar';
 import { ProgressRing } from '../../components/ProgressRing';
@@ -10,7 +10,7 @@ import { useAuth } from '../../lib/auth';
 import { pickProfilePhoto } from '../../lib/photo';
 import { useSocial } from '../../lib/social';
 import { MAX_AWAY_MS, Notice, useLockin, useNow } from '../../lib/store';
-import { card, colors, SUBJECTS, type } from '../../lib/theme';
+import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
 
 /** The ring fills up over one focus block, Pomodoro-style. */
@@ -26,9 +26,19 @@ const NOTICE_STYLE: Record<Notice['kind'], { bg: string; fg: string; icon: keyof
 
 export default function FocusScreen() {
   const { profile, setPhoto, signOut } = useAuth();
-  const { myWeekSeconds, myStreak, nudges, markNudgesSeen } = useSocial();
+  const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions } = useSocial();
   const { active, notice, clearNotice, startSession, stopSession } = useLockin();
-  const [subject, setSubject] = useState(SUBJECTS[0]);
+  const [label, setLabel] = useState('');
+
+  // The user's last few labels, as one-tap shortcuts.
+  const recentLabels = useMemo(() => {
+    const seen = new Set<string>();
+    for (const s of mySessions) {
+      if (s.subject !== DEFAULT_LABEL) seen.add(s.subject);
+      if (seen.size === 4) break;
+    }
+    return [...seen];
+  }, [mySessions]);
   const now = useNow();
 
   const elapsedSec = active ? (now - active.startedAt) / 1000 : 0;
@@ -65,7 +75,8 @@ export default function FocusScreen() {
 
   const start = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    startSession(subject);
+    startSession(label.trim() || DEFAULT_LABEL);
+    setLabel('');
   };
 
   const confirmStop = () => {
@@ -120,7 +131,9 @@ export default function FocusScreen() {
 
         <View style={styles.center}>
           <ProgressRing size={260} stroke={12} progress={ringProgress}>
-            <Text style={styles.ringLabel}>{active ? active.subject : 'Prêt ?'}</Text>
+            <Text style={styles.ringLabel} numberOfLines={1}>
+              {active ? (active.subject === DEFAULT_LABEL ? 'En focus' : active.subject) : 'Prêt ?'}
+            </Text>
             <Text style={styles.timer}>{formatTimer(elapsedSec)}</Text>
             {active && blocks > 0 && (
               <Text style={styles.ringLabel}>
@@ -137,28 +150,43 @@ export default function FocusScreen() {
               </Text>
             </>
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.chipsScroll}
-              contentContainerStyle={styles.chips}
-            >
-              {SUBJECTS.map((s) => {
-                const selected = s === subject;
-                return (
-                  <Pressable
-                    key={s}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setSubject(s);
-                    }}
-                    style={[styles.chip, selected && styles.chipSelected]}
-                  >
-                    <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{s}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            <View style={styles.labelBox}>
+              <TextInput
+                value={label}
+                onChangeText={setLabel}
+                placeholder="Sur quoi tu bosses ? (facultatif)"
+                placeholderTextColor={colors.tertiary}
+                style={styles.labelInput}
+                maxLength={30}
+                returnKeyType="go"
+                onSubmitEditing={start}
+              />
+              {recentLabels.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.chipsScroll}
+                  contentContainerStyle={styles.chips}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {recentLabels.map((l) => {
+                    const selected = l === label.trim();
+                    return (
+                      <Pressable
+                        key={l}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setLabel(selected ? '' : l);
+                        }}
+                        style={[styles.chip, selected && styles.chipSelected]}
+                      >
+                        <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{l}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
           )}
         </View>
 
@@ -206,6 +234,15 @@ const styles = StyleSheet.create({
   ringLabel: { ...type.subhead, fontWeight: '500' },
   timer: { fontSize: 56, fontWeight: '200', color: colors.text, fontVariant: ['tabular-nums'], letterSpacing: -1 },
   hint: { ...type.footnote, textAlign: 'center', paddingHorizontal: 24, lineHeight: 18 },
+  labelBox: { alignSelf: 'stretch', gap: 10 },
+  labelInput: {
+    ...card,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 17,
+    color: colors.text,
+    textAlign: 'center',
+  },
   chipsScroll: { flexGrow: 0, alignSelf: 'stretch', marginHorizontal: -20 },
   chips: { gap: 8, paddingHorizontal: 20, alignItems: 'center' },
   chip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.card },

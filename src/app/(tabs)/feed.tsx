@@ -9,7 +9,7 @@ import { Button } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { Friend, useSocial } from '../../lib/social';
 import { useLockin, useNow } from '../../lib/store';
-import { card, colors, type } from '../../lib/theme';
+import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDuration, formatTimer, timeAgo } from '../../lib/time';
 
 export default function FeedScreen() {
@@ -121,7 +121,7 @@ export default function FeedScreen() {
             <Row
               avatar={<Avatar name={profile.display_name} photoUri={profile.avatar_url} live />}
               title={`${profile.display_name} (toi)`}
-              subtitle={active.subject}
+              subtitle={labelOr(active.subject, 'En focus')}
               right={<Text style={styles.liveTimer}>{formatTimer((now - active.startedAt) / 1000)}</Text>}
             />
           )}
@@ -132,7 +132,7 @@ export default function FeedScreen() {
                 onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
                 avatar={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} live />}
                 title={f.profile.display_name}
-                subtitle={f.status.subject}
+                subtitle={labelOr(f.status.subject, 'En focus')}
                 right={<Text style={styles.liveTimer}>{formatTimer((now - f.status.startedAt) / 1000)}</Text>}
               />
             ) : null,
@@ -193,7 +193,7 @@ export default function FeedScreen() {
                   />
                 </View>
               }
-              title={s.subject}
+              title={labelOr(s.subject, 'Session focus')}
               subtitle={
                 s.status === 'done'
                   ? timeAgo(Date.parse(s.ended_at ?? s.started_at), now)
@@ -216,14 +216,22 @@ function describe(f: Friend, now: number): string {
   const s = f.status;
   switch (s.kind) {
     case 'abandoned':
-      return `A abandonné en ${s.subject} après ${formatDuration(s.durationSec)}`;
+      return `A lâché après ${formatDuration(s.durationSec)}${labelSuffix(s.subject)}`;
     case 'done':
-      return `${formatDuration(s.durationSec)} de ${s.subject} · ${timeAgo(s.at, now)}`;
+      return `${formatDuration(s.durationSec)} de focus${labelSuffix(s.subject)} · ${timeAgo(s.at, now)}`;
     case 'idle':
       return 'Pas encore de session';
     case 'working':
-      return s.subject;
+      return labelOr(s.subject, 'En focus');
   }
+}
+
+function labelOr(label: string, fallback: string): string {
+  return label === DEFAULT_LABEL ? fallback : label;
+}
+
+function labelSuffix(label: string): string {
+  return label === DEFAULT_LABEL ? '' : ` · ${label}`;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
