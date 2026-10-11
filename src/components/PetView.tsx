@@ -2,6 +2,7 @@ import { ExpoWebGLRenderingContext, GLView } from 'expo-gl';
 import { useEffect, useMemo, useRef } from 'react';
 import { PanResponder, View, ViewStyle } from 'react-native';
 import * as THREE from 'three';
+import { createGLRenderer } from '../lib/glRenderer';
 import { addLights, buildCreature, Creature } from '../creatures/build';
 import { Equipped } from '../creatures/species';
 
@@ -75,19 +76,7 @@ export function PetView({ species, level, equipped, style, interactive = true, o
     sceneRef.current?.creature?.dispose();
     const width = gl.drawingBufferWidth;
     const height = gl.drawingBufferHeight;
-    // three.js expects a canvas; expo-gl only gives a context, so pass a minimal stand-in.
-    const canvas = {
-      width,
-      height,
-      style: {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      clientHeight: height,
-      getContext: () => gl,
-    } as unknown as HTMLCanvasElement;
-    const renderer = new THREE.WebGLRenderer({ canvas, context: gl as unknown as WebGL2RenderingContext, antialias: true, alpha: true });
-    renderer.setPixelRatio(1);
-    renderer.setSize(width, height, false);
+    const renderer = createGLRenderer(gl, { alpha: true });
     renderer.setClearColor(0x000000, 0);
 
     const scene = new THREE.Scene();

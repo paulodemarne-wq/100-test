@@ -2,6 +2,7 @@ import { ExpoWebGLRenderingContext, GLView } from 'expo-gl';
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import * as THREE from 'three';
+import { createGLRenderer } from '../lib/glRenderer';
 import { addLights } from '../creatures/build';
 import { buildIsland, IslandCamera, IslandScene, PetSpec } from '../world/scene';
 import { World } from '../world/world';
@@ -141,18 +142,7 @@ export function WorldView({ world, pets, labels, onTapCell, onTapPet, focusId = 
   const onContextCreate = (gl: ExpoWebGLRenderingContext) => {
     const width = gl.drawingBufferWidth;
     const height = gl.drawingBufferHeight;
-    const canvas = {
-      width,
-      height,
-      style: {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      clientHeight: height,
-      getContext: () => gl,
-    } as unknown as HTMLCanvasElement;
-    const renderer = new THREE.WebGLRenderer({ canvas, context: gl as unknown as WebGL2RenderingContext, antialias: true });
-    renderer.setPixelRatio(1);
-    renderer.setSize(width, height, false);
+    const renderer = createGLRenderer(gl);
 
     const scene = new THREE.Scene();
     addLights(scene);
