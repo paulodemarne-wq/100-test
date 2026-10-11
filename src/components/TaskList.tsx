@@ -23,8 +23,18 @@ export function TaskList({ tasks, onChange }: { tasks: SessionTask[]; onChange: 
     onChange(tasks.map((t, j) => (j === i ? { ...t, done: !t.done } : t)));
   };
 
+  const doneCount = tasks.filter((t) => t.done).length;
+
   return (
     <View style={styles.box}>
+      <View style={styles.header}>
+        <Text style={styles.title}>📝 To-do de la session</Text>
+        {tasks.length > 0 && (
+          <Text style={styles.count}>
+            {doneCount}/{tasks.length}
+          </Text>
+        )}
+      </View>
       {tasks.map((t, i) => (
         <View key={i} style={styles.row}>
           <Pressable onPress={() => toggle(i)} hitSlop={8} style={styles.left}>
@@ -56,6 +66,11 @@ export function TaskList({ tasks, onChange }: { tasks: SessionTask[]; onChange: 
             onSubmitEditing={add}
             maxLength={80}
           />
+          {draft.trim().length > 0 && (
+            <Pressable onPress={add} hitSlop={8} style={styles.addButton} accessibilityLabel="Ajouter la tâche">
+              <Text style={styles.addText}>Ajouter</Text>
+            </Pressable>
+          )}
         </View>
       )}
     </View>
@@ -63,7 +78,12 @@ export function TaskList({ tasks, onChange }: { tasks: SessionTask[]; onChange: 
 }
 
 const styles = StyleSheet.create({
-  box: { ...card, alignSelf: 'stretch', paddingHorizontal: 14, paddingVertical: 4 },
+  box: { ...card, alignSelf: 'stretch', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 15, fontWeight: '700', color: colors.text },
+  count: { fontSize: 14, fontWeight: '700', color: colors.success, fontVariant: ['tabular-nums'] },
+  addButton: { backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  addText: { color: colors.onAccent, fontWeight: '700', fontSize: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   text: { flex: 1, fontSize: 16, color: colors.text },

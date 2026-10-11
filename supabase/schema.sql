@@ -299,7 +299,9 @@ alter table public.event_members enable row level security;
 
 drop policy if exists "see own events" on public.lockin_events;
 create policy "see own events" on public.lockin_events
-  for select to authenticated using (public.is_event_member(id, auth.uid()));
+  -- The host is checked directly: right after creating the event, the lookup inside
+  -- is_event_member can't see the new row yet (which made creating an event fail).
+  for select to authenticated using (host = auth.uid() or public.is_event_member(id, auth.uid()));
 
 drop policy if exists "host events" on public.lockin_events;
 create policy "host events" on public.lockin_events
