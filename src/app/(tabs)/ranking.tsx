@@ -8,7 +8,6 @@ import { Row, Section } from '../../components/List';
 import { useAuth } from '../../lib/auth';
 import { labelSuffix } from '../../lib/labels';
 import { Person, useSocial } from '../../lib/social';
-import { rankOf } from '../../lib/stats';
 import { useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, timeAgo } from '../../lib/time';
@@ -123,7 +122,6 @@ export default function RankingScreen() {
                       {r.isMe ? `${r.name} (toi)` : r.name}
                       {scope === 'friends' && r.id === weekLeaderId ? ' 👑' : ''}
                     </Text>
-                    <Text style={{ fontSize: 13 }}>{rankOf(r.totalSeconds).emoji}</Text>
                     {r.streak > 0 && (
                       <View style={styles.streak}>
                         <Ionicons name="flame" size={12} color={colors.warning} />

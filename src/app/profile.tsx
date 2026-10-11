@@ -47,10 +47,6 @@ export default function Profile() {
     const lockedInToday = mySessions.some((s) => s.status === 'done' && dayKey(new Date(s.started_at)) === today);
     syncDailyReminders(next, lockedInToday, myStreak).catch(() => {});
   };
-  const locky = useMemo(
-    () => stats.companion(profile?.total_seconds ?? 0, mySessions),
-    [profile?.total_seconds, mySessions],
-  );
   const { active, stopSession } = useLockin();
   const [examName, setExamName] = useState('');
   const [examDate, setExamDate] = useState(() => new Date(Date.now() + 14 * 86_400_000));
@@ -67,9 +63,6 @@ export default function Profile() {
   if (!profile) return null;
 
   const goalHours = Math.round(profile.weekly_goal_minutes / 60);
-  const totalHours = (profile.total_seconds ?? 0) / 3600;
-  const rank = stats.rankOf(profile.total_seconds ?? 0);
-  const rankProgress = rank.nextHours ? (totalHours - rank.minHours) / (rank.nextHours - rank.minHours) : 1;
   const reminderTime = new Date();
   reminderTime.setHours(reminder.hour, reminder.minute, 0, 0);
 
@@ -136,37 +129,11 @@ export default function Profile() {
           <Text style={type.subhead}>@{profile.username}</Text>
         </View>
 
-        <View style={styles.duo}>
-          <View style={[styles.duoCard, { alignItems: 'center' }]}>
-            <Text style={{ fontSize: 48 }}>{locky.emoji}</Text>
-            <Text style={type.headline}>{locky.stage}</Text>
-            <Text style={[type.footnote, { textAlign: 'center' }]}>
-              {locky.moodEmoji} {locky.mood}
-            </Text>
-            {locky.nextStageHours !== null && (
-              <Text style={[type.footnote, { textAlign: 'center', marginTop: 4 }]}>
-                Évolue à {locky.nextStageHours} h
-              </Text>
-            )}
-          </View>
-          <View style={styles.duoCard}>
-            <Text style={{ fontSize: 34 }}>{rank.emoji}</Text>
-            <Text style={[type.headline, { color: rank.color }]}>Rang {rank.name}</Text>
-            <Text style={type.footnote}>{formatDuration(profile.total_seconds ?? 0)} au total</Text>
-            <View style={[styles.barTrack, { marginTop: 8 }]}>
-              <View style={[styles.barFill, { width: `${Math.min(1, rankProgress) * 100}%`, backgroundColor: rank.color }]} />
-            </View>
-            <Text style={[type.footnote, { marginTop: 4 }]}>
-              {rank.nextHours ? `Prochain rang à ${rank.nextHours} h` : 'Rang maximum 💎'}
-            </Text>
-          </View>
-        </View>
-
         <View style={styles.stats}>
           {[
             ['Cette semaine', formatDuration(myWeekSeconds)],
             ['Série', `${myStreak} j 🔥`],
-            ['60 derniers j', formatDuration(totalSeconds)],
+            ['Au total', formatDuration(profile.total_seconds ?? totalSeconds)],
           ].map(([label, value]) => (
             <View key={label} style={styles.stat}>
               <Text style={styles.statValue}>{value}</Text>

@@ -65,6 +65,8 @@ export default function RootLayout() {
             <Stack.Screen name="new-event" options={{ presentation: 'modal' }} />
             <Stack.Screen name="groups" options={{ presentation: 'modal' }} />
             <Stack.Screen name="recap" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="bestiary" options={{ presentation: 'modal' }} />
           </Stack>
         </LockinProvider>
       </SocialProvider>

@@ -11,6 +11,7 @@ import {
   GroupMemberRow,
   GroupRow,
   NudgeRow,
+  PetRow,
   ProfileRow,
   ReactionRow,
   SessionRow,
@@ -80,6 +81,14 @@ type Social = {
   /** Reactions by session id. */
   reactions: Record<string, ReactionRow[]>;
   react: (sessionId: string, emoji: string | null) => Promise<void>;
+  /** My pets, active one first. */
+  pets: PetRow[];
+  /** Friends' active pets by user id. */
+  friendPets: Record<string, PetRow>;
+  inventory: string[];
+  buyItem: (itemId: string) => Promise<void>;
+  equipItem: (petId: string, slot: string, itemId: string | null) => Promise<void>;
+  setActivePet: (petId: string) => Promise<void>;
   /** Nudges received and not yet seen, with the sender's profile. */
   nudges: { id: string; from: ProfileRow }[];
   refresh: () => Promise<void>;
@@ -147,6 +156,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [eventMembers, setEventMembers] = useState<EventMemberRow[]>([]);
   const [examRows, setExamRows] = useState<ExamRow[]>([]);
   const [reactionRows, setReactionRows] = useState<ReactionRow[]>([]);
+  const [petRows, setPetRows] = useState<PetRow[]>([]);
+  const [inventory, setInventory] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
 
   const refresh = useCallback(async () => {
@@ -221,6 +232,12 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     setProfiles(Object.fromEntries(((profilesRes.data ?? []) as ProfileRow[]).map((p) => [p.id, p])));
     setSessions(merged);
     setReactionRows((reactionsData ?? []) as ReactionRow[]);
+    const [petsRes, invRes] = await Promise.all([
+      supabase.from('pets').select('*').order('created_at'),
+      supabase.from('inventory').select('item_id').eq('user_id', userId),
+    ]);
+    setPetRows((petsRes.data ?? []) as PetRow[]);
+    setInventory(((invRes.data ?? []) as { item_id: string }[]).map((r) => r.item_id));
     setNow(Date.now());
     setLoading(false);
   }, [userId]);
@@ -236,7 +253,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     if (!userId || !profile) return;
     refresh();
     const channel = supabase.channel(`lockin-${userId}`);
-    for (const table of ['study_sessions', 'friendships', 'group_members', 'lockin_events', 'event_members', 'session_reactions']) {
+    for (const table of ['study_sessions', 'friendships', 'group_members', 'lockin_events', 'event_members', 'session_reactions', 'pets']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh);
     }
     channel
@@ -353,6 +370,15 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     const contenders = [{ id: userId, seconds: myWeekSeconds }, ...friends.map((f) => ({ id: f.profile.id, seconds: f.weekSeconds }))];
     const top = contenders.reduce((a, b) => (b.seconds > a.seconds ? b : a), { id: null as string | null, seconds: 0 });
 
+    const myPets = petRows
+      .filter((p) => p.user_id === userId)
+      .sort((a, b) => (a.id === profile?.active_pet_id ? -1 : b.id === profile?.active_pet_id ? 1 : 0));
+    const friendPets: Record<string, PetRow> = {};
+    for (const p of Object.values(allProfiles)) {
+      const pet = petRows.find((r) => r.id === p.active_pet_id);
+      if (pet && p.id !== userId) friendPets[p.id] = pet;
+    }
+
     const run = async (fn: () => PromiseLike<{ error: unknown }>) => {
       const { error } = await fn();
       if (error) throw new Error(errorMessage(error));
@@ -374,6 +400,12 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       myStreakInfo: stats.streakInfo(mySessions),
       weekLeaderId: top.seconds > 0 ? top.id : null,
       reactions,
+      pets: myPets,
+      friendPets,
+      inventory,
+      buyItem: (itemId) => run(() => supabase.rpc('buy_item', { item: itemId })),
+      equipItem: (petId, slot, itemId) => run(() => supabase.rpc('equip_item', { pet: petId, slot, item: itemId })),
+      setActivePet: (petId) => run(() => supabase.rpc('set_active_pet', { pet: petId })),
       react: async (sessionId, emoji) => {
         if (!userId) return;
         // Optimistic: show the reaction right away.
@@ -480,6 +512,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     eventMembers,
     examRows,
     reactionRows,
+    petRows,
+    inventory,
     now,
     userId,
     refresh,

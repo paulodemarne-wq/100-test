@@ -606,3 +606,219 @@ begin
     alter publication supabase_realtime add table public.session_reactions;
   end if;
 end $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- v4: pets, hours wallet, shop
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Hours already spent in the shop. Balance = total_seconds - spent_seconds.
+alter table public.profiles
+  add column if not exists spent_seconds bigint not null default 0,
+  add column if not exists active_pet_id uuid;
+
+-- ─── Pets ────────────────────────────────────────────────────────────────────
+create table if not exists public.pets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  -- Null while still an egg; picked at random on hatching (0..99, see src/creatures/species.ts).
+  species smallint check (species between 0 and 99),
+  -- Seconds of lock in done while this pet was the active one.
+  xp_seconds bigint not null default 0,
+  equipped jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  hatched_at timestamptz
+);
+
+create index if not exists pets_user on public.pets (user_id);
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'profiles_active_pet_fk') then
+    alter table public.profiles
+      add constraint profiles_active_pet_fk foreign key (active_pet_id) references public.pets (id) on delete set null;
+  end if;
+end $$;
+
+alter table public.pets enable row level security;
+
+-- Pets are read-only for clients: they change through the functions below.
+drop policy if exists "see own and friends pets" on public.pets;
+create policy "see own and friends pets" on public.pets
+  for select to authenticated using (
+    user_id = auth.uid() or public.is_friend(auth.uid(), user_id) or public.shares_group(auth.uid(), user_id)
+  );
+
+-- ─── Shop catalogue (prices must match src/creatures/species.ts) ─────────────
+create table if not exists public.shop_items (
+  id text primary key,
+  kind text not null check (kind in ('accessory', 'egg')),
+  slot text check (slot in ('head', 'eyes', 'neck', 'back')),
+  rarity text not null,
+  cost_seconds integer not null check (cost_seconds > 0)
+);
+
+insert into public.shop_items (id, kind, slot, rarity, cost_seconds) values
+  ('egg', 'egg', null, 'rare', 100 * 3600),
+  ('cap', 'accessory', 'head', 'commune', 10 * 3600),
+  ('beanie', 'accessory', 'head', 'commune', 10 * 3600),
+  ('flowers', 'accessory', 'head', 'rare', 30 * 3600),
+  ('wizard', 'accessory', 'head', 'épique', 80 * 3600),
+  ('halo', 'accessory', 'head', 'mythique', 200 * 3600),
+  ('crown', 'accessory', 'head', 'légendaire', 400 * 3600),
+  ('glasses', 'accessory', 'eyes', 'commune', 10 * 3600),
+  ('shades', 'accessory', 'eyes', 'rare', 30 * 3600),
+  ('monocle', 'accessory', 'eyes', 'épique', 80 * 3600),
+  ('bowtie', 'accessory', 'neck', 'commune', 10 * 3600),
+  ('scarf', 'accessory', 'neck', 'rare', 30 * 3600),
+  ('medal', 'accessory', 'neck', 'épique', 80 * 3600),
+  ('diamonds', 'accessory', 'neck', 'mythique', 200 * 3600),
+  ('backpack', 'accessory', 'back', 'rare', 30 * 3600),
+  ('cape', 'accessory', 'back', 'épique', 80 * 3600),
+  ('angel', 'accessory', 'back', 'mythique', 200 * 3600),
+  ('jetpack', 'accessory', 'back', 'légendaire', 400 * 3600)
+on conflict (id) do update set kind = excluded.kind, slot = excluded.slot, rarity = excluded.rarity, cost_seconds = excluded.cost_seconds;
+
+alter table public.shop_items enable row level security;
+drop policy if exists "shop is public" on public.shop_items;
+create policy "shop is public" on public.shop_items for select to authenticated using (true);
+
+create table if not exists public.inventory (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  item_id text not null references public.shop_items (id),
+  acquired_at timestamptz not null default now(),
+  primary key (user_id, item_id)
+);
+
+alter table public.inventory enable row level security;
+drop policy if exists "see own inventory" on public.inventory;
+create policy "see own inventory" on public.inventory for select to authenticated using (user_id = auth.uid());
+
+-- Clients never write these directly.
+revoke insert, update, delete on public.pets, public.inventory, public.shop_items from anon, authenticated;
+
+-- ─── Hatching and XP ─────────────────────────────────────────────────────────
+create or replace function public.hatch_if_ready(pet uuid)
+returns void language sql security definer set search_path = public as $$
+  update public.pets
+  set species = floor(random() * 100)::smallint, hatched_at = now()
+  where id = pet and species is null and xp_seconds >= 19800; -- level 2 = 5 h 30
+$$;
+
+-- Every finished session feeds the active pet.
+create or replace function public.feed_active_pet()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare pet uuid;
+begin
+  if new.status = 'done' and old.status is distinct from 'done' and coalesce(new.duration_sec, 0) > 0 then
+    select active_pet_id into pet from public.profiles where id = new.user_id;
+    if pet is not null then
+      update public.pets set xp_seconds = xp_seconds + new.duration_sec where id = pet;
+      perform public.hatch_if_ready(pet);
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists feed_active_pet on public.study_sessions;
+create trigger feed_active_pet after update of status on public.study_sessions
+  for each row execute function public.feed_active_pet();
+
+-- Everyone starts with an egg.
+create or replace function public.give_first_egg()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare pet uuid;
+begin
+  insert into public.pets (user_id) values (new.id) returning id into pet;
+  update public.profiles set active_pet_id = pet where id = new.id;
+  return new;
+end $$;
+
+drop trigger if exists give_first_egg on public.profiles;
+create trigger give_first_egg after insert on public.profiles
+  for each row execute function public.give_first_egg();
+
+-- Existing players get a pet that already has their past hours.
+do $$
+declare p record; pet uuid;
+begin
+  for p in select id, total_seconds from public.profiles where not exists (select 1 from public.pets where user_id = profiles.id) loop
+    insert into public.pets (user_id, xp_seconds) values (p.id, p.total_seconds) returning id into pet;
+    update public.profiles set active_pet_id = pet where id = p.id;
+    perform public.hatch_if_ready(pet);
+  end loop;
+end $$;
+
+-- ─── Shop and pet actions (the only way to change them) ─────────────────────
+create or replace function public.buy_item(item text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  me public.profiles;
+  it public.shop_items;
+  new_pet uuid;
+begin
+  if auth.uid() is null then raise exception 'Non connecté'; end if;
+  select * into it from public.shop_items where id = item;
+  if it.id is null then raise exception 'Objet inconnu'; end if;
+  -- Lock the profile row so two purchases can't spend the same hours.
+  select * into me from public.profiles where id = auth.uid() for update;
+  if me.total_seconds - me.spent_seconds < it.cost_seconds then
+    raise exception 'Pas assez d''heures' using errcode = 'P0001';
+  end if;
+  if it.kind = 'accessory' then
+    if exists (select 1 from public.inventory where user_id = me.id and item_id = it.id) then
+      raise exception 'Déjà acheté' using errcode = 'P0001';
+    end if;
+    insert into public.inventory (user_id, item_id) values (me.id, it.id);
+  else
+    insert into public.pets (user_id) values (me.id) returning id into new_pet;
+  end if;
+  update public.profiles set spent_seconds = spent_seconds + it.cost_seconds where id = me.id;
+  return new_pet;
+end $$;
+
+create or replace function public.set_active_pet(pet uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.pets where id = pet and user_id = auth.uid()) then
+    raise exception 'Animal introuvable';
+  end if;
+  update public.profiles set active_pet_id = pet where id = auth.uid();
+end $$;
+
+create or replace function public.equip_item(pet uuid, slot text, item text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if slot not in ('head', 'eyes', 'neck', 'back') then raise exception 'Emplacement inconnu'; end if;
+  if not exists (select 1 from public.pets where id = pet and user_id = auth.uid()) then
+    raise exception 'Animal introuvable';
+  end if;
+  if item is null then
+    update public.pets set equipped = equipped - slot where id = pet;
+    return;
+  end if;
+  if not exists (
+    select 1 from public.inventory i join public.shop_items s on s.id = i.item_id
+    where i.user_id = auth.uid() and i.item_id = item and s.slot = equip_item.slot
+  ) then
+    raise exception 'Accessoire non possédé';
+  end if;
+  update public.pets set equipped = equipped || jsonb_build_object(slot, item) where id = pet;
+end $$;
+
+revoke execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text),
+  public.hatch_if_ready(uuid) from public, anon;
+grant execute on function public.buy_item(text), public.set_active_pet(uuid), public.equip_item(uuid, text, text)
+  to authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['pets', 'inventory'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;

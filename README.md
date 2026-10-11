@@ -20,7 +20,10 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 - **To-do de session** : liste de tâches à cocher, visible par les amis (« 3/4 tâches »).
 - **Ambiances sonores** : pluie, bruit blanc, bruit brun (sons générés, libres de droits).
 - **Réactions** 🔥 💪 🫡 💀 😴 sur les sessions des amis, **couronne 👑** pour le n°1 de la semaine.
-- **Rangs** Bronze → Diamant selon les heures cumulées, et **Locky**, le compagnon qui grandit et change d'humeur.
+- **Mon animal** 🐾 : un œuf qui éclot en un des **100 animaux** (16 corps différents : slime, golem, dragon, pieuvre, escargot…), à faire tourner en 3D.
+  Il gagne l'expérience de tes sessions : **40 niveaux**, un changement visible à chaque niveau, 3 formes d'évolution,
+  et les paliers Bébé → Rare → Super rare → Épique → Mythique → Légendaire. Le niveau max demande ~2 190 h (2 ans à 3 h/jour).
+- **Boutique** : chaque heure de lock in se dépense en accessoires (commune 10 h → légendaire 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 100 animaux.
 - **Rappel quotidien** à l'heure choisie et **joker de série** : un jour raté par mois est pardonné.
 
 ## Backend (Supabase)
@@ -60,15 +63,18 @@ src/app/                 écrans (Expo Router : chaque fichier = un écran)
   recap.tsx              récap de la semaine à partager
   (tabs)/index.tsx       écran Focus + chrono
   (tabs)/feed.tsx        fil des amis
+  (tabs)/pet.tsx         mon animal 3D, accessoires, collection
   (tabs)/ranking.tsx     classement
-src/components/          Avatar, anneau, listes, date/heure, pause, tâches, sons, réactions
+  shop.tsx, bestiary.tsx boutique et bestiaire
+src/creatures/           100 espèces, niveaux, boutique (species.ts) et modèles 3D (build.ts)
+src/components/          PetView (3D), Avatar, anneau, listes, date/heure, pause, tâches, sons, réactions
 src/lib/
   supabase.ts            connexion à Supabase
   auth.tsx               compte et profil
   social.tsx             amis, groupes, lock in de groupe, partiels (temps réel)
   store.tsx              session en cours, anti-triche
   notifications.ts       notifications push et rappels
-  stats.ts               semaine, séries + joker, badges, rangs, Locky, récap
+  stats.ts               semaine, séries + joker, badges, récap
   reminder.ts            réglage du rappel quotidien
   labels.ts              textes de statut, dates
   photo.ts               choix de la photo de profil

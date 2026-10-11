@@ -48,6 +48,7 @@ export default function TabsLayout() {
           tabBarBadge: incomingRequests.length > 0 ? incomingRequests.length : undefined,
         }}
       />
+      <Tabs.Screen name="pet" options={{ title: 'Mon animal', tabBarIcon: tabIcon('paw', 'paw-outline') }} />
       <Tabs.Screen
         name="ranking"
         options={{ title: 'Classement', tabBarIcon: tabIcon('trophy', 'trophy-outline') }}

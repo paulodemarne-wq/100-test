@@ -33,6 +33,19 @@ export type ProfileRow = {
   notify_friend_sessions: boolean;
   /** Lifetime completed seconds, maintained by the database. */
   total_seconds: number;
+  /** Hours spent in the shop (seconds). Balance = total_seconds - spent_seconds. */
+  spent_seconds: number;
+  active_pet_id: string | null;
+};
+
+export type PetRow = {
+  id: string;
+  user_id: string;
+  species: number | null;
+  xp_seconds: number;
+  equipped: Partial<Record<'head' | 'eyes' | 'neck' | 'back', string>>;
+  created_at: string;
+  hatched_at: string | null;
 };
 
 export type SessionRow = {
@@ -96,6 +109,8 @@ export function errorMessage(error: unknown): string {
   if (/email not confirmed/i.test(message)) return 'Confirme ton e-mail (regarde ta boîte mail), puis reconnecte-toi.';
   if (/unable to validate email|invalid format|email address .* is invalid/i.test(message)) return 'Adresse e-mail invalide.';
   if (/profiles_username_key/i.test(message)) return 'Ce pseudo est déjà pris.';
+  if (/pas assez d'heures/i.test(message)) return "Pas assez d'heures. Lock in pour en gagner 💪";
+  if (/déjà acheté/i.test(message)) return 'Tu as déjà cet accessoire.';
   if (/code invalide/i.test(message)) return 'Code invalide. Vérifie-le avec la personne qui a créé le groupe.';
   if (/network request failed|fetch failed/i.test(message)) return 'Pas de connexion internet.';
   return message;

@@ -18,6 +18,8 @@ type Auth = {
   /** Creates or updates the profile. `localPhotoUri` is uploaded when set. */
   saveProfile: (input: { username: string; displayName: string; localPhotoUri?: string | null }) => Promise<void>;
   setPhoto: (localPhotoUri: string | null) => Promise<void>;
+  /** Reloads the profile (after a purchase, for the wallet). */
+  reloadProfile: () => Promise<void>;
   updateSettings: (settings: Partial<Pick<ProfileRow, 'weekly_goal_minutes' | 'notify_friend_sessions'>>) => Promise<void>;
 };
 
@@ -148,6 +150,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         saveProfile,
         setPhoto,
         updateSettings,
+        reloadProfile: async () => {
+          if (userId) await loadProfile(userId);
+        },
       }}
     >
       {children}

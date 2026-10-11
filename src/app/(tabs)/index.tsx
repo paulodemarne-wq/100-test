@@ -13,7 +13,7 @@ import { TaskList } from '../../components/TaskList';
 import { useAuth } from '../../lib/auth';
 import { countdown } from '../../lib/labels';
 import { useSocial } from '../../lib/social';
-import * as stats from '../../lib/stats';
+import { formFor, levelFor, PLAN_EMOJI, speciesById, tierFor } from '../../creatures/species';
 import { focusSeconds, MAX_AWAY_MS, Notice, useLockin, useNow } from '../../lib/store';
 import type { SessionTask } from '../../lib/supabase';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
@@ -33,15 +33,15 @@ const NOTICE_STYLE: Record<Notice['kind'], { bg: string; fg: string; icon: keyof
 
 export default function FocusScreen() {
   const { profile } = useAuth();
-  const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, events } = useSocial();
+  const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, events, pets } = useSocial();
   const { active, notice, clearNotice, startSession, stopSession, startPause, endPause, setTasks } = useLockin();
   const [label, setLabel] = useState('');
   const [draftTasks, setDraftTasks] = useState<SessionTask[]>([]);
   const [pauseSheet, setPauseSheet] = useState(false);
-  const locky = useMemo(
-    () => stats.companion(profile?.total_seconds ?? 0, mySessions),
-    [profile?.total_seconds, mySessions],
-  );
+  const pet = pets[0];
+  const petSpecies = speciesById(pet?.species);
+  const petLevel = pet ? levelFor(pet.xp_seconds) : 0;
+  const petTier = pet ? tierFor(petLevel) : null;
 
   // Upcoming exams first, then the user's last few labels, as one-tap shortcuts.
   const recentLabels = useMemo(() => {
@@ -104,10 +104,12 @@ export default function FocusScreen() {
             </Text>
             <View style={styles.titleRow}>
               <Text style={type.largeTitle}>Focus</Text>
-              <Pressable onPress={() => router.push('/profile')} hitSlop={8} style={styles.locky}>
-                <Text style={{ fontSize: 22 }}>{locky.emoji}</Text>
-                <Text style={{ fontSize: 14 }}>{locky.moodEmoji}</Text>
-              </Pressable>
+              {pet && (
+                <Pressable onPress={() => router.navigate('/pet')} hitSlop={8} style={styles.locky}>
+                  <Text style={{ fontSize: 22 }}>{petSpecies && formFor(petLevel) > 0 ? PLAN_EMOJI[petSpecies.line[formFor(petLevel) - 1]] : '🥚'}</Text>
+                  {petTier && <Text style={[styles.lockyStage, { color: petTier.color }]}>Niv. {petLevel}</Text>}
+                </Pressable>
+              )}
             </View>
           </View>
           <Pressable onPress={() => router.push('/profile')} hitSlop={8}>
@@ -352,7 +354,8 @@ const styles = StyleSheet.create({
   pauseButton: { backgroundColor: colors.accentSoft, paddingHorizontal: 22 },
   buttonRow: { flexDirection: 'row', gap: 10 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  locky: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  locky: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  lockyStage: { fontSize: 12, fontWeight: '700' },
   pressed: { opacity: 0.85 },
   buttonText: { color: colors.onAccent, fontSize: 17, fontWeight: '600' },
 });

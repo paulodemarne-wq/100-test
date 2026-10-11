@@ -52,60 +52,6 @@ export function streak(sessions: SessionRow[], now = new Date()): number {
   return streakInfo(sessions, now).days;
 }
 
-export type Rank = { name: string; emoji: string; color: string; minHours: number; nextHours: number | null };
-
-const RANKS: Omit<Rank, 'nextHours'>[] = [
-  { name: 'Bronze', emoji: '🥉', color: '#C77B30', minHours: 0 },
-  { name: 'Argent', emoji: '🥈', color: '#8E8E93', minHours: 10 },
-  { name: 'Or', emoji: '🥇', color: '#F5B400', minHours: 50 },
-  { name: 'Platine', emoji: '💠', color: '#30B0C7', minHours: 150 },
-  { name: 'Diamant', emoji: '💎', color: '#5856D6', minHours: 300 },
-];
-
-export function rankOf(totalSeconds: number): Rank {
-  const hours = totalSeconds / 3600;
-  let i = 0;
-  while (i + 1 < RANKS.length && hours >= RANKS[i + 1].minHours) i++;
-  return { ...RANKS[i], nextHours: RANKS[i + 1]?.minHours ?? null };
-}
-
-export type Companion = { emoji: string; stage: string; mood: string; moodEmoji: string; nextStageHours: number | null };
-
-const STAGES = [
-  { hours: 0, emoji: '🥚', stage: 'Œuf' },
-  { hours: 2, emoji: '🐣', stage: 'Poussin' },
-  { hours: 10, emoji: '🐥', stage: 'Petit Locky' },
-  { hours: 30, emoji: '🐤', stage: 'Locky' },
-  { hours: 75, emoji: '🦉', stage: 'Sage Locky' },
-  { hours: 150, emoji: '🦅', stage: 'Locky légendaire' },
-];
-
-/** Locky, the companion: grows with lifetime hours, mood follows recent sessions. */
-export function companion(totalSeconds: number, sessions: SessionRow[], now = Date.now()): Companion {
-  const hours = totalSeconds / 3600;
-  let i = 0;
-  while (i + 1 < STAGES.length && hours >= STAGES[i + 1].hours) i++;
-  const finished = sessions.filter((s) => s.status !== 'active');
-  const last = finished[0];
-  const lastAt = last ? Date.parse(last.ended_at ?? last.started_at) : 0;
-  let mood = 'Content de te voir';
-  let moodEmoji = '😊';
-  if (sessions[0]?.status === 'active') {
-    mood = 'Concentré avec toi';
-    moodEmoji = '🤓';
-  } else if (last?.status === 'abandoned' && now - lastAt < 24 * 3_600_000) {
-    mood = 'Triste, tu as craqué…';
-    moodEmoji = '😢';
-  } else if (!last || now - lastAt > 2 * 86_400_000) {
-    mood = 'Il s’ennuie de toi';
-    moodEmoji = '😴';
-  } else if (last.status === 'done' && (last.duration_sec ?? 0) >= 2 * 3600) {
-    mood = 'Fier de toi';
-    moodEmoji = '🤩';
-  }
-  return { emoji: STAGES[i].emoji, stage: STAGES[i].stage, mood, moodEmoji, nextStageHours: STAGES[i + 1]?.hours ?? null };
-}
-
 export type Badge = { id: string; emoji: string; name: string; description: string; unlocked: boolean };
 
 export function badges(sessions: SessionRow[], weeklyGoalMinutes: number, now = new Date()): Badge[] {
