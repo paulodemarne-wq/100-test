@@ -11,7 +11,7 @@ type Item = { species: number | null; level: number; equipped?: Equipped };
 /** Renders a grid of creatures in ONE WebGL context. Drag to turn them all. */
 function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; background?: string }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setPixelRatio(Math.min(3, Math.max(2, window.devicePixelRatio || 1)));
   renderer.setScissorTest(true);
   const scene = new THREE.Scene();
   addLights(scene);
@@ -104,7 +104,7 @@ function mount(canvas: HTMLCanvasElement, opts: { items: Item[]; cols: number; b
 /** Renders an island with pets walking on it. Drag to move, wheel to zoom. */
 function mountWorld(canvas: HTMLCanvasElement, opts: { world?: World; pets: PetSpec[]; yaw?: number; distance?: number }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setPixelRatio(Math.min(3, Math.max(2, window.devicePixelRatio || 1)));
   const scene = new THREE.Scene();
   addLights(scene);
   const island = buildIsland(opts.world ?? defaultWorld(), opts.pets);

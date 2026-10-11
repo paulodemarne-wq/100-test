@@ -75,9 +75,13 @@ export function walkable(world: World): boolean[] {
 /** A starter island: grass, a winding path, a few trees. Keeps what the old garden had. */
 export function defaultWorld(garden?: Garden | null): World {
   const tiles = Array.from({ length: WORLD_SIZE * WORLD_SIZE }, () => 'g');
+  // A winding path; consecutive rows are joined sideways so it stays continuous.
+  let prev = -1;
   for (let z = 0; z < WORLD_SIZE; z++) {
     const x = 7 + Math.round(Math.sin(z * 0.6) * 1.5);
+    if (prev >= 0) for (let k = Math.min(prev, x); k <= Math.max(prev, x); k++) tiles[(z - 1) * WORLD_SIZE + k] = 'p';
     tiles[z * WORLD_SIZE + x] = 'p';
+    prev = x;
   }
   const ground = garden?.ground && TILE_CHARS[garden.ground];
   if (ground) for (let i = 0; i < tiles.length; i++) if (tiles[i] === 'g' && (i * 7) % 5 === 0) tiles[i] = ground;

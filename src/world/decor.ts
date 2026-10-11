@@ -52,10 +52,10 @@ export function makeKit() {
     add,
     group,
     materials,
-    sphere: (r: number, seg = 14) => new THREE.SphereGeometry(r, seg, Math.max(8, Math.round(seg * 0.7))),
+    sphere: (r: number, seg = 20) => new THREE.SphereGeometry(r, seg, Math.max(8, Math.round(seg * 0.7))),
     box: (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d),
-    cyl: (r1: number, r2: number, h: number, seg = 14) => new THREE.CylinderGeometry(r1, r2, h, seg),
-    cone: (r: number, h: number, seg = 14) => new THREE.ConeGeometry(r, h, seg),
+    cyl: (r1: number, r2: number, h: number, seg = 20) => new THREE.CylinderGeometry(r1, r2, h, seg),
+    cone: (r: number, h: number, seg = 18) => new THREE.ConeGeometry(r, h, seg),
     dispose: () => materials.forEach((m) => m.dispose()),
   };
 }

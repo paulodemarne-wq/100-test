@@ -22,6 +22,10 @@ type Walker = {
 
 const PET_SCALE = 0.62;
 const SPEED = 0.7;
+/** Height of each painted ground, so overlaps between kinds stay clean. */
+const LAYER: Record<string, number> = {
+  path: 0.006, meadow: 0.012, beach: 0.018, snow: 0.024, cobble: 0.03, wood: 0.036, clouds: 0.042, water: 0.048,
+};
 /** Big things may overflow their cell a little, it looks better. */
 const DECOR_SCALE: Record<string, number> = {
   tent: 1.3, doghouse: 1.3, cabin: 1.35, cottage: 1.4, mushroom: 1.4, castle: 1.5,
@@ -40,22 +44,69 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   let walkers: Walker[] = [];
 
   // The island's earth underneath, never changes.
+  // Soft rounded corners: a cartoon island, not a grid of squares.
   const base = new THREE.Group();
-  kit.add(base, kit.box(WORLD_SIZE + 0.2, 0.6, WORLD_SIZE + 0.2), kit.mat('#A9764C'), [WORLD_SIZE / 2, -0.42, WORLD_SIZE / 2]);
-  kit.add(base, kit.box(WORLD_SIZE - 2, 0.6, WORLD_SIZE - 2), kit.mat('#8F6140'), [WORLD_SIZE / 2, -0.9, WORLD_SIZE / 2]);
+  const slab = (margin: number, radius: number, depth: number, y: number, color: string) => {
+    const lo = -margin;
+    const hi = WORLD_SIZE + margin;
+    const shape = new THREE.Shape();
+    shape.moveTo(lo + radius, lo);
+    shape.lineTo(hi - radius, lo);
+    shape.quadraticCurveTo(hi, lo, hi, lo + radius);
+    shape.lineTo(hi, hi - radius);
+    shape.quadraticCurveTo(hi, hi, hi - radius, hi);
+    shape.lineTo(lo + radius, hi);
+    shape.quadraticCurveTo(lo, hi, lo, hi - radius);
+    shape.lineTo(lo, lo + radius);
+    shape.quadraticCurveTo(lo, lo, lo + radius, lo);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: 0.12, bevelThickness: 0.08, bevelSegments: 3, curveSegments: 10 });
+    // Shape is drawn in x/y; lay it flat so it extends downward from y.
+    kit.add(base, geo, kit.mat(color), [0, y, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+  };
+  slab(0.35, 1.4, 0.06, -0.09, TILE_COLORS.grass[0]);
+  slab(0.3, 1.4, 0.45, -0.17, '#B07D52');
+  slab(-0.6, 1.8, 0.5, -0.62, '#94663F');
   const flatBase = flatten(base);
   root.add(flatBase);
   disposeGeometries(base);
 
+  /** A flat 1×1 square whose outer corners are rounded (corners in order: nw, ne, se, sw). */
+  const cellShape = (round: [boolean, boolean, boolean, boolean]) => {
+    const r = 0.45;
+    const [nw, ne, se, sw] = round;
+    const sh = new THREE.Shape();
+    // Shape y is world -z (north up).
+    sh.moveTo(-0.5, nw ? 0.5 - r : 0.5);
+    if (nw) sh.quadraticCurveTo(-0.5, 0.5, -0.5 + r, 0.5);
+    sh.lineTo(ne ? 0.5 - r : 0.5, 0.5);
+    if (ne) sh.quadraticCurveTo(0.5, 0.5, 0.5, 0.5 - r);
+    sh.lineTo(0.5, se ? -0.5 + r : -0.5);
+    if (se) sh.quadraticCurveTo(0.5, -0.5, 0.5 - r, -0.5);
+    sh.lineTo(sw ? -0.5 + r : -0.5, -0.5);
+    if (sw) sh.quadraticCurveTo(-0.5, -0.5, -0.5, -0.5 + r);
+    sh.closePath();
+    return new THREE.ShapeGeometry(sh, 6);
+  };
   const buildGround = () => {
     const g = new THREE.Group();
     for (let z = 0; z < WORLD_SIZE; z++)
       for (let x = 0; x < WORLD_SIZE; x++) {
         const id = tileAt(world, x, z);
-        const [top, side] = TILE_COLORS[id] ?? TILE_COLORS.grass;
-        const water = id === 'water';
-        kit.add(g, kit.box(1, 0.12, 1), kit.mat(side), [x + 0.5, -0.07, z + 0.5]);
-        kit.add(g, kit.box(1, 0.01, 1), water ? kit.mat(top, 0.1, 0.9) : kit.mat(top), [x + 0.5, water ? -0.04 : -0.005, z + 0.5]);
+        // Painted ground: squares that round their outer corners, so paths and ponds look smooth.
+        if (id !== 'grass') {
+          const [top] = TILE_COLORS[id] ?? TILE_COLORS.grass;
+          const same = (dx: number, dz: number) => {
+            const nx = x + dx;
+            const nz = z + dz;
+            return nx < 0 || nz < 0 || nx >= WORLD_SIZE || nz >= WORLD_SIZE ? false : tileAt(world, nx, nz) === id;
+          };
+          const n = same(0, -1);
+          const sTile = same(0, 1);
+          const w = same(-1, 0);
+          const e = same(1, 0);
+          const shape = cellShape([!n && !w, !n && !e, !sTile && !e, !sTile && !w]);
+          kit.add(g, shape, kit.mat(top, id === 'water' ? 0.12 : 0), [x + 0.5, LAYER[id] ?? 0.004, z + 0.5], [1, 1, 1], [-Math.PI / 2, 0, 0]);
+        }
         tileDetails(id, kit, g, x, z, z * WORLD_SIZE + x + 1);
       }
     const flat = flatten(g);
@@ -241,7 +292,7 @@ export class IslandCamera {
   pitch = 0.85;
 
   constructor(aspect: number) {
-    this.camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(40, aspect, 0.5, 100);
     this.apply();
   }
 
