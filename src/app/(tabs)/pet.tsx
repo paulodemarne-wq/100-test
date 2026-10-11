@@ -30,19 +30,40 @@ const SLOTS: Slot[] = ['head', 'eyes', 'neck', 'back'];
 
 export default function PetScreen() {
   const { profile, reloadProfile } = useAuth();
-  const { pets, friends, friendPets, inventory, equipItem, setActivePet } = useSocial();
+  const { pets, friends, friendPets, inventory, equipItem, setActivePet, refresh } = useSocial();
   const [busy, setBusy] = useState(false);
   const pet = pets[0] ?? null;
   const balance = Math.max(0, (profile?.total_seconds ?? 0) - (profile?.spent_seconds ?? 0));
   const fail = (e: unknown) => Alert.alert('Oups', (e as Error).message);
 
   if (!pet) {
+    // No pet yet: almost always the database was not updated (schema.sql creates every player's egg).
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <Text style={[type.largeTitle, { margin: 20 }]}>Mon animal</Text>
-        <Text style={[type.subhead, { marginHorizontal: 20 }]}>
-          Ton œuf arrive… Si rien ne s'affiche, mets à jour la base (schema.sql).
-        </Text>
+        <ScrollView contentContainerStyle={styles.container}>
+          <Text style={[type.largeTitle, { marginTop: 8 }]}>Mon animal</Text>
+          <View style={[styles.xpCard, { marginTop: 16 }]}>
+            <Text style={{ fontSize: 44, textAlign: 'center' }}>🥚</Text>
+            <Text style={[type.headline, { textAlign: 'center' }]}>Ton œuf n'est pas encore arrivé</Text>
+            <Text style={type.subhead}>
+              La base de données doit être mise à jour une fois :{'\n'}
+              1. Ouvre supabase.com → ton projet → SQL Editor{'\n'}
+              2. Colle tout le fichier supabase/schema.sql{'\n'}
+              3. Appuie sur Run, puis reviens ici
+            </Text>
+            <Pressable
+              onPress={() => {
+                setBusy(true);
+                Promise.all([refresh(), reloadProfile()]).finally(() => setBusy(false));
+              }}
+              disabled={busy}
+              style={[styles.shopButton, { justifyContent: 'center' }]}
+            >
+              <Ionicons name="refresh" size={20} color={colors.onAccent} />
+              <Text style={[styles.shopText, { flex: 0 }]}>{busy ? 'Chargement…' : 'Réessayer'}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
