@@ -28,11 +28,13 @@ type RowProps = {
   subtitle?: string;
   subtitleColor?: string;
   right?: ReactNode;
+  /** Extra content under the subtitle (e.g. reactions). */
+  footer?: ReactNode;
   onPress?: () => void;
   onLongPress?: () => void;
 };
 
-export function Row({ left, title, subtitle, subtitleColor, right, onPress, onLongPress }: RowProps) {
+export function Row({ left, title, subtitle, subtitleColor, right, footer, onPress, onLongPress }: RowProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -50,6 +52,7 @@ export function Row({ left, title, subtitle, subtitleColor, right, onPress, onLo
             {subtitle}
           </Text>
         ) : null}
+        {footer}
       </View>
       {right}
     </Pressable>

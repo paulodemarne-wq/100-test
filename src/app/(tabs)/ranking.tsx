@@ -8,17 +8,26 @@ import { Row, Section } from '../../components/List';
 import { useAuth } from '../../lib/auth';
 import { labelSuffix } from '../../lib/labels';
 import { Person, useSocial } from '../../lib/social';
+import { rankOf } from '../../lib/stats';
 import { useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, timeAgo } from '../../lib/time';
 
 const PODIUM = ['#F5B400', '#A1A1AA', '#C77B30'];
 
-type Entry = { id: string; name: string; photoUri: string | null; seconds: number; streak: number; isMe: boolean };
+type Entry = {
+  id: string;
+  name: string;
+  photoUri: string | null;
+  seconds: number;
+  streak: number;
+  totalSeconds: number;
+  isMe: boolean;
+};
 
 export default function RankingScreen() {
   const { profile, userId } = useAuth();
-  const { friends, groups, shameWall, myWeekSeconds, myStreak } = useSocial();
+  const { friends, groups, shameWall, myWeekSeconds, myStreak, weekLeaderId } = useSocial();
   const now = useNow(30_000);
   const [scope, setScope] = useState<string>('friends');
   const group = groups.find((g) => g.id === scope);
@@ -30,6 +39,7 @@ export default function RankingScreen() {
       photoUri: p.profile.avatar_url,
       seconds: p.weekSeconds,
       streak: p.streak,
+      totalSeconds: p.profile.total_seconds ?? 0,
       isMe: p.profile.id === userId,
     });
     const me: Entry = {
@@ -38,6 +48,7 @@ export default function RankingScreen() {
       photoUri: profile?.avatar_url ?? null,
       seconds: myWeekSeconds,
       streak: myStreak,
+      totalSeconds: profile?.total_seconds ?? 0,
       isMe: true,
     };
     const others = (group ? group.members : friends).map(toEntry).filter((e) => !e.isMe);
@@ -110,7 +121,9 @@ export default function RankingScreen() {
                   <View style={styles.nameLine}>
                     <Text style={[type.headline, { flexShrink: 1 }]} numberOfLines={1}>
                       {r.isMe ? `${r.name} (toi)` : r.name}
+                      {scope === 'friends' && r.id === weekLeaderId ? ' 👑' : ''}
                     </Text>
+                    <Text style={{ fontSize: 13 }}>{rankOf(r.totalSeconds).emoji}</Text>
                     {r.streak > 0 && (
                       <View style={styles.streak}>
                         <Ionicons name="flame" size={12} color={colors.warning} />

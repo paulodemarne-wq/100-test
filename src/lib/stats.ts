@@ -12,17 +12,98 @@ export function weekSeconds(sessions: SessionRow[], now = new Date()): number {
     .reduce((sum, s) => sum + (s.duration_sec ?? 0), 0);
 }
 
-/** Consecutive days (ending today, or yesterday if nothing yet today) with a completed session. */
-export function streak(sessions: SessionRow[], now = new Date()): number {
+export type StreakInfo = {
+  days: number;
+  /** Day keys rescued by a joker (one per calendar month). */
+  jokerDays: string[];
+  /** Whether this month's joker is still available. */
+  jokerAvailable: boolean;
+};
+
+/**
+ * Consecutive days with a completed session, ending today (or yesterday if nothing yet today).
+ * One missed day per calendar month is forgiven automatically (the "joker").
+ */
+export function streakInfo(sessions: SessionRow[], now = new Date()): StreakInfo {
   const days = new Set(done(sessions).map((s) => dayKey(new Date(s.started_at))));
+  const monthOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+  const usedMonths = new Set<string>();
+  const jokerDays: string[] = [];
   const cursor = new Date(now);
   if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
   let count = 0;
-  while (days.has(dayKey(cursor))) {
-    count++;
+  for (;;) {
+    if (days.has(dayKey(cursor))) {
+      count++;
+    } else {
+      // A joker only bridges a gap: the day before must have a session, and the month's joker must be free.
+      const before = new Date(cursor);
+      before.setDate(before.getDate() - 1);
+      if (usedMonths.has(monthOf(cursor)) || !days.has(dayKey(before))) break;
+      usedMonths.add(monthOf(cursor));
+      jokerDays.push(dayKey(cursor));
+    }
     cursor.setDate(cursor.getDate() - 1);
   }
-  return count;
+  return { days: count, jokerDays, jokerAvailable: !usedMonths.has(monthOf(now)) };
+}
+
+export function streak(sessions: SessionRow[], now = new Date()): number {
+  return streakInfo(sessions, now).days;
+}
+
+export type Rank = { name: string; emoji: string; color: string; minHours: number; nextHours: number | null };
+
+const RANKS: Omit<Rank, 'nextHours'>[] = [
+  { name: 'Bronze', emoji: '🥉', color: '#C77B30', minHours: 0 },
+  { name: 'Argent', emoji: '🥈', color: '#8E8E93', minHours: 10 },
+  { name: 'Or', emoji: '🥇', color: '#F5B400', minHours: 50 },
+  { name: 'Platine', emoji: '💠', color: '#30B0C7', minHours: 150 },
+  { name: 'Diamant', emoji: '💎', color: '#5856D6', minHours: 300 },
+];
+
+export function rankOf(totalSeconds: number): Rank {
+  const hours = totalSeconds / 3600;
+  let i = 0;
+  while (i + 1 < RANKS.length && hours >= RANKS[i + 1].minHours) i++;
+  return { ...RANKS[i], nextHours: RANKS[i + 1]?.minHours ?? null };
+}
+
+export type Companion = { emoji: string; stage: string; mood: string; moodEmoji: string; nextStageHours: number | null };
+
+const STAGES = [
+  { hours: 0, emoji: '🥚', stage: 'Œuf' },
+  { hours: 2, emoji: '🐣', stage: 'Poussin' },
+  { hours: 10, emoji: '🐥', stage: 'Petit Locky' },
+  { hours: 30, emoji: '🐤', stage: 'Locky' },
+  { hours: 75, emoji: '🦉', stage: 'Sage Locky' },
+  { hours: 150, emoji: '🦅', stage: 'Locky légendaire' },
+];
+
+/** Locky, the companion: grows with lifetime hours, mood follows recent sessions. */
+export function companion(totalSeconds: number, sessions: SessionRow[], now = Date.now()): Companion {
+  const hours = totalSeconds / 3600;
+  let i = 0;
+  while (i + 1 < STAGES.length && hours >= STAGES[i + 1].hours) i++;
+  const finished = sessions.filter((s) => s.status !== 'active');
+  const last = finished[0];
+  const lastAt = last ? Date.parse(last.ended_at ?? last.started_at) : 0;
+  let mood = 'Content de te voir';
+  let moodEmoji = '😊';
+  if (sessions[0]?.status === 'active') {
+    mood = 'Concentré avec toi';
+    moodEmoji = '🤓';
+  } else if (last?.status === 'abandoned' && now - lastAt < 24 * 3_600_000) {
+    mood = 'Triste, tu as craqué…';
+    moodEmoji = '😢';
+  } else if (!last || now - lastAt > 2 * 86_400_000) {
+    mood = 'Il s’ennuie de toi';
+    moodEmoji = '😴';
+  } else if (last.status === 'done' && (last.duration_sec ?? 0) >= 2 * 3600) {
+    mood = 'Fier de toi';
+    moodEmoji = '🤩';
+  }
+  return { emoji: STAGES[i].emoji, stage: STAGES[i].stage, mood, moodEmoji, nextStageHours: STAGES[i + 1]?.hours ?? null };
 }
 
 export type Badge = { id: string; emoji: string; name: string; description: string; unlocked: boolean };

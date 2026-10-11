@@ -493,3 +493,116 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- v3: pauses, session to-dos, reactions, lifetime hours
+-- ═════════════════════════════════════════════════════════════════════════════
+
+alter table public.study_sessions
+  add column if not exists paused_until timestamptz,
+  add column if not exists paused_seconds integer not null default 0 check (paused_seconds between 0 and 43200),
+  add column if not exists tasks jsonb not null default '[]'::jsonb;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'study_sessions_tasks_check') then
+    alter table public.study_sessions
+      add constraint study_sessions_tasks_check
+      check (jsonb_typeof(tasks) = 'array' and jsonb_array_length(tasks) <= 20);
+  end if;
+end $$;
+
+-- ─── Lifetime hours (for ranks), maintained by the database ─────────────────
+alter table public.profiles add column if not exists total_seconds bigint not null default 0;
+
+-- Profiles may only edit these columns themselves; total_seconds is computed.
+revoke insert, update on public.profiles from anon, authenticated;
+grant insert (id, username, display_name, avatar_url) on public.profiles to authenticated;
+grant update (username, display_name, avatar_url, weekly_goal_minutes, notify_friend_sessions)
+  on public.profiles to authenticated;
+
+create or replace function public.refresh_total_seconds()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  update public.profiles
+  set total_seconds = (
+    select coalesce(sum(duration_sec), 0) from public.study_sessions
+    where user_id = coalesce(new.user_id, old.user_id) and status = 'done'
+  )
+  where id = coalesce(new.user_id, old.user_id);
+  return null;
+end $$;
+
+drop trigger if exists refresh_total_seconds on public.study_sessions;
+create trigger refresh_total_seconds after insert or update of status, duration_sec or delete on public.study_sessions
+  for each row execute function public.refresh_total_seconds();
+
+-- Backfill (cheap, safe to rerun).
+update public.profiles p
+set total_seconds = coalesce((
+  select sum(duration_sec) from public.study_sessions s where s.user_id = p.id and s.status = 'done'
+), 0);
+
+-- ─── Reactions on sessions (🔥 💪 💀 😴) ─────────────────────────────────────
+create table if not exists public.session_reactions (
+  session_id uuid not null references public.study_sessions (id) on delete cascade,
+  user_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  emoji text not null check (emoji in ('🔥', '💪', '💀', '😴', '👑', '🫡')),
+  created_at timestamptz not null default now(),
+  primary key (session_id, user_id)
+);
+
+alter table public.session_reactions enable row level security;
+
+-- Visible / allowed when the session itself is visible to you (its select policy applies in the subquery).
+drop policy if exists "see reactions on visible sessions" on public.session_reactions;
+create policy "see reactions on visible sessions" on public.session_reactions
+  for select to authenticated using (exists (select 1 from public.study_sessions s where s.id = session_id));
+
+drop policy if exists "react to friends sessions" on public.session_reactions;
+create policy "react to friends sessions" on public.session_reactions
+  for insert to authenticated with check (
+    user_id = auth.uid()
+    and exists (select 1 from public.study_sessions s where s.id = session_id and s.user_id <> auth.uid())
+  );
+
+drop policy if exists "change own reaction" on public.session_reactions;
+create policy "change own reaction" on public.session_reactions
+  for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists "remove own reaction" on public.session_reactions;
+create policy "remove own reaction" on public.session_reactions
+  for delete to authenticated using (user_id = auth.uid());
+
+revoke update on public.session_reactions from anon, authenticated;
+grant update (emoji) on public.session_reactions to authenticated;
+
+create or replace function public.push_on_reaction()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare s public.study_sessions;
+begin
+  select * into s from public.study_sessions where id = new.session_id;
+  perform public.send_push(array[s.user_id],
+    public.display_name_of(new.user_id) || ' a réagi ' || new.emoji,
+    case
+      when s.status = 'abandoned' then 'à ton craquage 😅'
+      when s.status = 'active' then 'à ton lock in en cours'
+      else 'à ta session de ' || (coalesce(s.duration_sec, 0) / 60) || ' min'
+    end,
+    jsonb_build_object('type', 'reaction'));
+  return new;
+end $$;
+
+drop trigger if exists push_on_reaction on public.session_reactions;
+create trigger push_on_reaction after insert on public.session_reactions
+  for each row execute function public.push_on_reaction();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'session_reactions'
+  ) then
+    alter publication supabase_realtime add table public.session_reactions;
+  end if;
+end $$;

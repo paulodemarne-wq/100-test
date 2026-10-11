@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
@@ -8,12 +8,14 @@ import { DateField } from '../components/DateField';
 import { Row, Section } from '../components/List';
 import { Button } from '../components/ui';
 import { useAuth } from '../lib/auth';
+import { syncDailyReminders } from '../lib/notifications';
 import { pickProfilePhoto } from '../lib/photo';
+import { DEFAULT_REMINDER, loadReminder, ReminderSetting, saveReminder } from '../lib/reminder';
 import { useSocial } from '../lib/social';
 import * as stats from '../lib/stats';
 import { useLockin } from '../lib/store';
 import { card, colors, type } from '../lib/theme';
-import { formatDuration } from '../lib/time';
+import { dayKey, formatDuration } from '../lib/time';
 
 function Stepper({ value, onChange, min, max, unit }: { value: number; onChange: (v: number) => void; min: number; max: number; unit: string }) {
   return (
@@ -33,7 +35,22 @@ function Stepper({ value, onChange, min, max, unit }: { value: number; onChange:
 
 export default function Profile() {
   const { profile, setPhoto, signOut, updateSettings } = useAuth();
-  const { mySessions, myWeekSeconds, myStreak, exams, addExam, deleteExam } = useSocial();
+  const { mySessions, myWeekSeconds, myStreak, myStreakInfo, exams, addExam, deleteExam } = useSocial();
+  const [reminder, setReminder] = useState<ReminderSetting>(DEFAULT_REMINDER);
+  useEffect(() => {
+    loadReminder().then(setReminder);
+  }, []);
+  const updateReminder = (next: ReminderSetting) => {
+    setReminder(next);
+    saveReminder(next);
+    const today = dayKey(new Date());
+    const lockedInToday = mySessions.some((s) => s.status === 'done' && dayKey(new Date(s.started_at)) === today);
+    syncDailyReminders(next, lockedInToday, myStreak).catch(() => {});
+  };
+  const locky = useMemo(
+    () => stats.companion(profile?.total_seconds ?? 0, mySessions),
+    [profile?.total_seconds, mySessions],
+  );
   const { active, stopSession } = useLockin();
   const [examName, setExamName] = useState('');
   const [examDate, setExamDate] = useState(() => new Date(Date.now() + 14 * 86_400_000));
@@ -50,6 +67,11 @@ export default function Profile() {
   if (!profile) return null;
 
   const goalHours = Math.round(profile.weekly_goal_minutes / 60);
+  const totalHours = (profile.total_seconds ?? 0) / 3600;
+  const rank = stats.rankOf(profile.total_seconds ?? 0);
+  const rankProgress = rank.nextHours ? (totalHours - rank.minHours) / (rank.nextHours - rank.minHours) : 1;
+  const reminderTime = new Date();
+  reminderTime.setHours(reminder.hour, reminder.minute, 0, 0);
 
   const changePhoto = () => {
     const run = async (source: 'library' | 'camera' | 'remove') => {
@@ -114,10 +136,36 @@ export default function Profile() {
           <Text style={type.subhead}>@{profile.username}</Text>
         </View>
 
+        <View style={styles.duo}>
+          <View style={[styles.duoCard, { alignItems: 'center' }]}>
+            <Text style={{ fontSize: 48 }}>{locky.emoji}</Text>
+            <Text style={type.headline}>{locky.stage}</Text>
+            <Text style={[type.footnote, { textAlign: 'center' }]}>
+              {locky.moodEmoji} {locky.mood}
+            </Text>
+            {locky.nextStageHours !== null && (
+              <Text style={[type.footnote, { textAlign: 'center', marginTop: 4 }]}>
+                Évolue à {locky.nextStageHours} h
+              </Text>
+            )}
+          </View>
+          <View style={styles.duoCard}>
+            <Text style={{ fontSize: 34 }}>{rank.emoji}</Text>
+            <Text style={[type.headline, { color: rank.color }]}>Rang {rank.name}</Text>
+            <Text style={type.footnote}>{formatDuration(profile.total_seconds ?? 0)} au total</Text>
+            <View style={[styles.barTrack, { marginTop: 8 }]}>
+              <View style={[styles.barFill, { width: `${Math.min(1, rankProgress) * 100}%`, backgroundColor: rank.color }]} />
+            </View>
+            <Text style={[type.footnote, { marginTop: 4 }]}>
+              {rank.nextHours ? `Prochain rang à ${rank.nextHours} h` : 'Rang maximum 💎'}
+            </Text>
+          </View>
+        </View>
+
         <View style={styles.stats}>
           {[
             ['Cette semaine', formatDuration(myWeekSeconds)],
-            ['Série', `${myStreak} j`],
+            ['Série', `${myStreak} j 🔥`],
             ['60 derniers j', formatDuration(totalSeconds)],
           ].map(([label, value]) => (
             <View key={label} style={styles.stat}>
@@ -126,6 +174,26 @@ export default function Profile() {
             </View>
           ))}
         </View>
+
+        <Section
+          title="Série"
+          footer="Un jour raté par mois est pardonné automatiquement, pour ne pas perdre ta série sur une journée de flemme."
+        >
+          <Row
+            left={<Text style={{ fontSize: 28 }}>🛡️</Text>}
+            title={myStreakInfo.jokerAvailable ? 'Joker du mois disponible' : 'Joker du mois utilisé'}
+            subtitle={
+              myStreakInfo.jokerDays.length
+                ? `Il a sauvé ta série le ${myStreakInfo.jokerDays
+                    .map((k) => {
+                      const [, m, d] = k.split('-');
+                      return `${d}/${m}`;
+                    })
+                    .join(', ')}`
+                : 'Pas encore utilisé'
+            }
+          />
+        </Section>
 
         <Section title="Objectif de la semaine">
           <Row
@@ -213,6 +281,25 @@ export default function Profile() {
 
         <Section title="Notifications">
           <Row
+            title="Rappel quotidien"
+            subtitle="Si tu n'as pas encore lock in ce jour-là"
+            right={
+              <Switch
+                value={reminder.enabled}
+                onValueChange={(enabled) => updateReminder({ ...reminder, enabled })}
+                trackColor={{ true: colors.accent }}
+              />
+            }
+          />
+          {reminder.enabled ? (
+            <DateField
+              label="Heure du rappel"
+              mode="time"
+              value={reminderTime}
+              onChange={(d) => updateReminder({ ...reminder, hour: d.getHours(), minute: d.getMinutes() })}
+            />
+          ) : null}
+          <Row
             title="Quand un pote lock in"
             subtitle="Reçois une notif quand un ami lance une session"
             right={
@@ -251,6 +338,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stats: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  duo: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  duoCard: { ...card, flex: 1, padding: 14, gap: 2 },
   stat: { ...card, flex: 1, padding: 12, alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: '700', color: colors.text },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },

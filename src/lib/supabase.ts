@@ -31,6 +31,8 @@ export type ProfileRow = {
   created_at: string;
   weekly_goal_minutes: number;
   notify_friend_sessions: boolean;
+  /** Lifetime completed seconds, maintained by the database. */
+  total_seconds: number;
 };
 
 export type SessionRow = {
@@ -44,7 +46,16 @@ export type SessionRow = {
   duration_sec: number | null;
   leaves: number;
   event_id: string | null;
+  /** Set while the user is on a break. */
+  paused_until: string | null;
+  paused_seconds: number;
+  tasks: SessionTask[];
 };
+
+export type SessionTask = { text: string; done: boolean };
+
+export const REACTIONS = ['🔥', '💪', '🫡', '💀', '😴'] as const;
+export type ReactionRow = { session_id: string; user_id: string; emoji: string; created_at: string };
 
 export type FriendshipRow = {
   requester: string;

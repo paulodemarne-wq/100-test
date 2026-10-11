@@ -91,11 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!userId) throw new Error('Non connecté.');
       try {
         const avatar_url = localPhotoUri ? await uploadAvatar(userId, localPhotoUri) : (profile?.avatar_url ?? null);
-        const { data, error } = await supabase
-          .from('profiles')
-          .upsert({ id: userId, username, display_name: displayName, avatar_url })
-          .select()
-          .single();
+        // Separate insert/update: profiles may only write a few columns (see schema.sql).
+        const fields = { username, display_name: displayName, avatar_url };
+        const { data, error } = profile
+          ? await supabase.from('profiles').update(fields).eq('id', userId).select().single()
+          : await supabase.from('profiles').insert({ id: userId, ...fields }).select().single();
         if (error) throw error;
         setProfile(data as ProfileRow);
       } catch (e) {

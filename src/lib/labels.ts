@@ -1,6 +1,13 @@
 import { DEFAULT_LABEL } from './theme';
 import { formatDuration, timeAgo } from './time';
 import type { PersonStatus } from './social';
+import type { SessionTask } from './supabase';
+
+/** " · 3/4 tâches" */
+export function tasksSuffix(tasks: SessionTask[] | undefined): string {
+  if (!tasks?.length) return '';
+  return ` · ${tasks.filter((t) => t.done).length}/${tasks.length} tâches`;
+}
 
 export function labelOr(label: string, fallback: string): string {
   return label === DEFAULT_LABEL ? fallback : label;
@@ -13,11 +20,13 @@ export function labelSuffix(label: string): string {
 export function describeStatus(s: PersonStatus, now: number): string {
   switch (s.kind) {
     case 'working':
-      return labelOr(s.label, 'En lock in');
+      return labelOr(s.label, 'En lock in') + tasksSuffix(s.tasks);
+    case 'paused':
+      return `En pause ☕ encore ${Math.max(1, Math.ceil((s.until - now) / 60_000))} min`;
     case 'abandoned':
       return `A craqué après ${formatDuration(s.durationSec)}${labelSuffix(s.label)} 💀`;
     case 'done':
-      return `${formatDuration(s.durationSec)} de lock in${labelSuffix(s.label)} · ${timeAgo(s.at, now)}`;
+      return `${formatDuration(s.durationSec)} de lock in${labelSuffix(s.label)}${tasksSuffix(s.tasks)} · ${timeAgo(s.at, now)}`;
     case 'idle':
       return 'Pas encore lock in';
   }

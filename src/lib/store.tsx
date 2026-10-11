@@ -2,12 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { useAuth } from './auth';
+import { cancelPauseNotifications, schedulePauseNotifications } from './notifications';
 import { useSocial } from './social';
-import { supabase } from './supabase';
+import { SessionTask, supabase } from './supabase';
 import { formatDuration } from './time';
 
 /** Leaving the app for longer than this ends the session as abandoned. */
 export const MAX_AWAY_MS = 10_000;
+/** After a break ends, time allowed to come back to the app. */
+export const PAUSE_GRACE_MS = 60_000;
 /** Completed sessions shorter than this are not counted. */
 export const MIN_SESSION_SEC = 60;
 /** How often a running session tells friends it is still alive. */
@@ -24,22 +27,42 @@ export type ActiveSession = {
   leaves: number;
   /** Set while the app is in the background. */
   leftAt: number | null;
+  /** Total length of finished breaks, in seconds. */
+  pausedSeconds: number;
+  /** The break in progress, if any. */
+  pause: { startedAt: number; until: number } | null;
+  tasks: SessionTask[];
 };
 
-export type Notice = { kind: 'abandoned' | 'warning' | 'done' | 'tooShort' | 'error'; message: string };
+/** Seconds actually spent locked in (breaks excluded). */
+export function focusSeconds(a: ActiveSession, at = Date.now()): number {
+  const currentPause = a.pause ? Math.max(0, at - a.pause.startedAt) / 1000 : 0;
+  return Math.max(0, (at - a.startedAt) / 1000 - a.pausedSeconds - currentPause);
+}
+
+export type Notice = { kind: 'abandoned' | 'warning' | 'done' | 'tooShort' | 'error' | 'pause'; message: string };
 
 type Store = {
   loaded: boolean;
   active: ActiveSession | null;
   notice: Notice | null;
   clearNotice: () => void;
-  startSession: (subject: string, eventId?: string | null) => void;
+  startSession: (subject: string, eventId?: string | null, tasks?: SessionTask[]) => void;
   stopSession: () => void;
+  startPause: (minutes: number) => void;
+  endPause: () => void;
+  setTasks: (tasks: SessionTask[]) => void;
 };
 
 const StoreContext = createContext<Store | null>(null);
 
 type Ending = { status: 'done' | 'abandoned'; endedAt: number } | { status: 'discard' };
+
+/** Closes a break that is still open at `at`. */
+function withPauseClosed(a: ActiveSession, at: number): ActiveSession {
+  if (!a.pause) return a;
+  return { ...a, pausedSeconds: a.pausedSeconds + Math.max(0, at - a.pause.startedAt) / 1000, pause: null };
+}
 
 /** Saves the end of a session on the server. */
 async function finishRemote(active: ActiveSession, ending: Ending) {
@@ -48,17 +71,26 @@ async function finishRemote(active: ActiveSession, ending: Ending) {
     await supabase.from('study_sessions').delete().eq('id', active.remoteId);
     return;
   }
-  const durationSec = Math.min(43_200, Math.max(0, Math.round((ending.endedAt - active.startedAt) / 1000)));
-  await supabase
+  const closed = withPauseClosed(active, ending.endedAt);
+  const { error } = await supabase
     .from('study_sessions')
     .update({
       status: ending.status,
       ended_at: new Date(ending.endedAt).toISOString(),
       last_seen_at: new Date(ending.endedAt).toISOString(),
-      duration_sec: durationSec,
+      duration_sec: Math.min(43_200, Math.round(focusSeconds(closed, ending.endedAt))),
+      paused_seconds: Math.min(43_200, Math.round(closed.pausedSeconds)),
+      paused_until: null,
       leaves: active.leaves,
+      tasks: active.tasks,
     })
     .eq('id', active.remoteId);
+  if (error) throw error;
+}
+
+function updateRemote(id: string | null, fields: Record<string, unknown>) {
+  if (!id) return;
+  supabase.from('study_sessions').update(fields).eq('id', id).then(() => {});
 }
 
 export function LockinProvider({ children }: { children: ReactNode }) {
@@ -71,13 +103,14 @@ export function LockinProvider({ children }: { children: ReactNode }) {
   const activeRef = useRef(active);
   activeRef.current = active;
   // Sessions ended before the server returned their id, keyed by startedAt.
-  const pendingEnds = useRef(new Map<number, Ending>());
+  const pendingEnds = useRef(new Map<number, { session: ActiveSession; ending: Ending }>());
 
   const end = useCallback(
     (session: ActiveSession, ending: Ending) => {
       setActive(null);
+      cancelPauseNotifications();
       if (!session.remoteId) {
-        pendingEnds.current.set(session.startedAt, ending);
+        pendingEnds.current.set(session.startedAt, { session, ending });
         return;
       }
       finishRemote(session, ending)
@@ -87,7 +120,8 @@ export function LockinProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
-  // Restore a session that was running when the app was killed: it counts as abandoned.
+  // A session still running when the app was killed counts as abandoned
+  // (at the end of the break if it was killed during one).
   useEffect(() => {
     if (!storageKey) return;
     setLoaded(false);
@@ -95,9 +129,10 @@ export function LockinProvider({ children }: { children: ReactNode }) {
       try {
         const raw = await AsyncStorage.getItem(storageKey);
         if (raw) {
-          const saved = JSON.parse(raw) as ActiveSession;
+          const saved = { pausedSeconds: 0, pause: null, tasks: [], ...JSON.parse(raw) } as ActiveSession;
           await AsyncStorage.removeItem(storageKey);
-          await finishRemote(saved, { status: 'abandoned', endedAt: saved.leftAt ?? Date.now() }).catch(() => {});
+          const endedAt = saved.pause ? Math.min(saved.pause.until, Date.now()) : (saved.leftAt ?? Date.now());
+          await finishRemote(saved, { status: 'abandoned', endedAt }).catch(() => {});
           setNotice({ kind: 'abandoned', message: "Tu as fermé l'app en pleine session 💀 Elle compte comme un abandon." });
           refresh();
         }
@@ -121,11 +156,36 @@ export function LockinProvider({ children }: { children: ReactNode }) {
     const id = active.remoteId;
     const beat = () => {
       if (AppState.currentState !== 'active') return;
-      supabase.from('study_sessions').update({ last_seen_at: new Date().toISOString() }).eq('id', id).then(() => {});
+      updateRemote(id, { last_seen_at: new Date().toISOString() });
     };
     const interval = setInterval(beat, HEARTBEAT_MS);
     return () => clearInterval(interval);
   }, [active?.remoteId]);
+
+  const endPause = useCallback(() => {
+    const current = activeRef.current;
+    if (!current?.pause) return;
+    const at = Math.min(Date.now(), current.pause.until + PAUSE_GRACE_MS);
+    const next = withPauseClosed(current, at);
+    setActive(next);
+    cancelPauseNotifications();
+    updateRemote(next.remoteId, {
+      paused_until: null,
+      paused_seconds: Math.round(next.pausedSeconds),
+      last_seen_at: new Date().toISOString(),
+    });
+    setNotice({ kind: 'pause', message: 'Fin de la pause. On lock in 🔒' });
+  }, []);
+
+  // A break ends by itself when its time is up and the app is open.
+  useEffect(() => {
+    if (!active?.pause) return;
+    const remaining = active.pause.until - Date.now();
+    const timer = setTimeout(() => {
+      if (AppState.currentState === 'active') endPause();
+    }, Math.max(0, remaining));
+    return () => clearTimeout(timer);
+  }, [active?.pause, endPause]);
 
   // Anti-cheat: watch the app going to the background during a session.
   useEffect(() => {
@@ -134,37 +194,57 @@ export function LockinProvider({ children }: { children: ReactNode }) {
       if (!current) return;
       if (next === 'background' && current.leftAt === null) {
         setActive({ ...current, leftAt: Date.now() });
-      } else if (next === 'active' && current.leftAt !== null) {
-        const awayMs = Date.now() - current.leftAt;
-        if (awayMs > MAX_AWAY_MS) {
-          end(current, { status: 'abandoned', endedAt: current.leftAt });
-          setNotice({
-            kind: 'abandoned',
-            message: `Tu as craqué après ${formatDuration((current.leftAt - current.startedAt) / 1000)} 💀 Tes potes sont au courant.`,
-          });
-        } else {
-          setActive({ ...current, leaves: current.leaves + 1, leftAt: null });
-          setNotice({
-            kind: 'warning',
-            message: `Ouf, t'es revenu 👀 Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon.`,
-          });
+        return;
+      }
+      if (next !== 'active' || current.leftAt === null) return;
+      const now = Date.now();
+      const back = { ...current, leftAt: null };
+
+      if (current.pause) {
+        // Leaving during a break is fine; only the time after it ended counts.
+        if (now < current.pause.until) return setActive(back);
+        if (now <= current.pause.until + PAUSE_GRACE_MS) {
+          setActive(back);
+          activeRef.current = back;
+          return endPause();
         }
+        end(back, { status: 'abandoned', endedAt: current.pause.until });
+        return setNotice({
+          kind: 'abandoned',
+          message: 'Ta pause est finie depuis trop longtemps 💀 La session compte comme un abandon.',
+        });
+      }
+
+      const awayMs = now - current.leftAt;
+      if (awayMs > MAX_AWAY_MS) {
+        end(current, { status: 'abandoned', endedAt: current.leftAt });
+        setNotice({
+          kind: 'abandoned',
+          message: `Tu as craqué après ${formatDuration(focusSeconds(current, current.leftAt))} 💀 Tes potes sont au courant.`,
+        });
+      } else {
+        setActive({ ...back, leaves: current.leaves + 1 });
+        setNotice({
+          kind: 'warning',
+          message: `Ouf, t'es revenu 👀 Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon. Besoin de souffler ? Mets une pause.`,
+        });
       }
     });
     return () => sub.remove();
-  }, [end]);
+  }, [end, endPause]);
 
   const startSession = useCallback(
-    (subject: string, eventId: string | null = null) => {
+    (subject: string, eventId: string | null = null, tasks: SessionTask[] = []) => {
       if (activeRef.current) return;
       const startedAt = Date.now();
       setNotice(null);
-      setActive({ remoteId: null, subject, eventId, startedAt, leaves: 0, leftAt: null });
+      setActive({ remoteId: null, subject, eventId, startedAt, leaves: 0, leftAt: null, pausedSeconds: 0, pause: null, tasks });
       supabase
         .from('study_sessions')
         .insert({
           subject,
           event_id: eventId,
+          tasks,
           started_at: new Date(startedAt).toISOString(),
           last_seen_at: new Date(startedAt).toISOString(),
         })
@@ -175,12 +255,13 @@ export function LockinProvider({ children }: { children: ReactNode }) {
             setNotice({ kind: 'error', message: 'Pas de réseau : tes potes ne verront pas cette session.' });
             return;
           }
-          const ending = pendingEnds.current.get(startedAt);
-          if (ending) {
+          const pending = pendingEnds.current.get(startedAt);
+          if (pending) {
             // Already ended locally while the insert was in flight.
             pendingEnds.current.delete(startedAt);
-            const ended = { remoteId: data.id, subject, eventId, startedAt, leaves: 0, leftAt: null };
-            finishRemote(ended, ending).then(refresh);
+            finishRemote({ ...pending.session, remoteId: data.id }, pending.ending)
+              .then(refresh)
+              .catch(() => {});
             return;
           }
           setActive((a) => (a && a.startedAt === startedAt ? { ...a, remoteId: data.id } : a));
@@ -194,18 +275,53 @@ export function LockinProvider({ children }: { children: ReactNode }) {
     const current = activeRef.current;
     if (!current) return;
     const endedAt = Date.now();
-    if ((endedAt - current.startedAt) / 1000 < MIN_SESSION_SEC) {
+    const seconds = focusSeconds(current, endedAt);
+    if (seconds < MIN_SESSION_SEC) {
       end(current, { status: 'discard' });
       setNotice({ kind: 'tooShort', message: 'Moins d’une minute ? Ça compte pas 😅' });
       return;
     }
     end(current, { status: 'done', endedAt });
-    setNotice({ kind: 'done', message: `${formatDuration((endedAt - current.startedAt) / 1000)} de lock in. Respect 🫡` });
+    const doneTasks = current.tasks.filter((t) => t.done).length;
+    setNotice({
+      kind: 'done',
+      message:
+        `${formatDuration(seconds)} de lock in. Respect 🫡` +
+        (current.tasks.length ? ` ${doneTasks}/${current.tasks.length} tâches faites.` : ''),
+    });
   }, [end]);
+
+  const startPause = useCallback((minutes: number) => {
+    const current = activeRef.current;
+    if (!current || current.pause) return;
+    const startedAt = Date.now();
+    const until = startedAt + minutes * 60_000;
+    setActive({ ...current, pause: { startedAt, until } });
+    setNotice({ kind: 'pause', message: `Pause de ${minutes} min ☕ Profite !` });
+    schedulePauseNotifications(until).catch(() => {});
+    updateRemote(current.remoteId, { paused_until: new Date(until).toISOString(), last_seen_at: new Date().toISOString() });
+  }, []);
+
+  const setTasks = useCallback((tasks: SessionTask[]) => {
+    const current = activeRef.current;
+    if (!current) return;
+    setActive({ ...current, tasks });
+    updateRemote(current.remoteId, { tasks });
+  }, []);
 
   return (
     <StoreContext.Provider
-      value={{ loaded, active, notice, clearNotice: () => setNotice(null), startSession, stopSession }}
+      value={{
+        loaded,
+        active,
+        notice,
+        clearNotice: () => setNotice(null),
+        startSession,
+        stopSession,
+        startPause,
+        endPause,
+        setTasks,
+      }}
     >
       {children}
     </StoreContext.Provider>

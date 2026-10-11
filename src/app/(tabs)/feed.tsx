@@ -6,16 +6,17 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../../components/Avatar';
 import { Pill, Row, Section } from '../../components/List';
+import { askReaction, ReactionSummary } from '../../components/Reactions';
 import { Button } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { countdown, describeStatus, formatEventTime, labelOr } from '../../lib/labels';
 import { Person, useSocial } from '../../lib/social';
-import { useLockin, useNow } from '../../lib/store';
+import { focusSeconds, useLockin, useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, formatTimer, timeAgo } from '../../lib/time';
 
 export default function FeedScreen() {
-  const { profile } = useAuth();
+  const { profile, userId } = useAuth();
   const {
     friends,
     incomingRequests,
@@ -27,14 +28,32 @@ export default function FeedScreen() {
     removeFriend,
     nudge,
     answerEvent,
+    reactions,
+    react,
+    weekLeaderId,
   } = useSocial();
   const { active } = useLockin();
   const now = useNow();
   const [nudged, setNudged] = useState<Record<string, boolean>>({});
   const [refreshing, setRefreshing] = useState(false);
 
-  const working = friends.filter((f) => f.status.kind === 'working');
-  const others = friends.filter((f) => f.status.kind !== 'working');
+  const isLive = (f: Person) => f.status.kind === 'working' || f.status.kind === 'paused';
+  const working = friends.filter(isLive);
+  const others = friends.filter((f) => !isLive(f));
+  const crown = (id: string, name: string) => (id === weekLeaderId ? `${name} 👑` : name);
+
+  /** Tap a friend to react to their latest session. */
+  const reactTo = (f: Person) => {
+    if (f.status.kind === 'idle') return;
+    const sessionId = f.status.sessionId;
+    const mine = reactions[sessionId]?.find((r) => r.user_id === userId)?.emoji;
+    askReaction(f.profile.display_name, mine, (emoji) => {
+      Haptics.selectionAsync();
+      react(sessionId, emoji).catch(fail);
+    });
+  };
+  const reactionsOf = (f: Person) =>
+    f.status.kind === 'idle' ? null : <ReactionSummary reactions={reactions[f.status.sessionId]} myId={userId} />;
   const liveCount = working.length + (active ? 1 : 0);
   const pastSessions = mySessions.filter((s) => s.status !== 'active');
   const visibleEvents = events.filter((e) => e.myRsvp !== 'declined');
@@ -158,34 +177,44 @@ export default function FeedScreen() {
           {friends.length > 0 && active && profile ? (
             <Row
               left={<Avatar name={profile.display_name} photoUri={profile.avatar_url} live />}
-              title={`${profile.display_name} (toi)`}
-              subtitle={labelOr(active.subject, 'En lock in')}
-              right={<Text style={styles.liveTimer}>{formatTimer((now - active.startedAt) / 1000)}</Text>}
+              title={`${crown(profile.id, profile.display_name)} (toi)`}
+              subtitle={active.pause ? 'En pause ☕' : labelOr(active.subject, 'En lock in')}
+              right={<Text style={styles.liveTimer}>{formatTimer(focusSeconds(active, now))}</Text>}
             />
           ) : null}
-          {working.map((f) =>
-            f.status.kind === 'working' ? (
-              <Row
-                key={f.profile.id}
-                onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
-                left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} live />}
-                title={f.profile.display_name}
-                subtitle={describeStatus(f.status, now)}
-                right={<Text style={styles.liveTimer}>{formatTimer((now - f.status.startedAt) / 1000)}</Text>}
-              />
-            ) : null,
-          )}
+          {working.map((f) => (
+            <Row
+              key={f.profile.id}
+              onPress={() => reactTo(f)}
+              onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
+              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} live={f.status.kind === 'working'} />}
+              title={crown(f.profile.id, f.profile.display_name)}
+              subtitle={describeStatus(f.status, now)}
+              footer={reactionsOf(f)}
+              right={
+                f.status.kind === 'working' ? (
+                  <Text style={styles.liveTimer}>
+                    {formatTimer((now - f.status.startedAt) / 1000 - f.status.pausedSeconds)}
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 22 }}>☕</Text>
+                )
+              }
+            />
+          ))}
         </Section>
 
         <Section title="Les autres">
           {others.map((f) => (
             <Row
               key={f.profile.id}
+              onPress={() => reactTo(f)}
               onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
               left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} />}
-              title={f.profile.display_name}
+              title={crown(f.profile.id, f.profile.display_name)}
               subtitle={describeStatus(f.status, now)}
               subtitleColor={f.status.kind === 'abandoned' ? colors.danger : undefined}
+              footer={reactionsOf(f)}
               right={
                 <Pill
                   title={nudged[f.profile.id] ? 'Envoyé' : 'Relancer'}
@@ -234,6 +263,7 @@ export default function FeedScreen() {
                   ? timeAgo(Date.parse(s.ended_at ?? s.started_at), now)
                   : `Craqué · ${timeAgo(Date.parse(s.ended_at ?? s.started_at), now)}`
               }
+              footer={<ReactionSummary reactions={reactions[s.id]} myId={userId} />}
               right={<Text style={styles.duration}>{formatDuration(s.duration_sec ?? 0)}</Text>}
             />
           ))}
@@ -241,7 +271,7 @@ export default function FeedScreen() {
 
         {friends.length > 0 && (
           <Text style={[type.footnote, { textAlign: 'center', marginTop: 16 }]}>
-            Appui long sur un ami pour le retirer.
+            Touche un pote pour réagir à sa session. Appui long pour le retirer.
           </Text>
         )}
       </ScrollView>

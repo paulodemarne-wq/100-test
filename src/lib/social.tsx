@@ -12,7 +12,9 @@ import {
   GroupRow,
   NudgeRow,
   ProfileRow,
+  ReactionRow,
   SessionRow,
+  SessionTask,
   supabase,
 } from './supabase';
 
@@ -23,10 +25,13 @@ const HISTORY_DAYS = 60;
 /** Group lock-ins stay listed this long after they start. */
 const EVENT_VISIBLE_AFTER_START_MS = 6 * 3_600_000;
 
+type SessionInfo = { sessionId: string; label: string; tasks: SessionTask[] };
+
 export type PersonStatus =
-  | { kind: 'working'; label: string; startedAt: number }
-  | { kind: 'abandoned'; label: string; durationSec: number; at: number }
-  | { kind: 'done'; label: string; durationSec: number; at: number }
+  | (SessionInfo & { kind: 'working'; startedAt: number; pausedSeconds: number })
+  | (SessionInfo & { kind: 'paused'; startedAt: number; until: number })
+  | (SessionInfo & { kind: 'abandoned'; durationSec: number; at: number })
+  | (SessionInfo & { kind: 'done'; durationSec: number; at: number })
   | { kind: 'idle' };
 
 export type Person = {
@@ -69,6 +74,12 @@ type Social = {
   mySessions: SessionRow[];
   myWeekSeconds: number;
   myStreak: number;
+  myStreakInfo: stats.StreakInfo;
+  /** Id of this week's leader among me and my friends (if anyone studied). */
+  weekLeaderId: string | null;
+  /** Reactions by session id. */
+  reactions: Record<string, ReactionRow[]>;
+  react: (sessionId: string, emoji: string | null) => Promise<void>;
   /** Nudges received and not yet seen, with the sender's profile. */
   nudges: { id: string; from: ProfileRow }[];
   refresh: () => Promise<void>;
@@ -89,23 +100,33 @@ type Social = {
 
 const SocialContext = createContext<Social | null>(null);
 
+/** Last sign of life of a running session: its heartbeat, or the end of its break. */
+function lastAlive(s: SessionRow): number {
+  return Math.max(Date.parse(s.last_seen_at), s.paused_until ? Date.parse(s.paused_until) : 0);
+}
+
 function statusOf(sessions: SessionRow[], now: number): PersonStatus {
   const latest = sessions[0];
   if (!latest) return { kind: 'idle' };
+  const info: SessionInfo = { sessionId: latest.id, label: latest.subject, tasks: latest.tasks ?? [] };
   const startedAt = Date.parse(latest.started_at);
   if (latest.status === 'active') {
-    const lastSeen = Date.parse(latest.last_seen_at);
-    if (now - lastSeen < LIVE_WINDOW_MS) return { kind: 'working', label: latest.subject, startedAt };
+    const until = latest.paused_until ? Date.parse(latest.paused_until) : 0;
+    if (until > now) return { ...info, kind: 'paused', startedAt, until };
+    const alive = lastAlive(latest);
+    if (now - alive < LIVE_WINDOW_MS) {
+      return { ...info, kind: 'working', startedAt, pausedSeconds: latest.paused_seconds ?? 0 };
+    }
     // The app was closed without ending the session.
-    return { kind: 'abandoned', label: latest.subject, durationSec: (lastSeen - startedAt) / 1000, at: lastSeen };
+    return { ...info, kind: 'abandoned', durationSec: Math.max(0, (alive - startedAt) / 1000 - (latest.paused_seconds ?? 0)), at: alive };
   }
   const at = latest.ended_at ? Date.parse(latest.ended_at) : startedAt;
-  return { kind: latest.status, label: latest.subject, durationSec: latest.duration_sec ?? 0, at };
+  return { ...info, kind: latest.status, durationSec: latest.duration_sec ?? 0, at };
 }
 
 /** A session whose app was killed counts as abandoned once its heartbeat is stale. */
 export function effectiveStatus(s: SessionRow, now: number): SessionRow['status'] {
-  if (s.status === 'active' && now - Date.parse(s.last_seen_at) >= LIVE_WINDOW_MS) return 'abandoned';
+  if (s.status === 'active' && now - lastAlive(s) >= LIVE_WINDOW_MS) return 'abandoned';
   return s.status;
 }
 
@@ -125,6 +146,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [eventRows, setEventRows] = useState<EventRow[]>([]);
   const [eventMembers, setEventMembers] = useState<EventMemberRow[]>([]);
   const [examRows, setExamRows] = useState<ExamRow[]>([]);
+  const [reactionRows, setReactionRows] = useState<ReactionRow[]>([]);
   const [now, setNow] = useState(Date.now());
 
   const refresh = useCallback(async () => {
@@ -182,6 +204,13 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     }
     const merged = [...byId.values()].sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
 
+    // Reactions on the last week's sessions only (keeps the request small).
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    const recentIds = merged.filter((s) => Date.parse(s.started_at) >= weekAgo).slice(0, 150).map((s) => s.id);
+    const { data: reactionsData } = recentIds.length
+      ? await supabase.from('session_reactions').select('*').in('session_id', recentIds)
+      : { data: [] };
+
     setFriendships(fs);
     setGroupRows((groupsRes.data ?? []) as GroupRow[]);
     setGroupMembers(gm);
@@ -191,6 +220,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     setNudgeRows((nudgesRes.data ?? []) as NudgeRow[]);
     setProfiles(Object.fromEntries(((profilesRes.data ?? []) as ProfileRow[]).map((p) => [p.id, p])));
     setSessions(merged);
+    setReactionRows((reactionsData ?? []) as ReactionRow[]);
     setNow(Date.now());
     setLoading(false);
   }, [userId]);
@@ -206,7 +236,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     if (!userId || !profile) return;
     refresh();
     const channel = supabase.channel(`lockin-${userId}`);
-    for (const table of ['study_sessions', 'friendships', 'group_members', 'lockin_events', 'event_members']) {
+    for (const table of ['study_sessions', 'friendships', 'group_members', 'lockin_events', 'event_members', 'session_reactions']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh);
     }
     channel
@@ -316,6 +346,13 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       .filter((n) => allProfiles[n.from_user])
       .map((n) => ({ id: n.id, from: allProfiles[n.from_user] }));
 
+    const reactions: Record<string, ReactionRow[]> = {};
+    for (const r of reactionRows) (reactions[r.session_id] ??= []).push(r);
+
+    const myWeekSeconds = stats.weekSeconds(mySessions);
+    const contenders = [{ id: userId, seconds: myWeekSeconds }, ...friends.map((f) => ({ id: f.profile.id, seconds: f.weekSeconds }))];
+    const top = contenders.reduce((a, b) => (b.seconds > a.seconds ? b : a), { id: null as string | null, seconds: 0 });
+
     const run = async (fn: () => PromiseLike<{ error: unknown }>) => {
       const { error } = await fn();
       if (error) throw new Error(errorMessage(error));
@@ -332,8 +369,29 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       exams,
       shameWall,
       mySessions,
-      myWeekSeconds: stats.weekSeconds(mySessions),
+      myWeekSeconds,
       myStreak: stats.streak(mySessions),
+      myStreakInfo: stats.streakInfo(mySessions),
+      weekLeaderId: top.seconds > 0 ? top.id : null,
+      reactions,
+      react: async (sessionId, emoji) => {
+        if (!userId) return;
+        // Optimistic: show the reaction right away.
+        setReactionRows((rows) => [
+          ...rows.filter((r) => !(r.session_id === sessionId && r.user_id === userId)),
+          ...(emoji ? [{ session_id: sessionId, user_id: userId, emoji, created_at: new Date().toISOString() }] : []),
+        ]);
+        const mine = reactionRows.find((r) => r.session_id === sessionId && r.user_id === userId);
+        const { error } = !emoji
+          ? await supabase.from('session_reactions').delete().eq('session_id', sessionId).eq('user_id', userId)
+          : mine
+            ? await supabase.from('session_reactions').update({ emoji }).eq('session_id', sessionId).eq('user_id', userId)
+            : await supabase.from('session_reactions').insert({ session_id: sessionId, emoji });
+        if (error) {
+          await refresh();
+          throw new Error(errorMessage(error));
+        }
+      },
       nudges,
       refresh,
       sendFriendRequest: async (rawUsername) => {
@@ -421,6 +479,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     eventRows,
     eventMembers,
     examRows,
+    reactionRows,
     now,
     userId,
     refresh,

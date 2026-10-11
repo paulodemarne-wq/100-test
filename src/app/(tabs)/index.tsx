@@ -3,14 +3,19 @@ import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ambience } from '../../components/Ambience';
 import { Avatar } from '../../components/Avatar';
+import { PauseSheet } from '../../components/PauseSheet';
 import { ProgressRing } from '../../components/ProgressRing';
+import { TaskList } from '../../components/TaskList';
 import { useAuth } from '../../lib/auth';
 import { countdown } from '../../lib/labels';
 import { useSocial } from '../../lib/social';
-import { MAX_AWAY_MS, Notice, useLockin, useNow } from '../../lib/store';
+import * as stats from '../../lib/stats';
+import { focusSeconds, MAX_AWAY_MS, Notice, useLockin, useNow } from '../../lib/store';
+import type { SessionTask } from '../../lib/supabase';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
 
@@ -23,13 +28,20 @@ const NOTICE_STYLE: Record<Notice['kind'], { bg: string; fg: string; icon: keyof
   done: { bg: colors.successSoft, fg: colors.success, icon: 'checkmark-circle' },
   tooShort: { bg: colors.fill, fg: colors.secondary, icon: 'information-circle' },
   error: { bg: colors.warningSoft, fg: colors.warning, icon: 'cloud-offline' },
+  pause: { bg: colors.accentSoft, fg: colors.accent, icon: 'cafe' },
 };
 
 export default function FocusScreen() {
   const { profile } = useAuth();
   const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, events } = useSocial();
-  const { active, notice, clearNotice, startSession, stopSession } = useLockin();
+  const { active, notice, clearNotice, startSession, stopSession, startPause, endPause, setTasks } = useLockin();
   const [label, setLabel] = useState('');
+  const [draftTasks, setDraftTasks] = useState<SessionTask[]>([]);
+  const [pauseSheet, setPauseSheet] = useState(false);
+  const locky = useMemo(
+    () => stats.companion(profile?.total_seconds ?? 0, mySessions),
+    [profile?.total_seconds, mySessions],
+  );
 
   // Upcoming exams first, then the user's last few labels, as one-tap shortcuts.
   const recentLabels = useMemo(() => {
@@ -51,14 +63,21 @@ export default function FocusScreen() {
   // Fewer pixels for the ring when banners take up room.
   const banners = [nudges.length > 0, !!notice, !!nextExam && !active, !!liveEvent].filter(Boolean).length >= 2;
 
-  const elapsedSec = active ? (now - active.startedAt) / 1000 : 0;
+  const elapsedSec = active ? focusSeconds(active, now) : 0;
   const blocks = Math.floor(elapsedSec / FOCUS_BLOCK_SEC);
-  const ringProgress = active ? (elapsedSec % FOCUS_BLOCK_SEC) / FOCUS_BLOCK_SEC : 0;
+  const pause = active?.pause ?? null;
+  const pauseLeftSec = pause ? Math.max(0, (pause.until - now) / 1000) : 0;
+  const ringProgress = pause
+    ? pauseLeftSec / ((pause.until - pause.startedAt) / 1000)
+    : active
+      ? (elapsedSec % FOCUS_BLOCK_SEC) / FOCUS_BLOCK_SEC
+      : 0;
 
   const start = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    startSession(label.trim() || DEFAULT_LABEL);
+    startSession(label.trim() || DEFAULT_LABEL, null, draftTasks);
     setLabel('');
+    setDraftTasks([]);
   };
 
   const confirmStop = () => {
@@ -83,7 +102,13 @@ export default function FocusScreen() {
             <Text style={type.footnote}>
               {active ? 'Téléphone posé. Tes potes te regardent 👀' : `Prêt à lock in, ${profile?.display_name} ?`}
             </Text>
-            <Text style={type.largeTitle}>Focus</Text>
+            <View style={styles.titleRow}>
+              <Text style={type.largeTitle}>Focus</Text>
+              <Pressable onPress={() => router.push('/profile')} hitSlop={8} style={styles.locky}>
+                <Text style={{ fontSize: 22 }}>{locky.emoji}</Text>
+                <Text style={{ fontSize: 14 }}>{locky.moodEmoji}</Text>
+              </Pressable>
+            </View>
           </View>
           <Pressable onPress={() => router.push('/profile')} hitSlop={8}>
             <Avatar name={profile?.display_name ?? '?'} photoUri={profile?.avatar_url} size={40} live={!!active} />
@@ -98,7 +123,7 @@ export default function FocusScreen() {
             progress={goalSeconds > 0 ? myWeekSeconds / goalSeconds : undefined}
             onPress={() => router.push('/profile')}
           />
-          <Stat icon="flame-outline" label="Série" value={`${myStreak} j`} />
+          <Stat icon="flame-outline" label="Série" value={`${myStreak} j`} onPress={() => router.push('/profile')} />
         </View>
 
         {nextExam && !active && (
@@ -145,10 +170,13 @@ export default function FocusScreen() {
         <View style={styles.center}>
           <ProgressRing size={banners ? 220 : 260} stroke={12} progress={ringProgress}>
             <Text style={styles.ringLabel} numberOfLines={1}>
-              {active ? (active.subject === DEFAULT_LABEL ? 'En lock in' : active.subject) : 'Prêt ?'}
+              {pause ? 'En pause ☕' : active ? (active.subject === DEFAULT_LABEL ? 'En lock in' : active.subject) : 'Prêt ?'}
             </Text>
-            <Text style={styles.timer}>{formatTimer(elapsedSec)}</Text>
-            {active && blocks > 0 && (
+            <Text style={[styles.timer, pause && { color: colors.accent }]}>
+              {formatTimer(pause ? pauseLeftSec : elapsedSec)}
+            </Text>
+            {pause && <Text style={styles.ringLabel}>{formatTimer(elapsedSec)} de lock in</Text>}
+            {active && !pause && blocks > 0 && (
               <Text style={styles.ringLabel}>
                 {blocks} bloc{blocks > 1 ? 's' : ''} de 25 min
               </Text>
@@ -157,10 +185,14 @@ export default function FocusScreen() {
 
           {active ? (
             <>
-              <KeepAwake />
+              {!pause && Platform.OS !== 'web' && <KeepAwake />}
               <Text style={styles.hint}>
-                Reste sur Lockin. Plus de {MAX_AWAY_MS / 1000} s dehors et c'est l'abandon 💀
+                {pause
+                  ? "Tu peux quitter l'app. Reviens avant la fin de la pause, on te prévient 1 min avant ⏰"
+                  : `Reste sur Lockin. Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon 💀`}
               </Text>
+              <Ambience playing={!pause} />
+              <TaskList tasks={active.tasks} onChange={setTasks} />
             </>
           ) : (
             <View style={styles.labelBox}>
@@ -199,14 +231,28 @@ export default function FocusScreen() {
                   })}
                 </ScrollView>
               )}
+              <TaskList tasks={draftTasks} onChange={setDraftTasks} />
+              <Ambience playing={false} />
             </View>
           )}
         </View>
 
         {active ? (
-          <Pressable onPress={confirmStop} style={({ pressed }) => [styles.button, styles.stopButton, pressed && styles.pressed]}>
-            <Text style={[styles.buttonText, { color: colors.danger }]}>J'ai fini</Text>
-          </Pressable>
+          <View style={styles.buttonRow}>
+            <Pressable
+              onPress={() => (pause ? endPause() : setPauseSheet(true))}
+              style={({ pressed }) => [styles.button, styles.pauseButton, pressed && styles.pressed]}
+            >
+              <Ionicons name={pause ? 'play' : 'cafe'} size={18} color={colors.accent} />
+              <Text style={[styles.buttonText, { color: colors.accent }]}>{pause ? 'Reprendre' : 'Pause'}</Text>
+            </Pressable>
+            <Pressable
+              onPress={confirmStop}
+              style={({ pressed }) => [styles.button, styles.stopButton, { flex: 1 }, pressed && styles.pressed]}
+            >
+              <Text style={[styles.buttonText, { color: colors.danger }]}>J'ai fini</Text>
+            </Pressable>
+          </View>
         ) : (
           <Pressable onPress={start} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
             <Ionicons name="lock-closed" size={18} color={colors.onAccent} />
@@ -214,6 +260,15 @@ export default function FocusScreen() {
           </Pressable>
         )}
       </ScrollView>
+      <PauseSheet
+        visible={pauseSheet}
+        onClose={() => setPauseSheet(false)}
+        onStart={(minutes) => {
+          setPauseSheet(false);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          startPause(minutes);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -294,6 +349,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stopButton: { backgroundColor: colors.card },
+  pauseButton: { backgroundColor: colors.accentSoft, paddingHorizontal: 22 },
+  buttonRow: { flexDirection: 'row', gap: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  locky: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   pressed: { opacity: 0.85 },
   buttonText: { color: colors.onAccent, fontSize: 17, fontWeight: '600' },
 });

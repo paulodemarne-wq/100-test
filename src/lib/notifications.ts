@@ -56,6 +56,7 @@ export function openFromNotification(data: Record<string, unknown> | undefined) 
     case 'friend_request':
     case 'friend_accepted':
     case 'friend_session':
+    case 'reaction':
       router.navigate('/feed');
       break;
     case 'event_invite':
@@ -96,6 +97,76 @@ export async function syncEventReminders(events: LockinEvent[]): Promise<void> {
         data: { type: 'event_start', event_id: e.id, startsAt: e.startsAt },
       },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(e.startsAt) },
+    });
+  }
+}
+
+const PAUSE_WARNING = 'pause-warning';
+const PAUSE_END = 'pause-end';
+
+/** "Pause ends in 1 min" and "pause is over" reminders. */
+export async function schedulePauseNotifications(until: number): Promise<void> {
+  if (Platform.OS === 'web') return;
+  await cancelPauseNotifications();
+  const warnAt = until - 60_000;
+  if (warnAt > Date.now() + 5_000) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: PAUSE_WARNING,
+      content: { title: 'Ta pause se termine dans 1 min ⏰', body: 'Prépare-toi à lock in.', sound: 'default', data: { type: 'pause' } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(warnAt) },
+    });
+  }
+  await Notifications.scheduleNotificationAsync({
+    identifier: PAUSE_END,
+    content: {
+      title: 'Fin de la pause 🔒',
+      body: 'Reviens sur Lockin dans la minute, sinon c’est l’abandon.',
+      sound: 'default',
+      data: { type: 'pause' },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(until) },
+  });
+}
+
+export async function cancelPauseNotifications(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  await Notifications.cancelScheduledNotificationAsync(PAUSE_WARNING).catch(() => {});
+  await Notifications.cancelScheduledNotificationAsync(PAUSE_END).catch(() => {});
+}
+
+const DAILY_PREFIX = 'daily-';
+
+/**
+ * One reminder per day for the next week at the chosen time, skipping today if the user
+ * already locked in (local notifications can't check the condition when they fire).
+ */
+export async function syncDailyReminders(
+  setting: { enabled: boolean; hour: number; minute: number },
+  lockedInToday: boolean,
+  streak: number,
+): Promise<void> {
+  if (Platform.OS === 'web') return;
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of scheduled) {
+    if (n.identifier.startsWith(DAILY_PREFIX)) await Notifications.cancelScheduledNotificationAsync(n.identifier);
+  }
+  if (!setting.enabled) return;
+  for (let day = 0; day < 7; day++) {
+    const at = new Date();
+    at.setDate(at.getDate() + day);
+    at.setHours(setting.hour, setting.minute, 0, 0);
+    if (at.getTime() <= Date.now() || (day === 0 && lockedInToday)) continue;
+    // Tomorrow onwards the streak may have changed; only today's count is certain.
+    const body =
+      day === 0 && streak > 0
+        ? `Ta série de ${streak} j est en danger 🔥`
+        : day === 1 && streak > 0
+          ? 'Garde ta série en vie 🔥'
+          : 'Même 25 min, ça compte.';
+    await Notifications.scheduleNotificationAsync({
+      identifier: `${DAILY_PREFIX}${day}`,
+      content: { title: "T'as pas encore lock in aujourd'hui 👀", body, sound: 'default', data: { type: 'daily' } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
     });
   }
 }

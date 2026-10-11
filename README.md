@@ -15,7 +15,13 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 - **Classement** de la semaine (amis ou groupe), séries 🔥 et **mur de la honte**.
 - **Profil** : objectif d'heures de la semaine, **mode partiels** (compte à rebours + heures faites), **badges**, réglages des notifications.
 - **Récap de la semaine** partageable en image (story).
-- **Notifications push** : relances, demandes d'amis, invitations, « Léa vient de lock in ».
+- **Notifications push** : relances, demandes d'amis, invitations, réactions, « Léa vient de lock in ».
+- **Pause** : durée au choix, le chrono s'arrête, on peut quitter l'app ; notif 1 min avant la fin.
+- **To-do de session** : liste de tâches à cocher, visible par les amis (« 3/4 tâches »).
+- **Ambiances sonores** : pluie, bruit blanc, bruit brun (sons générés, libres de droits).
+- **Réactions** 🔥 💪 🫡 💀 😴 sur les sessions des amis, **couronne 👑** pour le n°1 de la semaine.
+- **Rangs** Bronze → Diamant selon les heures cumulées, et **Locky**, le compagnon qui grandit et change d'humeur.
+- **Rappel quotidien** à l'heure choisie et **joker de série** : un jour raté par mois est pardonné.
 
 ## Backend (Supabase)
 
@@ -41,6 +47,7 @@ Le téléphone et l'ordinateur doivent être sur le même Wi-Fi (sinon : `npx ex
 ## Structure
 
 ```
+assets/sounds/           ambiances, générées par scripts/generate_sounds.py
 src/app/                 écrans (Expo Router : chaque fichier = un écran)
   _layout.tsx            racine (+ notifications)
   login.tsx              connexion / création de compte
@@ -54,14 +61,15 @@ src/app/                 écrans (Expo Router : chaque fichier = un écran)
   (tabs)/index.tsx       écran Focus + chrono
   (tabs)/feed.tsx        fil des amis
   (tabs)/ranking.tsx     classement
-src/components/          Avatar, anneau, listes, champs date/heure, boutons
+src/components/          Avatar, anneau, listes, date/heure, pause, tâches, sons, réactions
 src/lib/
   supabase.ts            connexion à Supabase
   auth.tsx               compte et profil
   social.tsx             amis, groupes, lock in de groupe, partiels (temps réel)
   store.tsx              session en cours, anti-triche
   notifications.ts       notifications push et rappels
-  stats.ts               semaine, séries, badges, récap
+  stats.ts               semaine, séries + joker, badges, rangs, Locky, récap
+  reminder.ts            réglage du rappel quotidien
   labels.ts              textes de statut, dates
   photo.ts               choix de la photo de profil
   theme.ts, time.ts      couleurs, typo, formatage du temps
