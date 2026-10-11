@@ -12,6 +12,7 @@ import {
   GroupRow,
   NudgeRow,
   PetRow,
+  TodoRow,
   ProfileRow,
   ReactionRow,
   SessionRow,
@@ -106,6 +107,11 @@ type Social = {
   claimedGifts: string[];
   /** Buys an item at its deal price. Reload the profile afterwards. */
   buyDeal: (itemId: string) => Promise<void>;
+  /** My to-dos (hours to work before a date), nearest date first. */
+  todos: TodoRow[];
+  createTodo: (todo: { title: string; hours: number; dueDate: string }) => Promise<void>;
+  setTodoDone: (id: string, done: boolean) => Promise<void>;
+  deleteTodo: (id: string) => Promise<void>;
   /** Nudges received and not yet seen, with the sender's profile. */
   nudges: { id: string; from: ProfileRow }[];
   refresh: () => Promise<void>;
@@ -176,6 +182,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [petRows, setPetRows] = useState<PetRow[]>([]);
   const [inventory, setInventory] = useState<string[]>([]);
   const [stock, setStock] = useState<Record<string, number>>({});
+  const [todoRows, setTodoRows] = useState<TodoRow[]>([]);
   const [featuredRows, setFeaturedRows] = useState<ProfileRow[]>([]);
   const [dealRows, setDealRows] = useState<Deal[]>([]);
   const [claimedGifts, setClaimedGifts] = useState<string[]>([]);
@@ -261,6 +268,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       supabase.rpc('todays_deals'),
       supabase.from('claimed_gifts').select('item_id').eq('user_id', userId),
     ]);
+    const { data: todosData } = await supabase.from('todos').select('*').eq('user_id', userId).order('due_date');
+    setTodoRows(((todosData ?? []) as TodoRow[]).map((t) => ({ ...t, hours: Number(t.hours) })));
     setFeaturedRows(((featuredRes.data ?? []) as ProfileRow[]).filter((p) => p.id !== userId));
     setDealRows((dealsRes.data ?? []) as Deal[]);
     setClaimedGifts(((giftsRes.data ?? []) as { item_id: string }[]).map((r) => r.item_id));
@@ -443,6 +452,11 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       deals: dealRows,
       claimedGifts,
       buyDeal: (itemId) => run(() => supabase.rpc('buy_deal', { item: itemId })),
+      todos: todoRows,
+      createTodo: ({ title, hours, dueDate }) =>
+        run(() => supabase.from('todos').insert({ title: title.trim(), hours, due_date: dueDate })),
+      setTodoDone: (id, done) => run(() => supabase.from('todos').update({ done_at: done ? new Date().toISOString() : null }).eq('id', id)),
+      deleteTodo: (id) => run(() => supabase.from('todos').delete().eq('id', id)),
       react: async (sessionId, emoji) => {
         if (!userId) return;
         // Optimistic: show the reaction right away.
@@ -552,6 +566,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     petRows,
     inventory,
     stock,
+    todoRows,
     featuredRows,
     dealRows,
     claimedGifts,

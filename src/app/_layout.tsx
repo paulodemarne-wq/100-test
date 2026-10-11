@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { AuthProvider, useAuth } from '../lib/auth';
-import { openFromNotification, registerForPushNotifications, syncDailyReminders, syncEventReminders } from '../lib/notifications';
+import { openFromNotification, registerForPushNotifications, syncDailyReminders, syncEventReminders, syncTodoReminders } from '../lib/notifications';
 import { loadReminder } from '../lib/reminder';
 import { dayKey } from '../lib/time';
 import { SocialProvider, useSocial } from '../lib/social';
@@ -14,7 +14,7 @@ import { colors } from '../lib/theme';
 /** Registers for push, opens tapped notifications and schedules group lock-in reminders. */
 function NotificationsBridge() {
   const { profile } = useAuth();
-  const { events, loading, mySessions, myStreak } = useSocial();
+  const { events, loading, mySessions, myStreak, todos } = useSocial();
   const registeredFor = useRef<string | null>(null);
   const lastResponse = Notifications.useLastNotificationResponse();
 
@@ -39,6 +39,10 @@ function NotificationsBridge() {
   useEffect(() => {
     if (profile && !loading) syncEventReminders(events).catch(() => {});
   }, [profile, loading, events]);
+
+  useEffect(() => {
+    if (profile && !loading) syncTodoReminders(todos).catch(() => {});
+  }, [profile, loading, todos]);
 
   // Daily "you haven't locked in yet" reminder, skipped today once a session is done.
   const today = dayKey(new Date());
@@ -68,6 +72,7 @@ export default function RootLayout() {
             <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
             <Stack.Screen name="bestiary" options={{ presentation: 'modal' }} />
             <Stack.Screen name="world" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="todos" options={{ presentation: 'modal' }} />
           </Stack>
         </LockinProvider>
       </SocialProvider>

@@ -32,6 +32,8 @@ export type ActiveSession = {
   /** The break in progress, if any. */
   pause: { startedAt: number; until: number } | null;
   tasks: SessionTask[];
+  /** The to-do this lock-in works on. */
+  todoId?: string | null;
 };
 
 /** Seconds actually spent locked in (breaks excluded). */
@@ -47,7 +49,7 @@ type Store = {
   active: ActiveSession | null;
   notice: Notice | null;
   clearNotice: () => void;
-  startSession: (subject: string, eventId?: string | null, tasks?: SessionTask[]) => void;
+  startSession: (subject: string, eventId?: string | null, tasks?: SessionTask[], todoId?: string | null) => void;
   stopSession: () => void;
   startPause: (minutes: number) => void;
   endPause: () => void;
@@ -234,17 +236,18 @@ export function LockinProvider({ children }: { children: ReactNode }) {
   }, [end, endPause]);
 
   const startSession = useCallback(
-    (subject: string, eventId: string | null = null, tasks: SessionTask[] = []) => {
+    (subject: string, eventId: string | null = null, tasks: SessionTask[] = [], todoId: string | null = null) => {
       if (activeRef.current) return;
       const startedAt = Date.now();
       setNotice(null);
-      setActive({ remoteId: null, subject, eventId, startedAt, leaves: 0, leftAt: null, pausedSeconds: 0, pause: null, tasks });
+      setActive({ remoteId: null, subject, eventId, startedAt, leaves: 0, leftAt: null, pausedSeconds: 0, pause: null, tasks, todoId });
       supabase
         .from('study_sessions')
         .insert({
           subject,
           event_id: eventId,
           tasks,
+          todo_id: todoId,
           started_at: new Date(startedAt).toISOString(),
           last_seen_at: new Date(startedAt).toISOString(),
         })

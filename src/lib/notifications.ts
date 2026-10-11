@@ -1,6 +1,8 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import type { TodoRow } from './supabase';
+import { dueAt, formatDay, formatHours, isFinished, reminderAt } from './todos';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import type { LockinEvent } from './social';
@@ -59,6 +61,9 @@ export function openFromNotification(data: Record<string, unknown> | undefined) 
     case 'reaction':
       router.navigate('/feed');
       break;
+    case 'todo':
+      router.navigate('/todos');
+      break;
     case 'event_invite':
     case 'event_start':
       if (typeof data.event_id === 'string') router.navigate({ pathname: '/event/[id]', params: { id: data.event_id } });
@@ -97,6 +102,40 @@ export async function syncEventReminders(events: LockinEvent[]): Promise<void> {
         data: { type: 'event_start', event_id: e.id, startsAt: e.startsAt },
       },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(e.startsAt) },
+    });
+  }
+}
+
+const TODO_PREFIX = 'todo-';
+
+/** One local reminder per unfinished to-do, at 20 % of its time before the date (2 days minimum). */
+export async function syncTodoReminders(todos: TodoRow[]): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const now = Date.now();
+  const wanted = new Map(
+    todos
+      .filter((t) => !isFinished(t) && reminderAt(t).getTime() > now + 60_000)
+      .map((t) => [TODO_PREFIX + t.id, t]),
+  );
+  for (const n of scheduled) {
+    if (n.identifier.startsWith(TODO_PREFIX) && !wanted.has(n.identifier)) {
+      await Notifications.cancelScheduledNotificationAsync(n.identifier);
+    }
+  }
+  for (const [identifier, t] of wanted) {
+    const at = reminderAt(t);
+    const left = Math.max(0, t.hours - t.worked_seconds / 3600);
+    const same = scheduled.find((n) => n.identifier === identifier);
+    if (same && same.content.data?.at === at.getTime() && same.content.data?.left === left) continue;
+    await Notifications.scheduleNotificationAsync({
+      identifier,
+      content: {
+        title: `📝 ${t.title}`,
+        body: `Il te reste ${formatHours(left)} à faire avant le ${formatDay(dueAt(t))}. On lock in ?`,
+        sound: 'default',
+        data: { type: 'todo', todo_id: t.id, at: at.getTime(), left },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
     });
   }
 }

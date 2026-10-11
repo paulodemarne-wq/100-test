@@ -9,13 +9,13 @@ import { Ambience } from '../../components/Ambience';
 import { Avatar } from '../../components/Avatar';
 import { PauseSheet } from '../../components/PauseSheet';
 import { ProgressRing } from '../../components/ProgressRing';
-import { TaskList } from '../../components/TaskList';
+import { TodoItem } from '../../components/TodoItem';
 import { useAuth } from '../../lib/auth';
 import { countdown } from '../../lib/labels';
 import { useSocial } from '../../lib/social';
 import { formFor, levelFor, PLAN_EMOJI, speciesById, tierFor } from '../../creatures/species';
 import { focusSeconds, MAX_AWAY_MS, Notice, useLockin, useNow } from '../../lib/store';
-import type { SessionTask } from '../../lib/supabase';
+import { isFinished, sortTodos } from '../../lib/todos';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
 
@@ -33,10 +33,13 @@ const NOTICE_STYLE: Record<Notice['kind'], { bg: string; fg: string; icon: keyof
 
 export default function FocusScreen() {
   const { profile } = useAuth();
-  const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, events, pets } = useSocial();
-  const { active, notice, clearNotice, startSession, stopSession, startPause, endPause, setTasks } = useLockin();
+  const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, events, pets, todos } = useSocial();
+  const { active, notice, clearNotice, startSession, stopSession, startPause, endPause } = useLockin();
   const [label, setLabel] = useState('');
-  const [draftTasks, setDraftTasks] = useState<SessionTask[]>([]);
+  const [todoId, setTodoId] = useState<string | null>(null);
+  // The 4 nearest unfinished to-dos, to pick one before locking in.
+  const nextTodos = useMemo(() => sortTodos(todos).filter((t) => !isFinished(t)).slice(0, 4), [todos]);
+  const chosenTodo = nextTodos.find((t) => t.id === todoId) ?? null;
   const [pauseSheet, setPauseSheet] = useState(false);
   const pet = pets[0];
   const petSpecies = speciesById(pet?.species);
@@ -75,9 +78,9 @@ export default function FocusScreen() {
 
   const start = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    startSession(label.trim() || DEFAULT_LABEL, null, draftTasks);
+    startSession(label.trim() || chosenTodo?.title.slice(0, 30) || DEFAULT_LABEL, null, [], chosenTodo?.id ?? null);
     setLabel('');
-    setDraftTasks([]);
+    setTodoId(null);
   };
 
   const confirmStop = () => {
@@ -194,7 +197,12 @@ export default function FocusScreen() {
                   : `Reste sur Lockin. Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon 💀`}
               </Text>
               <Ambience playing={!pause} />
-              <TaskList tasks={active.tasks} onChange={setTasks} />
+              {active.todoId && todos.find((t) => t.id === active.todoId) && (
+                <View style={styles.todoBox}>
+                  <Text style={styles.todoTitle}>📝 Tu bosses sur</Text>
+                  <TodoItem todo={todos.find((t) => t.id === active.todoId)!} liveSeconds={elapsedSec} />
+                </View>
+              )}
             </>
           ) : (
             <View style={styles.labelBox}>
@@ -233,7 +241,36 @@ export default function FocusScreen() {
                   })}
                 </ScrollView>
               )}
-              <TaskList tasks={draftTasks} onChange={setDraftTasks} />
+              <View style={styles.todoBox}>
+                <View style={styles.todoHeader}>
+                  <Text style={styles.todoTitle}>📝 Mes to-do</Text>
+                  <Pressable onPress={() => router.push('/todos')} hitSlop={8}>
+                    <Text style={styles.todoLink}>{nextTodos.length ? 'Tout voir' : ''}</Text>
+                  </Pressable>
+                </View>
+                {nextTodos.length > 0 ? (
+                  <>
+                    <Text style={type.footnote}>Choisis sur quoi tu lock in : ton temps s'ajoutera à sa barre.</Text>
+                    {nextTodos.map((t) => (
+                      <TodoItem
+                        key={t.id}
+                        todo={t}
+                        selected={t.id === todoId}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setTodoId(t.id === todoId ? null : t.id);
+                        }}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <Text style={type.footnote}>Crée une to-do avec le temps de travail et la date : tu la choisis ici avant de lock in.</Text>
+                )}
+                <Pressable onPress={() => router.push({ pathname: '/todos', params: { new: '1' } })} style={styles.todoAdd}>
+                  <Ionicons name="add" size={20} color={colors.accent} />
+                  <Text style={styles.todoLink}>Nouvelle to-do</Text>
+                </Pressable>
+              </View>
               <Ambience playing={false} />
             </View>
           )}
@@ -312,6 +349,11 @@ function Stat({ icon, label, value, progress, onPress }: StatProps) {
 }
 
 const styles = StyleSheet.create({
+  todoBox: { ...card, alignSelf: 'stretch', padding: 12, gap: 6 },
+  todoHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  todoTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  todoLink: { fontSize: 15, fontWeight: '600', color: colors.accent },
+  todoAdd: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
   safe: { flex: 1, backgroundColor: colors.bg },
   container: { paddingHorizontal: 20, paddingBottom: 24, gap: 16, flexGrow: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },

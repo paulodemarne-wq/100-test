@@ -44,6 +44,20 @@ export type ProfileRow = {
   featured: boolean;
 };
 
+export type TodoRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  /** Hours of work planned. */
+  hours: number;
+  /** YYYY-MM-DD */
+  due_date: string;
+  /** Focus time of the sessions that worked on it. */
+  worked_seconds: number;
+  done_at: string | null;
+  created_at: string;
+};
+
 export type PetRow = {
   id: string;
   user_id: string;
