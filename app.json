@@ -36,6 +36,12 @@
           "photosPermission": "Lockin utilise tes photos pour ta photo de profil.",
           "cameraPermission": "Lockin utilise l’appareil photo pour ta photo de profil."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#5856D6"
+        }
       ]
     ]
   }

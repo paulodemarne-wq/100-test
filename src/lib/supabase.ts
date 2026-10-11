@@ -29,6 +29,8 @@ export type ProfileRow = {
   display_name: string;
   avatar_url: string | null;
   created_at: string;
+  weekly_goal_minutes: number;
+  notify_friend_sessions: boolean;
 };
 
 export type SessionRow = {
@@ -41,6 +43,7 @@ export type SessionRow = {
   status: 'active' | 'done' | 'abandoned';
   duration_sec: number | null;
   leaves: number;
+  event_id: string | null;
 };
 
 export type FriendshipRow = {
@@ -58,6 +61,21 @@ export type NudgeRow = {
   seen_at: string | null;
 };
 
+export type ExamRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  exam_date: string;
+  goal_minutes: number;
+  created_at: string;
+};
+
+export type GroupRow = { id: string; name: string; code: string; created_by: string; created_at: string };
+export type GroupMemberRow = { group_id: string; user_id: string; joined_at: string };
+
+export type EventRow = { id: string; host: string; title: string; starts_at: string; created_at: string };
+export type EventMemberRow = { event_id: string; user_id: string; status: 'invited' | 'going' | 'declined' };
+
 /** Turns Supabase/network errors into a short French message. */
 export function errorMessage(error: unknown): string {
   const message = (error as { message?: string } | null)?.message ?? String(error);
@@ -66,7 +84,8 @@ export function errorMessage(error: unknown): string {
   if (/password should be at least/i.test(message)) return 'Le mot de passe doit faire au moins 6 caractères.';
   if (/email not confirmed/i.test(message)) return 'Confirme ton e-mail (regarde ta boîte mail), puis reconnecte-toi.';
   if (/unable to validate email|invalid format|email address .* is invalid/i.test(message)) return 'Adresse e-mail invalide.';
-  if (/profiles_username_key|duplicate key/i.test(message)) return 'Ce pseudo est déjà pris.';
+  if (/profiles_username_key/i.test(message)) return 'Ce pseudo est déjà pris.';
+  if (/code invalide/i.test(message)) return 'Code invalide. Vérifie-le avec la personne qui a créé le groupe.';
   if (/network request failed|fetch failed/i.test(message)) return 'Pas de connexion internet.';
   return message;
 }

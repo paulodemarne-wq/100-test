@@ -1,21 +1,33 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { Fragment, ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../../components/Avatar';
+import { Pill, Row, Section } from '../../components/List';
 import { Button } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
-import { Friend, useSocial } from '../../lib/social';
+import { countdown, describeStatus, formatEventTime, labelOr } from '../../lib/labels';
+import { Person, useSocial } from '../../lib/social';
 import { useLockin, useNow } from '../../lib/store';
-import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
+import { card, colors, type } from '../../lib/theme';
 import { formatDuration, formatTimer, timeAgo } from '../../lib/time';
 
 export default function FeedScreen() {
   const { profile } = useAuth();
-  const { friends, incomingRequests, outgoingRequests, mySessions, refresh, acceptRequest, removeFriend, nudge } =
-    useSocial();
+  const {
+    friends,
+    incomingRequests,
+    outgoingRequests,
+    events,
+    mySessions,
+    refresh,
+    acceptRequest,
+    removeFriend,
+    nudge,
+    answerEvent,
+  } = useSocial();
   const { active } = useLockin();
   const now = useNow();
   const [nudged, setNudged] = useState<Record<string, boolean>>({});
@@ -25,6 +37,7 @@ export default function FeedScreen() {
   const others = friends.filter((f) => f.status.kind !== 'working');
   const liveCount = working.length + (active ? 1 : 0);
   const pastSessions = mySessions.filter((s) => s.status !== 'active');
+  const visibleEvents = events.filter((e) => e.myRsvp !== 'declined');
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -32,7 +45,7 @@ export default function FeedScreen() {
     setRefreshing(false);
   };
 
-  const sendNudge = async (friend: Friend) => {
+  const sendNudge = async (friend: Person) => {
     setNudged((n) => ({ ...n, [friend.profile.id]: true }));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
@@ -44,19 +57,17 @@ export default function FeedScreen() {
   };
 
   const confirmRemove = (id: string, name: string, isRequest = false) => {
-    Alert.alert(
-      isRequest ? `Refuser la demande de ${name} ?` : `Retirer ${name} de tes amis ?`,
-      undefined,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: isRequest ? 'Refuser' : 'Retirer',
-          style: 'destructive',
-          onPress: () => removeFriend(id).catch((e) => Alert.alert('Oups', (e as Error).message)),
-        },
-      ],
-    );
+    Alert.alert(isRequest ? `Refuser la demande de ${name} ?` : `Retirer ${name} de tes amis ?`, undefined, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: isRequest ? 'Refuser' : 'Retirer',
+        style: 'destructive',
+        onPress: () => removeFriend(id).catch((e) => Alert.alert('Oups', (e as Error).message)),
+      },
+    ]);
   };
+
+  const fail = (e: unknown) => Alert.alert('Oups', (e as Error).message);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -66,13 +77,20 @@ export default function FeedScreen() {
       >
         <View style={styles.header}>
           <Text style={type.largeTitle}>Amis</Text>
-          <Pressable onPress={() => router.push('/add-friend')} hitSlop={10} style={styles.addButton}>
-            <Ionicons name="person-add" size={20} color={colors.accent} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {friends.length > 0 && (
+              <Pressable onPress={() => router.push('/new-event')} hitSlop={10} style={styles.headerButton}>
+                <Ionicons name="calendar" size={19} color={colors.accent} />
+              </Pressable>
+            )}
+            <Pressable onPress={() => router.push('/add-friend')} hitSlop={10} style={styles.headerButton}>
+              <Ionicons name="person-add" size={19} color={colors.accent} />
+            </Pressable>
+          </View>
         </View>
         {friends.length > 0 && (
           <Text style={type.subhead}>
-            {liveCount} {liveCount > 1 ? 'personnes bossent' : 'personne bosse'} en ce moment
+            {liveCount} {liveCount > 1 ? 'potes sont en lock in' : 'pote en lock in'} en ce moment
           </Text>
         )}
 
@@ -80,27 +98,47 @@ export default function FeedScreen() {
           {incomingRequests.map((p) => (
             <Row
               key={p.id}
-              avatar={<Avatar name={p.display_name} photoUri={p.avatar_url} />}
+              left={<Avatar name={p.display_name} photoUri={p.avatar_url} />}
               title={p.display_name}
-              subtitle={`@${p.username} veut être ton ami`}
+              subtitle={`@${p.username} veut lock in avec toi`}
               right={
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable
-                    onPress={() => confirmRemove(p.id, p.display_name, true)}
-                    style={[styles.pill, { backgroundColor: colors.fill }]}
-                  >
-                    <Ionicons name="close" size={16} color={colors.secondary} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => acceptRequest(p.id).catch((e) => Alert.alert('Oups', (e as Error).message))}
-                    style={[styles.pill, { backgroundColor: colors.accent }]}
-                  >
-                    <Text style={[styles.pillText, { color: colors.onAccent }]}>Accepter</Text>
-                  </Pressable>
+                  <Pill title="✕" tone="muted" onPress={() => confirmRemove(p.id, p.display_name, true)} />
+                  <Pill title="Accepter" tone="solid" onPress={() => acceptRequest(p.id).catch(fail)} />
                 </View>
               }
             />
           ))}
+        </Section>
+
+        <Section title="Lock in de groupe">
+          {visibleEvents.map((e) => {
+            const going = e.participants.filter((p) => p.rsvp === 'going');
+            return (
+              <Row
+                key={e.id}
+                onPress={() => router.push({ pathname: '/event/[id]', params: { id: e.id } })}
+                left={
+                  <View style={styles.eventIcon}>
+                    <Ionicons name="people" size={20} color={colors.accent} />
+                  </View>
+                }
+                title={e.title}
+                subtitle={
+                  e.myRsvp === 'invited'
+                    ? `${e.hostProfile.display_name} t'invite · ${formatEventTime(e.startsAt, now)}`
+                    : `${formatEventTime(e.startsAt, now)} · ${countdown(e.startsAt, now)} · ${going.length} ${going.length > 1 ? 'partants' : 'partant'}`
+                }
+                right={
+                  e.myRsvp === 'invited' ? (
+                    <Pill title="Je viens" tone="solid" onPress={() => answerEvent(e.id, 'going').catch(fail)} />
+                  ) : (
+                    <Ionicons name="chevron-forward" size={18} color={colors.tertiary} />
+                  )
+                }
+              />
+            );
+          })}
         </Section>
 
         {friends.length === 0 && (
@@ -108,31 +146,31 @@ export default function FeedScreen() {
             <View style={styles.emptyIcon}>
               <Ionicons name="people" size={34} color={colors.accent} />
             </View>
-            <Text style={[type.title, { textAlign: 'center' }]}>Ajoute tes amis</Text>
+            <Text style={[type.title, { textAlign: 'center' }]}>Ajoute tes potes</Text>
             <Text style={[type.subhead, { textAlign: 'center' }]}>
-              Tu verras quand ils bossent, et ils verront quand tu lâches 😏
+              Tu verras quand ils bossent. Et eux verront quand tu craques 😏
             </Text>
             <Button title="Ajouter des amis" onPress={() => router.push('/add-friend')} style={{ alignSelf: 'stretch' }} />
           </View>
         )}
 
-        <Section title="En train de bosser">
-          {friends.length > 0 && active && profile && (
+        <Section title="En lock in">
+          {friends.length > 0 && active && profile ? (
             <Row
-              avatar={<Avatar name={profile.display_name} photoUri={profile.avatar_url} live />}
+              left={<Avatar name={profile.display_name} photoUri={profile.avatar_url} live />}
               title={`${profile.display_name} (toi)`}
-              subtitle={labelOr(active.subject, 'En focus')}
+              subtitle={labelOr(active.subject, 'En lock in')}
               right={<Text style={styles.liveTimer}>{formatTimer((now - active.startedAt) / 1000)}</Text>}
             />
-          )}
+          ) : null}
           {working.map((f) =>
             f.status.kind === 'working' ? (
               <Row
                 key={f.profile.id}
                 onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
-                avatar={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} live />}
+                left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} live />}
                 title={f.profile.display_name}
-                subtitle={labelOr(f.status.subject, 'En focus')}
+                subtitle={describeStatus(f.status, now)}
                 right={<Text style={styles.liveTimer}>{formatTimer((now - f.status.startedAt) / 1000)}</Text>}
               />
             ) : null,
@@ -144,20 +182,17 @@ export default function FeedScreen() {
             <Row
               key={f.profile.id}
               onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
-              avatar={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} />}
+              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} />}
               title={f.profile.display_name}
-              subtitle={describe(f, now)}
+              subtitle={describeStatus(f.status, now)}
               subtitleColor={f.status.kind === 'abandoned' ? colors.danger : undefined}
               right={
-                <Pressable
-                  onPress={() => sendNudge(f)}
+                <Pill
+                  title={nudged[f.profile.id] ? 'Envoyé' : 'Relancer'}
+                  tone={nudged[f.profile.id] ? 'muted' : 'soft'}
                   disabled={nudged[f.profile.id]}
-                  style={[styles.pill, { backgroundColor: nudged[f.profile.id] ? colors.fill : colors.accentSoft }]}
-                >
-                  <Text style={[styles.pillText, nudged[f.profile.id] && { color: colors.secondary }]}>
-                    {nudged[f.profile.id] ? 'Envoyé' : 'Relancer'}
-                  </Text>
-                </Pressable>
+                  onPress={() => sendNudge(f)}
+                />
               }
             />
           ))}
@@ -168,7 +203,7 @@ export default function FeedScreen() {
             <Row
               key={p.id}
               onLongPress={() => confirmRemove(p.id, p.display_name)}
-              avatar={<Avatar name={p.display_name} photoUri={p.avatar_url} />}
+              left={<Avatar name={p.display_name} photoUri={p.avatar_url} />}
               title={p.display_name}
               subtitle={`@${p.username} · en attente`}
             />
@@ -179,7 +214,7 @@ export default function FeedScreen() {
           {pastSessions.slice(0, 10).map((s) => (
             <Row
               key={s.id}
-              avatar={
+              left={
                 <View
                   style={[
                     styles.sessionIcon,
@@ -193,11 +228,11 @@ export default function FeedScreen() {
                   />
                 </View>
               }
-              title={labelOr(s.subject, 'Session focus')}
+              title={labelOr(s.subject, 'Lock in')}
               subtitle={
                 s.status === 'done'
                   ? timeAgo(Date.parse(s.ended_at ?? s.started_at), now)
-                  : `Abandonnée · ${timeAgo(Date.parse(s.ended_at ?? s.started_at), now)}`
+                  : `Craqué · ${timeAgo(Date.parse(s.ended_at ?? s.started_at), now)}`
               }
               right={<Text style={styles.duration}>{formatDuration(s.duration_sec ?? 0)}</Text>}
             />
@@ -205,76 +240,12 @@ export default function FeedScreen() {
         </Section>
 
         {friends.length > 0 && (
-          <Text style={[styles.footer, { marginTop: 16 }]}>Appui long sur un ami pour le retirer.</Text>
+          <Text style={[type.footnote, { textAlign: 'center', marginTop: 16 }]}>
+            Appui long sur un ami pour le retirer.
+          </Text>
         )}
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function describe(f: Friend, now: number): string {
-  const s = f.status;
-  switch (s.kind) {
-    case 'abandoned':
-      return `A lâché après ${formatDuration(s.durationSec)}${labelSuffix(s.subject)}`;
-    case 'done':
-      return `${formatDuration(s.durationSec)} de focus${labelSuffix(s.subject)} · ${timeAgo(s.at, now)}`;
-    case 'idle':
-      return 'Pas encore de session';
-    case 'working':
-      return labelOr(s.subject, 'En focus');
-  }
-}
-
-function labelOr(label: string, fallback: string): string {
-  return label === DEFAULT_LABEL ? fallback : label;
-}
-
-function labelSuffix(label: string): string {
-  return label === DEFAULT_LABEL ? '' : ` · ${label}`;
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  const rows = (Array.isArray(children) ? children.flat() : [children]).filter(Boolean);
-  if (rows.length === 0) return null;
-  return (
-    <View style={{ marginTop: 20 }}>
-      <Text style={styles.sectionTitle}>{title.toUpperCase()}</Text>
-      <View style={styles.group}>
-        {rows.map((row, i) => (
-          <Fragment key={i}>
-            {i > 0 && <View style={styles.separator} />}
-            {row}
-          </Fragment>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-type RowProps = {
-  avatar: ReactNode;
-  title: string;
-  subtitle: string;
-  subtitleColor?: string;
-  right?: ReactNode;
-  onLongPress?: () => void;
-};
-
-function Row({ avatar, title, subtitle, subtitleColor, right, onLongPress }: RowProps) {
-  return (
-    <Pressable onLongPress={onLongPress} disabled={!onLongPress} style={styles.row}>
-      {avatar}
-      <View style={{ flex: 1 }}>
-        <Text style={type.headline} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={[type.subhead, subtitleColor && { color: subtitleColor }]} numberOfLines={1}>
-          {subtitle}
-        </Text>
-      </View>
-      {right}
-    </Pressable>
   );
 }
 
@@ -282,7 +253,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   container: { paddingHorizontal: 20, paddingBottom: 32 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  addButton: {
+  headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -290,23 +261,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sectionTitle: { ...type.footnote, marginLeft: 16, marginBottom: 8 },
-  group: { ...card, overflow: 'hidden' },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator, marginLeft: 72 },
-  footer: { ...type.footnote, textAlign: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 14, paddingVertical: 11 },
   liveTimer: { fontSize: 17, fontWeight: '500', color: colors.success, fontVariant: ['tabular-nums'] },
   duration: { fontSize: 15, color: colors.secondary, fontVariant: ['tabular-nums'] },
-  pill: {
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    minHeight: 32,
+  sessionIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  eventIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pillText: { color: colors.accent, fontWeight: '600', fontSize: 14 },
-  sessionIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   empty: { ...card, marginTop: 24, padding: 24, alignItems: 'center', gap: 12 },
   emptyIcon: {
     width: 72,

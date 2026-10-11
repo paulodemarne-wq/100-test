@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 import { useAuth } from './auth';
 import { useSocial } from './social';
 import { supabase } from './supabase';
+import { formatDuration } from './time';
 
 /** Leaving the app for longer than this ends the session as abandoned. */
 export const MAX_AWAY_MS = 10_000;
@@ -16,6 +17,8 @@ export type ActiveSession = {
   /** Row id in study_sessions, once created. */
   remoteId: string | null;
   subject: string;
+  /** Group lock-in this session belongs to. */
+  eventId?: string | null;
   startedAt: number;
   /** Short trips outside the app that were tolerated. */
   leaves: number;
@@ -30,7 +33,7 @@ type Store = {
   active: ActiveSession | null;
   notice: Notice | null;
   clearNotice: () => void;
-  startSession: (subject: string) => void;
+  startSession: (subject: string, eventId?: string | null) => void;
   stopSession: () => void;
 };
 
@@ -79,7 +82,7 @@ export function LockinProvider({ children }: { children: ReactNode }) {
       }
       finishRemote(session, ending)
         .then(refresh)
-        .catch(() => setNotice({ kind: 'error', message: "La session n'a pas pu être enregistrée (pas de connexion ?)." }));
+        .catch(() => setNotice({ kind: 'error', message: "Pas de réseau : ta session n'a pas été enregistrée." }));
     },
     [refresh],
   );
@@ -95,7 +98,7 @@ export function LockinProvider({ children }: { children: ReactNode }) {
           const saved = JSON.parse(raw) as ActiveSession;
           await AsyncStorage.removeItem(storageKey);
           await finishRemote(saved, { status: 'abandoned', endedAt: saved.leftAt ?? Date.now() }).catch(() => {});
-          setNotice({ kind: 'abandoned', message: "Ta dernière session a été abandonnée : tu as fermé l'app." });
+          setNotice({ kind: 'abandoned', message: "Tu as fermé l'app en pleine session 💀 Elle compte comme un abandon." });
           refresh();
         }
       } catch {
@@ -137,13 +140,13 @@ export function LockinProvider({ children }: { children: ReactNode }) {
           end(current, { status: 'abandoned', endedAt: current.leftAt });
           setNotice({
             kind: 'abandoned',
-            message: `Session abandonnée 😬 Tu as quitté Lockin pendant ${Math.round(awayMs / 1000)} s. Tes amis le verront.`,
+            message: `Tu as craqué après ${formatDuration((current.leftAt - current.startedAt) / 1000)} 💀 Tes potes sont au courant.`,
           });
         } else {
           setActive({ ...current, leaves: current.leaves + 1, leftAt: null });
           setNotice({
             kind: 'warning',
-            message: `Attention 👀 Au-delà de ${MAX_AWAY_MS / 1000} s hors de l'app, ta session est perdue.`,
+            message: `Ouf, t'es revenu 👀 Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon.`,
           });
         }
       }
@@ -152,26 +155,31 @@ export function LockinProvider({ children }: { children: ReactNode }) {
   }, [end]);
 
   const startSession = useCallback(
-    (subject: string) => {
+    (subject: string, eventId: string | null = null) => {
       if (activeRef.current) return;
       const startedAt = Date.now();
       setNotice(null);
-      setActive({ remoteId: null, subject, startedAt, leaves: 0, leftAt: null });
+      setActive({ remoteId: null, subject, eventId, startedAt, leaves: 0, leftAt: null });
       supabase
         .from('study_sessions')
-        .insert({ subject, started_at: new Date(startedAt).toISOString(), last_seen_at: new Date(startedAt).toISOString() })
+        .insert({
+          subject,
+          event_id: eventId,
+          started_at: new Date(startedAt).toISOString(),
+          last_seen_at: new Date(startedAt).toISOString(),
+        })
         .select('id')
         .single()
         .then(({ data, error }) => {
           if (error || !data) {
-            setNotice({ kind: 'error', message: 'Pas de connexion : tes amis ne verront pas cette session.' });
+            setNotice({ kind: 'error', message: 'Pas de réseau : tes potes ne verront pas cette session.' });
             return;
           }
           const ending = pendingEnds.current.get(startedAt);
           if (ending) {
             // Already ended locally while the insert was in flight.
             pendingEnds.current.delete(startedAt);
-            const ended = { remoteId: data.id, subject, startedAt, leaves: 0, leftAt: null };
+            const ended = { remoteId: data.id, subject, eventId, startedAt, leaves: 0, leftAt: null };
             finishRemote(ended, ending).then(refresh);
             return;
           }
@@ -188,11 +196,11 @@ export function LockinProvider({ children }: { children: ReactNode }) {
     const endedAt = Date.now();
     if ((endedAt - current.startedAt) / 1000 < MIN_SESSION_SEC) {
       end(current, { status: 'discard' });
-      setNotice({ kind: 'tooShort', message: 'Session trop courte (moins d’une minute), elle n’est pas comptée.' });
+      setNotice({ kind: 'tooShort', message: 'Moins d’une minute ? Ça compte pas 😅' });
       return;
     }
     end(current, { status: 'done', endedAt });
-    setNotice({ kind: 'done', message: 'Bien joué 💪 Session enregistrée.' });
+    setNotice({ kind: 'done', message: `${formatDuration((endedAt - current.startedAt) / 1000)} de lock in. Respect 🫡` });
   }, [end]);
 
   return (

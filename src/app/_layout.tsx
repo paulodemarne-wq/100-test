@@ -1,9 +1,45 @@
+import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { AuthProvider } from '../lib/auth';
-import { SocialProvider } from '../lib/social';
+import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
+import { AuthProvider, useAuth } from '../lib/auth';
+import { openFromNotification, registerForPushNotifications, syncEventReminders } from '../lib/notifications';
+import { SocialProvider, useSocial } from '../lib/social';
 import { LockinProvider } from '../lib/store';
 import { colors } from '../lib/theme';
+
+/** Registers for push, opens tapped notifications and schedules group lock-in reminders. */
+function NotificationsBridge() {
+  const { profile } = useAuth();
+  const { events, loading } = useSocial();
+  const registeredFor = useRef<string | null>(null);
+  const lastResponse = Notifications.useLastNotificationResponse();
+
+  useEffect(() => {
+    if (profile && registeredFor.current !== profile.id) {
+      registeredFor.current = profile.id;
+      registerForPushNotifications();
+    }
+  }, [profile]);
+
+  // Open each tapped notification once, after sign-in.
+  const handled = useRef<string | null>(null);
+  const signedIn = !!profile;
+  useEffect(() => {
+    if (!signedIn || !lastResponse) return;
+    const id = lastResponse.notification.request.identifier;
+    if (handled.current === id) return;
+    handled.current = id;
+    openFromNotification(lastResponse.notification.request.content.data);
+  }, [signedIn, lastResponse]);
+
+  useEffect(() => {
+    if (profile && !loading) syncEventReminders(events).catch(() => {});
+  }, [profile, loading, events]);
+
+  return null;
+}
 
 export default function RootLayout() {
   return (
@@ -11,8 +47,12 @@ export default function RootLayout() {
       <SocialProvider>
         <LockinProvider>
           <StatusBar style="dark" />
+          {Platform.OS !== 'web' && <NotificationsBridge />}
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
             <Stack.Screen name="add-friend" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="new-event" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="groups" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="recap" options={{ presentation: 'modal' }} />
           </Stack>
         </LockinProvider>
       </SocialProvider>

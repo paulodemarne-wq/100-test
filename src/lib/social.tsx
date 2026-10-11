@@ -2,31 +2,70 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { AppState } from 'react-native';
 import { useAuth } from './auth';
 import * as stats from './stats';
-import { errorMessage, FriendshipRow, NudgeRow, ProfileRow, SessionRow, supabase } from './supabase';
+import {
+  errorMessage,
+  EventMemberRow,
+  EventRow,
+  ExamRow,
+  FriendshipRow,
+  GroupMemberRow,
+  GroupRow,
+  NudgeRow,
+  ProfileRow,
+  SessionRow,
+  supabase,
+} from './supabase';
 
 /** Sessions are refreshed by a heartbeat every minute; older than this means the app was killed. */
 const LIVE_WINDOW_MS = 150_000;
-/** History loaded for streaks and the weekly ranking. */
+/** History loaded for streaks, badges and rankings. */
 const HISTORY_DAYS = 60;
+/** Group lock-ins stay listed this long after they start. */
+const EVENT_VISIBLE_AFTER_START_MS = 6 * 3_600_000;
 
-export type FriendStatus =
-  | { kind: 'working'; subject: string; startedAt: number }
-  | { kind: 'abandoned'; subject: string; durationSec: number; at: number }
-  | { kind: 'done'; subject: string; durationSec: number; at: number }
+export type PersonStatus =
+  | { kind: 'working'; label: string; startedAt: number }
+  | { kind: 'abandoned'; label: string; durationSec: number; at: number }
+  | { kind: 'done'; label: string; durationSec: number; at: number }
   | { kind: 'idle' };
 
-export type Friend = {
+export type Person = {
   profile: ProfileRow;
-  status: FriendStatus;
+  status: PersonStatus;
   weekSeconds: number;
   streak: number;
 };
 
+export type Group = GroupRow & { members: Person[] };
+
+export type EventParticipant = {
+  profile: ProfileRow;
+  rsvp: EventMemberRow['status'];
+  /** This person's session for the event, if they started one. */
+  session: SessionRow | null;
+};
+
+export type LockinEvent = EventRow & {
+  hostProfile: ProfileRow;
+  startsAt: number;
+  participants: EventParticipant[];
+  myRsvp: EventMemberRow['status'];
+};
+
+export type Exam = ExamRow & { doneSeconds: number; daysLeft: number };
+
+/** An abandoned session this week, for the wall of shame. */
+export type Shame = { profile: ProfileRow; session: SessionRow };
+
 type Social = {
   loading: boolean;
-  friends: Friend[];
+  friends: Person[];
   incomingRequests: ProfileRow[];
   outgoingRequests: ProfileRow[];
+  groups: Group[];
+  events: LockinEvent[];
+  exams: Exam[];
+  shameWall: Shame[];
   mySessions: SessionRow[];
   myWeekSeconds: number;
   myStreak: number;
@@ -38,22 +77,40 @@ type Social = {
   removeFriend: (profileId: string) => Promise<void>;
   nudge: (profileId: string) => Promise<void>;
   markNudgesSeen: () => Promise<void>;
+  createGroup: (name: string) => Promise<GroupRow>;
+  joinGroup: (code: string) => Promise<void>;
+  leaveGroup: (groupId: string) => Promise<void>;
+  createEvent: (input: { title: string; startsAt: Date; friendIds: string[] }) => Promise<string>;
+  answerEvent: (eventId: string, rsvp: 'going' | 'declined') => Promise<void>;
+  cancelEvent: (eventId: string) => Promise<void>;
+  addExam: (input: { name: string; date: Date; goalMinutes: number }) => Promise<void>;
+  deleteExam: (examId: string) => Promise<void>;
 };
 
 const SocialContext = createContext<Social | null>(null);
 
-function statusOf(sessions: SessionRow[], now: number): FriendStatus {
+function statusOf(sessions: SessionRow[], now: number): PersonStatus {
   const latest = sessions[0];
   if (!latest) return { kind: 'idle' };
   const startedAt = Date.parse(latest.started_at);
   if (latest.status === 'active') {
     const lastSeen = Date.parse(latest.last_seen_at);
-    if (now - lastSeen < LIVE_WINDOW_MS) return { kind: 'working', subject: latest.subject, startedAt };
+    if (now - lastSeen < LIVE_WINDOW_MS) return { kind: 'working', label: latest.subject, startedAt };
     // The app was closed without ending the session.
-    return { kind: 'abandoned', subject: latest.subject, durationSec: (lastSeen - startedAt) / 1000, at: lastSeen };
+    return { kind: 'abandoned', label: latest.subject, durationSec: (lastSeen - startedAt) / 1000, at: lastSeen };
   }
   const at = latest.ended_at ? Date.parse(latest.ended_at) : startedAt;
-  return { kind: latest.status, subject: latest.subject, durationSec: latest.duration_sec ?? 0, at };
+  return { kind: latest.status, label: latest.subject, durationSec: latest.duration_sec ?? 0, at };
+}
+
+/** A session whose app was killed counts as abandoned once its heartbeat is stale. */
+export function effectiveStatus(s: SessionRow, now: number): SessionRow['status'] {
+  if (s.status === 'active' && now - Date.parse(s.last_seen_at) >= LIVE_WINDOW_MS) return 'abandoned';
+  return s.status;
+}
+
+function localDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function SocialProvider({ children }: { children: ReactNode }) {
@@ -63,37 +120,77 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [nudgeRows, setNudgeRows] = useState<NudgeRow[]>([]);
+  const [groupRows, setGroupRows] = useState<GroupRow[]>([]);
+  const [groupMembers, setGroupMembers] = useState<GroupMemberRow[]>([]);
+  const [eventRows, setEventRows] = useState<EventRow[]>([]);
+  const [eventMembers, setEventMembers] = useState<EventMemberRow[]>([]);
+  const [examRows, setExamRows] = useState<ExamRow[]>([]);
   const [now, setNow] = useState(Date.now());
 
   const refresh = useCallback(async () => {
     if (!userId) return;
-    const { data: fs } = await supabase
-      .from('friendships')
-      .select('*')
-      .or(`requester.eq.${userId},addressee.eq.${userId}`);
-    const rows = (fs ?? []) as FriendshipRow[];
-    const otherIds = rows.map((f) => (f.requester === userId ? f.addressee : f.requester));
-    const friendIds = rows
+    const eventsSince = new Date(Date.now() - EVENT_VISIBLE_AFTER_START_MS).toISOString();
+    const [fsRes, groupsRes, membersRes, eventsRes, examsRes, nudgesRes] = await Promise.all([
+      supabase.from('friendships').select('*').or(`requester.eq.${userId},addressee.eq.${userId}`),
+      supabase.from('study_groups').select('*').order('created_at'),
+      supabase.from('group_members').select('*'),
+      supabase.from('lockin_events').select('*').gte('starts_at', eventsSince).order('starts_at'),
+      supabase.from('exams').select('*').order('exam_date'),
+      supabase.from('nudges').select('*').eq('to_user', userId).is('seen_at', null).order('created_at', { ascending: false }),
+    ]);
+    const fs = (fsRes.data ?? []) as FriendshipRow[];
+    const gm = (membersRes.data ?? []) as GroupMemberRow[];
+    const evs = (eventsRes.data ?? []) as EventRow[];
+    const { data: emData } = evs.length
+      ? await supabase.from('event_members').select('*').in('event_id', evs.map((e) => e.id))
+      : { data: [] };
+    const em = (emData ?? []) as EventMemberRow[];
+
+    const friendIds = fs
       .filter((f) => f.status === 'accepted')
       .map((f) => (f.requester === userId ? f.addressee : f.requester));
+    const otherIds = new Set<string>([
+      ...fs.map((f) => (f.requester === userId ? f.addressee : f.requester)),
+      ...gm.map((m) => m.user_id),
+      ...em.map((m) => m.user_id),
+      ...evs.map((e) => e.host),
+      ...((nudgesRes.data ?? []) as NudgeRow[]).map((n) => n.from_user),
+    ]);
+    otherIds.delete(userId);
+    // Whose sessions we load: everyone we can see. Event participants' sessions are fetched by event below.
+    const sessionUserIds = [...new Set([userId, ...friendIds, ...gm.map((m) => m.user_id)])];
 
     const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000).toISOString();
-    const [profilesRes, sessionsRes, nudgesRes] = await Promise.all([
-      otherIds.length ? supabase.from('profiles').select('*').in('id', otherIds) : Promise.resolve({ data: [] }),
+    const [profilesRes, sessionsRes, eventSessionsRes] = await Promise.all([
+      otherIds.size ? supabase.from('profiles').select('*').in('id', [...otherIds]) : Promise.resolve({ data: [] }),
       supabase
         .from('study_sessions')
         .select('*')
-        .in('user_id', [userId, ...friendIds])
+        .in('user_id', sessionUserIds)
         .gte('started_at', since)
         .order('started_at', { ascending: false })
-        .limit(2000),
-      supabase.from('nudges').select('*').eq('to_user', userId).is('seen_at', null).order('created_at', { ascending: false }),
+        .limit(5000),
+      evs.length
+        ? supabase.from('study_sessions').select('*').in('event_id', evs.map((e) => e.id))
+        : Promise.resolve({ data: [] }),
     ]);
 
-    setFriendships(rows);
-    setProfiles(Object.fromEntries(((profilesRes.data ?? []) as ProfileRow[]).map((p) => [p.id, p])));
-    setSessions((sessionsRes.data ?? []) as SessionRow[]);
+    // Merge both session lists without duplicates, newest first.
+    const byId = new Map<string, SessionRow>();
+    for (const s of [...((sessionsRes.data ?? []) as SessionRow[]), ...((eventSessionsRes.data ?? []) as SessionRow[])]) {
+      byId.set(s.id, s);
+    }
+    const merged = [...byId.values()].sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
+
+    setFriendships(fs);
+    setGroupRows((groupsRes.data ?? []) as GroupRow[]);
+    setGroupMembers(gm);
+    setEventRows(evs);
+    setEventMembers(em);
+    setExamRows((examsRes.data ?? []) as ExamRow[]);
     setNudgeRows((nudgesRes.data ?? []) as NudgeRow[]);
+    setProfiles(Object.fromEntries(((profilesRes.data ?? []) as ProfileRow[]).map((p) => [p.id, p])));
+    setSessions(merged);
     setNow(Date.now());
     setLoading(false);
   }, [userId]);
@@ -108,10 +205,11 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId || !profile) return;
     refresh();
-    const channel = supabase
-      .channel(`lockin-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'study_sessions' }, scheduleRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, scheduleRefresh)
+    const channel = supabase.channel(`lockin-${userId}`);
+    for (const table of ['study_sessions', 'friendships', 'group_members', 'lockin_events', 'event_members']) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh);
+    }
+    channel
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'nudges', filter: `to_user=eq.${userId}` }, scheduleRefresh)
       .subscribe();
     // Also poll: live statuses expire over time, and realtime can drop while in the background.
@@ -126,33 +224,97 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   }, [userId, profile, refresh, scheduleRefresh]);
 
   const value = useMemo<Social>(() => {
+    const allProfiles: Record<string, ProfileRow> = { ...profiles };
+    if (profile) allProfiles[profile.id] = profile;
+
     const byUser: Record<string, SessionRow[]> = {};
     for (const s of sessions) (byUser[s.user_id] ??= []).push(s);
     const mySessions = userId ? (byUser[userId] ?? []) : [];
 
-    const friends: Friend[] = [];
+    const person = (id: string): Person | null => {
+      const p = allProfiles[id];
+      if (!p) return null;
+      const own = byUser[id] ?? [];
+      return { profile: p, status: statusOf(own, now), weekSeconds: stats.weekSeconds(own), streak: stats.streak(own) };
+    };
+
+    const friends: Person[] = [];
     const incomingRequests: ProfileRow[] = [];
     const outgoingRequests: ProfileRow[] = [];
     for (const f of friendships) {
       const otherId = f.requester === userId ? f.addressee : f.requester;
-      const other = profiles[otherId];
+      const other = allProfiles[otherId];
       if (!other) continue;
       if (f.status === 'accepted') {
-        const own = byUser[otherId] ?? [];
-        friends.push({
-          profile: other,
-          status: statusOf(own, now),
-          weekSeconds: stats.weekSeconds(own),
-          streak: stats.streak(own),
-        });
+        const p = person(otherId);
+        if (p) friends.push(p);
       } else if (f.addressee === userId) incomingRequests.push(other);
       else outgoingRequests.push(other);
     }
     friends.sort((a, b) => a.profile.display_name.localeCompare(b.profile.display_name));
 
+    const groups: Group[] = groupRows.map((g) => ({
+      ...g,
+      members: groupMembers
+        .filter((m) => m.group_id === g.id)
+        .map((m) => person(m.user_id))
+        .filter((p): p is Person => p !== null),
+    }));
+
+    const events: LockinEvent[] = eventRows
+      .map((e) => {
+        const members = eventMembers.filter((m) => m.event_id === e.id);
+        const participants: EventParticipant[] = members
+          .filter((m) => allProfiles[m.user_id])
+          .map((m) => ({
+            profile: allProfiles[m.user_id],
+            rsvp: m.status,
+            session: sessions.find((s) => s.event_id === e.id && s.user_id === m.user_id) ?? null,
+          }));
+        const mine = members.find((m) => m.user_id === userId);
+        return {
+          ...e,
+          hostProfile: allProfiles[e.host],
+          startsAt: Date.parse(e.starts_at),
+          participants,
+          myRsvp: e.host === userId ? 'going' : (mine?.status ?? 'invited'),
+        };
+      })
+      .filter((e) => e.hostProfile);
+
+    const today = localDate(new Date(now));
+    const exams: Exam[] = examRows
+      .filter((x) => x.exam_date >= today)
+      .map((x) => {
+        const since = Date.parse(x.created_at);
+        const doneSeconds = mySessions
+          .filter(
+            (s) =>
+              s.status === 'done' &&
+              s.subject.toLowerCase() === x.name.toLowerCase() &&
+              Date.parse(s.started_at) >= since,
+          )
+          .reduce((sum, s) => sum + (s.duration_sec ?? 0), 0);
+        const daysLeft = Math.round((Date.parse(`${x.exam_date}T00:00:00`) - Date.parse(`${today}T00:00:00`)) / 86_400_000);
+        return { ...x, doneSeconds, daysLeft };
+      });
+
+    // Abandons this week by me and my friends.
+    const weekStart = stats.weekStart();
+    const shameIds = new Set([userId, ...friends.map((f) => f.profile.id)]);
+    const shameWall: Shame[] = sessions
+      .filter(
+        (s) =>
+          shameIds.has(s.user_id) &&
+          Date.parse(s.started_at) >= weekStart &&
+          effectiveStatus(s, now) === 'abandoned' &&
+          allProfiles[s.user_id],
+      )
+      .map((s) => ({ profile: allProfiles[s.user_id], session: s }));
+
     const nudges = nudgeRows
-      .filter((n) => profiles[n.from_user])
-      .map((n) => ({ id: n.id, from: profiles[n.from_user] }));
+      .filter((n) => allProfiles[n.from_user])
+      .map((n) => ({ id: n.id, from: allProfiles[n.from_user] }));
 
     const run = async (fn: () => PromiseLike<{ error: unknown }>) => {
       const { error } = await fn();
@@ -165,6 +327,10 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       friends,
       incomingRequests,
       outgoingRequests,
+      groups,
+      events,
+      exams,
+      shameWall,
       mySessions,
       myWeekSeconds: stats.weekSeconds(mySessions),
       myStreak: stats.streak(mySessions),
@@ -208,8 +374,57 @@ export function SocialProvider({ children }: { children: ReactNode }) {
         setNudgeRows([]);
         await supabase.from('nudges').update({ seen_at: new Date().toISOString() }).eq('to_user', userId).is('seen_at', null);
       },
+      createGroup: async (name) => {
+        const { data, error } = await supabase.from('study_groups').insert({ name: name.trim() }).select().single();
+        if (error) throw new Error(errorMessage(error));
+        await refresh();
+        return data as GroupRow;
+      },
+      joinGroup: (code) => run(() => supabase.rpc('join_group', { invite_code: code })),
+      leaveGroup: (groupId) =>
+        run(() => supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', userId!)),
+      createEvent: async ({ title, startsAt, friendIds }) => {
+        if (!userId) throw new Error('Non connecté.');
+        const { data, error } = await supabase
+          .from('lockin_events')
+          .insert({ title: title.trim(), starts_at: startsAt.toISOString() })
+          .select()
+          .single();
+        if (error) throw new Error(errorMessage(error));
+        const rows = [
+          { event_id: data.id, user_id: userId, status: 'going' },
+          ...friendIds.map((id) => ({ event_id: data.id, user_id: id, status: 'invited' })),
+        ];
+        const { error: membersError } = await supabase.from('event_members').insert(rows);
+        if (membersError) throw new Error(errorMessage(membersError));
+        await refresh();
+        return data.id as string;
+      },
+      answerEvent: (eventId, rsvp) =>
+        run(() => supabase.from('event_members').update({ status: rsvp }).eq('event_id', eventId).eq('user_id', userId!)),
+      cancelEvent: (eventId) => run(() => supabase.from('lockin_events').delete().eq('id', eventId)),
+      addExam: ({ name, date, goalMinutes }) =>
+        run(() =>
+          supabase.from('exams').insert({ name: name.trim(), exam_date: localDate(date), goal_minutes: goalMinutes }),
+        ),
+      deleteExam: (examId) => run(() => supabase.from('exams').delete().eq('id', examId)),
     };
-  }, [loading, friendships, profiles, sessions, nudgeRows, now, userId, refresh]);
+  }, [
+    loading,
+    friendships,
+    profiles,
+    profile,
+    sessions,
+    nudgeRows,
+    groupRows,
+    groupMembers,
+    eventRows,
+    eventMembers,
+    examRows,
+    now,
+    userId,
+    refresh,
+  ]);
 
   return <SocialContext.Provider value={value}>{children}</SocialContext.Provider>;
 }

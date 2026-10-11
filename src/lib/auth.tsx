@@ -18,6 +18,7 @@ type Auth = {
   /** Creates or updates the profile. `localPhotoUri` is uploaded when set. */
   saveProfile: (input: { username: string; displayName: string; localPhotoUri?: string | null }) => Promise<void>;
   setPhoto: (localPhotoUri: string | null) => Promise<void>;
+  updateSettings: (settings: Partial<Pick<ProfileRow, 'weekly_goal_minutes' | 'notify_friend_sessions'>>) => Promise<void>;
 };
 
 const AuthContext = createContext<Auth | null>(null);
@@ -119,6 +120,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
+  const updateSettings = useCallback<Auth['updateSettings']>(
+    async (settings) => {
+      if (!userId) return;
+      setProfile((p) => (p ? { ...p, ...settings } : p));
+      const { data, error } = await supabase.from('profiles').update(settings).eq('id', userId).select().single();
+      if (error) {
+        await loadProfile(userId);
+        throw new Error(errorMessage(error));
+      }
+      setProfile(data as ProfileRow);
+    },
+    [userId, loadProfile],
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -132,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         saveProfile,
         setPhoto,
+        updateSettings,
       }}
     >
       {children}
