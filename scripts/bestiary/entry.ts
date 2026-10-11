@@ -2,6 +2,7 @@
 // Build: npx esbuild scripts/bestiary/entry.ts --bundle --format=iife --minify --outfile=<out>.js
 import * as THREE from 'three';
 import { addLights, buildCreature, Creature } from '../../src/creatures/build';
+import { buildDecor, makeKit, TILE_COLORS } from '../../src/world/decor';
 import { buildIsland, IslandCamera, PetSpec } from '../../src/world/scene';
 import { defaultWorld, World } from '../../src/world/world';
 import { displayName, Equipped, LEVEL_HOURS, LEVEL_UNLOCKS, PLAN_NAMES, SHOP_ITEMS, SPECIES, TIERS, formFor, tierFor } from '../../src/creatures/species';
@@ -224,7 +225,81 @@ function mountWorld(
   };
 }
 
+/** Renders island objects (or ground tiles) one per cell, slowly turning — for the shop board. */
+function mountDecor(canvas: HTMLCanvasElement, opts: { ids: string[]; cols: number }) {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(3, Math.max(2, window.devicePixelRatio || 1)));
+  renderer.setScissorTest(true);
+  const scene = new THREE.Scene();
+  addLights(scene);
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  camera.position.set(0, 1.6, 4.2);
+  camera.lookAt(0, 0.45, 0);
+  const kit = makeKit();
+  const models = opts.ids.map((id) => {
+    const g = new THREE.Group();
+    const tile = TILE_COLORS[id];
+    // A little plot of ground under each object (the tile itself for grounds).
+    const boat = SHOP_ITEMS.some((it) => it.id === id && it.slot === 'boat');
+    kit.add(g, new THREE.CylinderGeometry(0.85, 0.9, 0.12, 32), kit.mat(tile ? tile[0] : boat ? '#4FB6EA' : '#8BD46A'), [0, -0.06, 0]);
+    if (id === 'sea') {
+      kit.add(g, new THREE.CylinderGeometry(0.86, 0.86, 0.02, 32), kit.mat('#4FB6EA', 0.1), [0, 0.0, 0]);
+      kit.add(g, new THREE.CylinderGeometry(0.35, 0.4, 0.1, 24), kit.mat('#F2D59B'), [0, 0.03, 0]);
+      kit.add(g, new THREE.ConeGeometry(0.06, 0.4, 3), kit.mat('#FFFFFF'), [0.5, 0.25, 0.2], [0.1, 1, 1]);
+    } else if (/^size/.test(id)) {
+      const n = Number(id.slice(4)) / 4;
+      const cell = 1.1 / n;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) kit.add(g, new THREE.BoxGeometry(cell * 0.95, 0.04, cell * 0.95), kit.mat((i + j) % 2 ? '#8BD46A' : '#A2DE74'), [(i - (n - 1) / 2) * cell, 0.02, (j - (n - 1) / 2) * cell]);
+    } else if (!tile) {
+      const o = buildDecor(id, kit);
+      const box = new THREE.Box3().setFromObject(o);
+      const size = Math.max(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z, 0.01);
+      o.scale.setScalar(Math.min(1.3, 1.25 / size));
+      g.add(o);
+    }
+    return g;
+  });
+  let raf = 0;
+  const start = performance.now();
+  const frame = () => {
+    raf = requestAnimationFrame(frame);
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (canvas.width !== Math.round(w * renderer.getPixelRatio())) renderer.setSize(w, h, false);
+    const rows = Math.ceil(models.length / opts.cols);
+    const cw = w / opts.cols;
+    const ch = h / rows;
+    renderer.setClearColor(0x000000, 0);
+    renderer.setScissor(0, 0, w, h);
+    renderer.setViewport(0, 0, w, h);
+    renderer.clear();
+    camera.aspect = cw / ch;
+    camera.updateProjectionMatrix();
+    const t = (performance.now() - start) / 1000;
+    models.forEach((m, i) => {
+      const x = (i % opts.cols) * cw;
+      const y = h - (Math.floor(i / opts.cols) + 1) * ch;
+      renderer.setViewport(x, y + ch * 0.12, cw, ch * 0.88);
+      renderer.setScissor(x, y, cw, ch);
+      m.rotation.y = t * 0.4 + i;
+      scene.add(m);
+      renderer.render(scene, camera);
+      scene.remove(m);
+    });
+  };
+  frame();
+  return {
+    destroy() {
+      cancelAnimationFrame(raf);
+      models.forEach((m) => m.traverse((o) => o instanceof THREE.Mesh && o.geometry.dispose()));
+      kit.dispose();
+      renderer.dispose();
+    },
+  };
+}
+
 (window as unknown as { LockinBestiary: unknown }).LockinBestiary = {
+  mountDecor,
   mount,
   mountWorld,
   defaultWorld,
