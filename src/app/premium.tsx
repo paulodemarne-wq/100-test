@@ -1,17 +1,40 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
 import { useAuth } from '../lib/auth';
+import { useSocial } from '../lib/social';
+import { errorMessage, supabase } from '../lib/supabase';
 import { BADGE_COLORS, BADGES, DECORATIONS, isPremium, PLUS_NAME, PLUS_PERKS, PLUS_PRICE, PLUS_PRICE_YEAR } from '../lib/premium';
 import { card, colors, type } from '../lib/theme';
 
 /** Lockin+: what it gives, how to get it, and (once you have it) your badge and photo decoration. */
 export default function Premium() {
-  const { profile, updateSettings } = useAuth();
+  const { profile, updateSettings, reloadProfile } = useAuth();
+  const { friends } = useSocial();
+  // Trials I can give, to which friends, and whether I can still enter a referral code.
+  const [trialsLeft, setTrialsLeft] = useState(0);
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [hadPlus, setHadPlus] = useState(true);
+  const [code, setCode] = useState('');
+  const load = useCallback(async () => {
+    if (!profile) return;
+    const [left, cands, grants] = await Promise.all([
+      supabase.rpc('trials_left', { u: profile.id }),
+      supabase.rpc('trial_candidates'),
+      supabase.from('plus_grants').select('id').eq('user_id', profile.id).limit(1),
+    ]);
+    setTrialsLeft((left.data as number) ?? 0);
+    setCandidates(((cands.data as { id: string }[]) ?? []).map((c) => c.id));
+    setHadPlus((grants.data ?? []).length > 0 || !!profile.premium_until);
+  }, [profile]);
+  useEffect(() => {
+    load().catch(() => {});
+  }, [load]);
   if (!profile) return null;
   const premium = isPremium(profile);
   const until = profile.premium_until ? new Date(profile.premium_until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
@@ -24,6 +47,32 @@ export default function Premium() {
   const locked = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(`Réservé à ${PLUS_NAME}`, 'Prends Lockin+ pour choisir ton badge et ta décoration.');
+  };
+  const give = (id: string, name: string) =>
+    Alert.alert(`Offrir Lockin+ à ${name} ?`, '7 jours gratuits. Tu peux en offrir 5 en tout.', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Offrir 🎁',
+        onPress: async () => {
+          const { error } = await supabase.rpc('give_trial', { friend: id });
+          if (error) return Alert.alert('Oups', errorMessage(error));
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Cadeau envoyé 🎉', `${name} a 7 jours de Lockin+.`);
+          load().catch(() => {});
+        },
+      },
+    ]);
+  const shareCode = () =>
+    Share.share({
+      message: `Rejoins-moi sur Lockin 🔒 Mon code de parrainage : ${profile.referral_code}. Quand tu prends Lockin+, on gagne 1 mois gratuit chacun.`,
+    }).catch(() => {});
+  const submitCode = async () => {
+    const { data, error } = await supabase.rpc('use_referral_code', { code });
+    if (error) return Alert.alert('Oups', errorMessage(error));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Parrain ajouté ✓', `${data} est ton parrain. Vous gagnerez 1 mois chacun quand tu prendras Lockin+.`);
+    setCode('');
+    reloadProfile().catch(() => {});
   };
   const save = (fields: Parameters<typeof updateSettings>[0]) => {
     if (!premium) return locked();
@@ -124,6 +173,63 @@ export default function Premium() {
             ))}
           </View>
         </View>
+        {trialsLeft > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>OFFRIR LOCKIN+ · {trialsLeft} ESSAI{trialsLeft > 1 ? 'S' : ''} DE 7 JOURS À DONNER</Text>
+            <View style={[card, styles.pickerCard]}>
+              {candidates.length === 0 ? (
+                <Text style={type.footnote}>Tous tes potes ont déjà eu Lockin+ (ou tu n'as pas encore d'amis).</Text>
+              ) : (
+                friends
+                  .filter((f) => candidates.includes(f.profile.id))
+                  .map((f) => (
+                    <View key={f.profile.id} style={styles.giftRow}>
+                      <Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} size={40} />
+                      <Text style={[type.headline, { flex: 1 }]} numberOfLines={1}>
+                        {f.profile.display_name}
+                      </Text>
+                      <Pressable onPress={() => give(f.profile.id, f.profile.display_name)} style={styles.giftButton}>
+                        <Ionicons name="gift" size={15} color={colors.onAccent} />
+                        <Text style={styles.giftText}>Offrir 7 jours</Text>
+                      </Pressable>
+                    </View>
+                  ))
+              )}
+            </View>
+          </>
+        )}
+
+        <Text style={styles.sectionTitle}>PARRAINAGE</Text>
+        <View style={[card, styles.pickerCard]}>
+          <Text style={type.body}>
+            Quand un pote prend Lockin+ avec ton code, vous gagnez <Text style={{ fontWeight: '800' }}>1 mois gratuit chacun</Text>.
+          </Text>
+          <View style={styles.codeRow}>
+            <Text style={styles.code}>{profile.referral_code}</Text>
+            <Pressable onPress={shareCode} style={styles.giftButton}>
+              <Ionicons name="share-outline" size={15} color={colors.onAccent} />
+              <Text style={styles.giftText}>Partager</Text>
+            </Pressable>
+          </View>
+          {!profile.referred_by && !hadPlus && (
+            <View style={styles.codeRow}>
+              <TextInput
+                value={code}
+                onChangeText={(t) => setCode(t.toUpperCase())}
+                placeholder="Code d'un pote"
+                placeholderTextColor={colors.tertiary}
+                autoCapitalize="characters"
+                maxLength={6}
+                style={styles.codeInput}
+              />
+              <Pressable onPress={submitCode} disabled={code.length < 6} style={[styles.giftButton, code.length < 6 && { opacity: 0.4 }]}>
+                <Text style={styles.giftText}>Valider</Text>
+              </Pressable>
+            </View>
+          )}
+          {!!profile.referred_by && <Text style={type.footnote}>Tu as un parrain ✓ Le mois offert arrive quand tu prends Lockin+.</Text>}
+        </View>
+
         <Text style={type.footnote}>
           Ta photo de profil reste gratuite. Si Lockin+ s'arrête, ton badge et ta décoration sont gardés de côté et reviennent quand tu reprends.
         </Text>
@@ -159,5 +265,11 @@ const styles = StyleSheet.create({
   cell: { width: '23%', alignItems: 'center', gap: 6, paddingVertical: 10, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
   cellOn: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   cellText: { fontSize: 11, fontWeight: '600', color: colors.text },
+  giftRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  giftButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
+  giftText: { color: colors.onAccent, fontWeight: '700', fontSize: 14 },
+  codeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  code: { flex: 1, fontSize: 28, fontWeight: '800', letterSpacing: 4, color: colors.text, fontVariant: ['tabular-nums'] },
+  codeInput: { flex: 1, fontSize: 18, fontWeight: '700', letterSpacing: 3, color: colors.text, backgroundColor: colors.fill, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
   decoCell: { width: '31%', alignItems: 'center', gap: 22, paddingTop: 28, paddingBottom: 10, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
 });

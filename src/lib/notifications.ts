@@ -64,6 +64,9 @@ export function openFromNotification(data: Record<string, unknown> | undefined) 
     case 'todo':
       router.navigate('/todos');
       break;
+    case 'plus':
+      router.navigate('/premium');
+      break;
     case 'event_invite':
     case 'event_start':
       if (typeof data.event_id === 'string') router.navigate({ pathname: '/event/[id]', params: { id: data.event_id } });

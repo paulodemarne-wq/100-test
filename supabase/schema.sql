@@ -1457,3 +1457,120 @@ language sql stable security definer set search_path = public as $$
   union all
   select id, 30 + (('x' || substr(h, 1, 4))::bit(16)::int % 10) * 5 from picks;
 $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- v15: Lockin+ referrals and gifted trials.
+-- Every Lockin+ period is a row in plus_grants; grant_plus() is the only way to give one
+-- (a payment, a trial, a referral reward, or by hand). It is never callable from the app.
+-- - Referral: a new user enters a friend's code; when they PAY for Lockin+ the first time,
+--   both get one month free.
+-- - Trials: a paying subscriber can give up to 5 trials of 7 days to friends who never had Lockin+.
+-- ═════════════════════════════════════════════════════════════════════════════
+alter table public.profiles
+  add column if not exists referral_code text,
+  add column if not exists referred_by uuid references public.profiles (id) on delete set null;
+update public.profiles set referral_code = upper(substr(md5(id::text || random()::text), 1, 6)) where referral_code is null;
+alter table public.profiles alter column referral_code set default upper(substr(md5(gen_random_uuid()::text), 1, 6));
+create unique index if not exists profiles_referral_code on public.profiles (referral_code);
+
+create table if not exists public.plus_grants (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  source text not null check (source in ('paid', 'trial', 'referral', 'admin')),
+  days int not null check (days between 1 and 3660),
+  granted_by uuid references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists plus_grants_user on public.plus_grants (user_id);
+create index if not exists plus_grants_giver on public.plus_grants (granted_by, source);
+alter table public.plus_grants enable row level security;
+drop policy if exists "see own grants" on public.plus_grants;
+create policy "see own grants" on public.plus_grants
+  for select to authenticated using (user_id = auth.uid() or granted_by = auth.uid());
+revoke insert, update, delete on public.plus_grants from anon, authenticated;
+
+-- Gives Lockin+ for some days (after what is left), and pays the referral reward on a first payment.
+create or replace function public.grant_plus(u uuid, days int, source text, giver uuid default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  first_paid boolean;
+  sponsor uuid;
+begin
+  first_paid := source = 'paid' and not exists (select 1 from public.plus_grants where user_id = u and plus_grants.source = 'paid');
+  insert into public.plus_grants (user_id, source, days, granted_by) values (u, source, days, giver);
+  update public.profiles
+  set premium_until = greatest(coalesce(premium_until, now()), now()) + make_interval(days => days)
+  where id = u;
+  if first_paid then
+    select referred_by into sponsor from public.profiles where id = u;
+    if sponsor is not null then
+      perform public.grant_plus(u, 30, 'referral', sponsor);
+      perform public.grant_plus(sponsor, 30, 'referral', u);
+      perform public.send_push(array[sponsor], 'Parrainage réussi 🎉', 'Ton pote a pris Lockin+ : 1 mois offert pour vous deux.', '{"type":"plus"}');
+    end if;
+  end if;
+end $$;
+revoke execute on function public.grant_plus(uuid, int, text, uuid) from public, anon, authenticated;
+
+-- A new user enters a friend's code (once, and only before ever having Lockin+).
+create or replace function public.use_referral_code(code text)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  me public.profiles;
+  sponsor public.profiles;
+begin
+  select * into me from public.profiles where id = auth.uid() for update;
+  if me.id is null then raise exception 'Non connecté'; end if;
+  if me.referred_by is not null then raise exception 'Tu as déjà un parrain' using errcode = 'P0001'; end if;
+  if exists (select 1 from public.plus_grants where user_id = me.id) then
+    raise exception 'Le parrainage, c''est avant ton premier Lockin+' using errcode = 'P0001';
+  end if;
+  select * into sponsor from public.profiles where referral_code = upper(trim(code));
+  if sponsor.id is null then raise exception 'Code inconnu' using errcode = 'P0001'; end if;
+  if sponsor.id = me.id then raise exception 'C''est ton propre code 😅' using errcode = 'P0001'; end if;
+  update public.profiles set referred_by = sponsor.id where id = me.id;
+  return sponsor.display_name;
+end $$;
+revoke execute on function public.use_referral_code(text) from public, anon;
+grant execute on function public.use_referral_code(text) to authenticated;
+
+-- Who can give trials: a paying subscriber (or a featured account), 5 trials at most.
+create or replace function public.trials_left(u uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select case
+    when not public.is_premium(u) then 0
+    when not (exists (select 1 from public.profiles where id = u and featured)
+              or exists (select 1 from public.plus_grants where user_id = u and source = 'paid')) then 0
+    else greatest(0, 5 - (select count(*)::int from public.plus_grants where granted_by = u and source = 'trial'))
+  end;
+$$;
+
+-- My friends who can still get a trial (they never had Lockin+).
+create or replace function public.trial_candidates()
+returns table (id uuid) language sql stable security definer set search_path = public as $$
+  select p.id from public.profiles p
+  where public.is_friend(auth.uid(), p.id)
+    and p.premium_until is null and not p.featured
+    and not exists (select 1 from public.plus_grants g where g.user_id = p.id);
+$$;
+revoke execute on function public.trial_candidates() from public, anon;
+grant execute on function public.trial_candidates() to authenticated;
+revoke execute on function public.trials_left(uuid) from public, anon;
+grant execute on function public.trials_left(uuid) to authenticated;
+
+create or replace function public.give_trial(friend uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare me public.profiles;
+begin
+  -- Lock my row so two gifts at once can't go past 5.
+  select * into me from public.profiles where id = auth.uid() for update;
+  if me.id is null then raise exception 'Non connecté'; end if;
+  if public.trials_left(me.id) <= 0 then raise exception 'Plus d''essai à offrir' using errcode = 'P0001'; end if;
+  if not exists (select 1 from public.trial_candidates() c where c.id = friend) then
+    raise exception 'Ce pote a déjà eu Lockin+ (ou n''est pas ton ami)' using errcode = 'P0001';
+  end if;
+  perform public.grant_plus(friend, 7, 'trial', me.id);
+  perform public.send_push(array[friend], me.display_name || ' t''offre Lockin+ 🎁', '7 jours d''essai : badge, décoration de photo, animaux exclusifs…', '{"type":"plus"}');
+end $$;
+revoke execute on function public.give_trial(uuid) from public, anon;
+grant execute on function public.give_trial(uuid) to authenticated;

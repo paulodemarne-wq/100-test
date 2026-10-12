@@ -110,4 +110,5 @@ src/lib/
   l'œuf Lockin+ (10 animaux exclusifs avec chacun une signature en 3D) et 6 décos d'île gratuites.
 - La photo de profil est gratuite pour tout le monde.
 - C'est la base qui décide qui a Lockin+ (`profiles.premium_until`, ou un compte vedette) : rien ne peut être triché depuis l'app.
-- En attendant le paiement App Store : `supabase/donner-lockin-plus.sql` donne Lockin+ à quelqu'un.
+- Parrainage : un pote qui prend Lockin+ avec ton code = 1 mois offert chacun. Un abonné peut offrir 5 essais de 7 jours.
+- Tout passe par `grant_plus` (table `plus_grants`). En attendant le paiement App Store : `supabase/donner-lockin-plus.sql`.

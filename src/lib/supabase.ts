@@ -48,6 +48,9 @@ export type ProfileRow = {
   badge: string | null;
   badge_color: string;
   decoration: string | null;
+  /** Code to share: a friend who takes Lockin+ with it gives both one month. */
+  referral_code: string;
+  referred_by: string | null;
 };
 
 export type TodoRow = {
