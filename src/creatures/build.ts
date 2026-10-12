@@ -1222,6 +1222,22 @@ function addAccessories(A: Anchors, c: Ctx, eq: Equipped) {
         c.add(hat, new THREE.TorusGeometry(R * 0.6, 0.04, 8, 30), c.mat('#8A5C35'), [0, -R * 0.15, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
         for (const s of [-1, 1]) c.add(hat, c.cone(0.08, R * 0.7), c.mat('#FFF4DC'), [s * R * 0.68, R * 0.15, 0], [1, 1, 1], [0, 0, -s * 0.9]);
         break;
+      // Lockin+ accessories of the month.
+      case 'tiara': {
+        c.add(hat, new THREE.TorusGeometry(R * 0.55, 0.025, 8, 40, Math.PI), c.mat(GOLD, { metal: true }), [0, -R * 0.15, 0], [1, 1, 1], [0, 0, 0]);
+        const stars = [-0.6, 0, 0.6];
+        stars.forEach((x, i) => {
+          const s = c.add(hat, new THREE.OctahedronGeometry(i === 1 ? 0.09 : 0.06), c.mat(i === 1 ? '#FF8BF2' : '#BDF4FF', { glow: 0.9, metal: true }), [x * R * 0.55, R * (i === 1 ? 0.48 : 0.32), 0]);
+          c.animators.push((t) => (s.rotation.y = t * 2 + i));
+        });
+        break;
+      }
+      case 'bunny':
+        for (const s of [-1, 1]) {
+          c.add(hat, c.capsule(0.07, R * 0.7), c.mat('#FFFFFF'), [s * R * 0.28, R * 0.45, -R * 0.05], [1, 1, 0.55], [0, 0, -s * 0.18]);
+          c.add(hat, c.capsule(0.04, R * 0.55), c.mat('#FFB3C1'), [s * R * 0.28, R * 0.45, -R * 0.0], [1, 1, 0.3], [0, 0, -s * 0.18]);
+        }
+        break;
       case 'crown':
         c.add(hat, new THREE.CylinderGeometry(R * 0.45, R * 0.42, R * 0.3, 24, 1, true), c.mat(GOLD, { metal: true }), [0, R * 0.05, 0]);
         for (let i = 0; i < 6; i++) {
@@ -1279,6 +1295,15 @@ function addAccessories(A: Anchors, c: Ctx, eq: Equipped) {
         c.add(g, c.cone(0.16, 0.22, 3), c.mat('#E5484D'), [0, -0.1, r * 0.9], [1, 1, 0.3], [Math.PI, 0, 0]);
         for (let i = 0; i < 3; i++) c.add(g, c.sphere(0.02, 6), c.mat('#FFFFFF'), [-0.05 + i * 0.05, -0.08 - (i % 2) * 0.04, r * 0.96]);
         break;
+      case 'galaxy': {
+        c.add(g, new THREE.TorusGeometry(r * 0.95, 0.09, 12, 30), c.mat('#1E1B4B'), [0, 0, 0], [1, 1, 0.9], [Math.PI / 2, 0, 0]);
+        c.add(g, c.capsule(0.07, 0.28), c.mat('#312E81'), [r * 0.45, -0.2, r * 0.85], [1, 1, 0.6], [0, 0, 0.2]);
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2;
+          c.add(g, new THREE.OctahedronGeometry(0.022), c.mat(i % 3 ? '#FFFFFF' : '#FF8BF2', { glow: 1 }), [Math.cos(a) * r * 0.98, 0.04 * Math.sin(i * 3), Math.sin(a) * r * 0.98]);
+        }
+        break;
+      }
       case 'diamonds':
         for (let i = 0; i < 12; i++) {
           const a = (i / 12) * Math.PI * 2;
@@ -1315,6 +1340,15 @@ function addAccessories(A: Anchors, c: Ctx, eq: Equipped) {
       case 'surfboard':
         c.add(g, c.capsule(0.14, 0.75), c.mat('#7FE0FF'), [0, 0.05, -0.12], [1, 1, 0.22], [0, 0, 0.35]);
         c.add(g, c.box(0.04, 0.7, 0.02), c.mat('#FF8A1F'), [0, 0.05, -0.155], [1, 1, 1], [0, 0, 0.35]);
+        break;
+      case 'butterfly':
+        for (const s of [-1, 1]) {
+          const wing = c.group(g, [s * 0.04, 0.05, -0.08]);
+          c.add(wing, c.sphere(0.24, 16), c.mat('#C084FC', { glow: 0.35, opacity: 0.75 }), [s * 0.2, 0.16, 0], [1, 0.8, 0.06], [0, 0, s * 0.5]);
+          c.add(wing, c.sphere(0.16, 14), c.mat('#7DD3FC', { glow: 0.35, opacity: 0.75 }), [s * 0.17, -0.12, 0], [1, 0.8, 0.06], [0, 0, -s * 0.4]);
+          c.add(wing, c.sphere(0.05, 8), c.mat('#FDE047', { glow: 1 }), [s * 0.24, 0.2, 0.02]);
+          c.animators.push((t) => (wing.rotation.y = s * (0.35 + Math.sin(t * 7) * 0.35)));
+        }
         break;
       case 'jetpack':
         for (const s of [-1, 1]) {

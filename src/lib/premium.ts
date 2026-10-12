@@ -107,9 +107,12 @@ export function decorationOf(p: Someone): string | null {
 
 /** Everything Lockin+ gives, for the Lockin+ screen. */
 export const PLUS_PERKS: { icon: string; title: string; text: string }[] = [
-  { icon: 'ribbon', title: 'Badge à côté de ton prénom', text: '12 symboles, 3 couleurs, visible partout dans l’app.' },
-  { icon: 'flame', title: 'Décoration de photo en 3D', text: 'Anneau de feu, couronne, auréole, laurier d’or…' },
+  { icon: 'ribbon', title: 'Badge, titre et décoration de photo', text: '12 badges, 12 titres, 10 décorations en 3D (anneau de feu, couronne…).' },
   { icon: 'egg', title: '10 animaux exclusifs', text: 'L’œuf Lockin+ : Solari, Kitsu, Chrono… chacun avec sa signature.' },
-  { icon: 'leaf', title: '6 décos gratuites pour ton île', text: 'Portail magique, montgolfière, trône doré, kiosque…' },
-  { icon: 'gift', title: '5 essais gratuits à offrir', text: '7 jours de Lockin+ pour 5 potes.' },
+  { icon: 'gift', title: 'Un accessoire offert chaque mois', text: 'Diadème, oreilles de lapin, écharpe galaxie, ailes de papillon…' },
+  { icon: 'snow', title: '2 îles en plus + 6 décos gratuites', text: 'Une île de neige, une île volante, et des décos exclusives.' },
+  { icon: 'timer', title: 'Effets du chrono', text: 'Thèmes de couleurs, fond animé, ton animal qui fait la fête à côté.' },
+  { icon: 'stats-chart', title: 'Stats détaillées', text: 'Par matière, ton meilleur moment, le mois jour par jour.' },
+  { icon: 'shield-checkmark', title: '2 jokers de série par mois', text: 'Et tu peux renommer ton animal.' },
+  { icon: 'people', title: 'Lock in de groupe à 30', text: 'Au lieu de 8. Et 5 essais de 7 jours à offrir à tes potes.' },
 ];

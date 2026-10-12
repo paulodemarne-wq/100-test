@@ -120,13 +120,20 @@ export function walkable(world: World): boolean[] {
   return ok;
 }
 
-/** A new island starts empty: only grass. Players build everything themselves. */
-export function defaultWorld(): World {
-  return { v: 2, size: MIN_SIZE, sea: false, tiles: 'g'.repeat(MIN_SIZE * MIN_SIZE), objects: [] };
+/** A new island starts empty: only grass (snow on the snow island, clouds on the floating one). */
+export function defaultWorld(ground = 'g'): World {
+  return { v: 2, size: MIN_SIZE, sea: false, tiles: ground.repeat(MIN_SIZE * MIN_SIZE), objects: [] };
 }
 
+/** The 3 islands: the first one for everyone, the other two with Lockin+. Must match save_world(world, island). */
+export const ISLANDS = [
+  { n: 1, name: 'Mon île', short: 'Île', icon: '🏝️', ground: 'g' },
+  { n: 2, name: 'Île de neige', short: 'Neige', icon: '❄️', ground: 'n' },
+  { n: 3, name: 'Île volante', short: 'Volante', icon: '☁️', ground: 'c' },
+] as const;
+
 /** Accepts whatever is stored (maybe nothing yet, or the first 16×16 format) and returns a usable world. */
-export function readWorld(raw: unknown): World {
+export function readWorld(raw: unknown, ground = 'g'): World {
   const w = raw as (Partial<World> & { v?: number }) | null;
   const size = typeof w?.size === 'number' && (SIZES as readonly number[]).includes(w.size) ? w.size : MIN_SIZE;
   if (w && typeof w.tiles === 'string' && w.tiles.length === size * size && Array.isArray(w.objects)) {
@@ -138,5 +145,5 @@ export function readWorld(raw: unknown): World {
       objects: w.objects.filter((o) => Array.isArray(o) && o.length === 4) as PlacedObject[],
     };
   }
-  return defaultWorld();
+  return defaultWorld(ground);
 }

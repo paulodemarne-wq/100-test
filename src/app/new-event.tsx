@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { DateField } from '../components/DateField';
@@ -9,7 +9,8 @@ import { Row, Section } from '../components/List';
 import { Button, ErrorText } from '../components/ui';
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
-import { decorationOf } from '../lib/premium';
+import { decorationOf, isPremium } from '../lib/premium';
+import { useAuth } from '../lib/auth';
 import { Named } from '../components/Badge';
 
 /** Next round half hour, at least 15 minutes from now. */
@@ -21,19 +22,31 @@ function defaultStart(): Date {
 
 export default function NewEvent() {
   const { friends, createEvent } = useSocial();
+  const { profile } = useAuth();
   const [title, setTitle] = useState('');
   const [startsAt, setStartsAt] = useState(defaultStart);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const toggle = (id: string) =>
+  // 8 people per group lock-in (you included), 30 with Lockin+. The database checks it too.
+  const maxInvites = isPremium(profile) ? 29 : 7;
+  const toggle = (id: string) => {
+    if (!selected.has(id) && selected.size >= maxInvites) {
+      Alert.alert(
+        'Groupe plein',
+        isPremium(profile) ? '30 personnes max, toi compris.' : '8 personnes max, toi compris. Avec Lockin+, jusqu’à 30.',
+        isPremium(profile) ? undefined : [{ text: 'OK', style: 'cancel' }, { text: 'Voir Lockin+', onPress: () => router.push('/premium') }],
+      );
+      return;
+    }
     setSelected((s) => {
       const next = new Set(s);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  };
 
   // Keep the time when the day changes, and the day when the time changes.
   const setDay = (d: Date) => {
@@ -91,7 +104,7 @@ export default function NewEvent() {
             <DateField label="Heure" mode="time" value={startsAt} onChange={setTime} />
           </View>
 
-          <Section title={`Inviter (${selected.size})`}>
+          <Section title={`Inviter (${selected.size}/${maxInvites})`}>
             {friends.map((f) => {
               const on = selected.has(f.profile.id);
               return (

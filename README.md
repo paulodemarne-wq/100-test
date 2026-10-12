@@ -108,6 +108,9 @@ src/lib/
 
 - Badge à côté du prénom (12 symboles, 3 couleurs, style Snap), décoration de photo en 3D (anneau de feu, couronne, ange…),
   l'œuf Lockin+ (10 animaux exclusifs avec chacun une signature en 3D) et 6 décos d'île gratuites.
+- Aussi : titre sous le prénom, renommer son animal (montré en grand sur le profil), 2 jokers de série par mois,
+  stats détaillées, thèmes du chrono avec fond animé et l'animal qui réagit, un accessoire offert chaque mois,
+  2 îles en plus (neige, volante), lock in de groupe jusqu'à 30 (8 sans Lockin+).
 - La photo de profil est gratuite pour tout le monde.
 - C'est la base qui décide qui a Lockin+ (`profiles.premium_until`, ou un compte vedette) : rien ne peut être triché depuis l'app.
 - Parrainage : un pote qui prend Lockin+ avec ton code = 1 mois offert chacun. Un abonné peut offrir 5 essais de 7 jours.
@@ -119,6 +122,10 @@ src/lib/
 Écran « Mode partiels » (depuis Focus ou le profil) : compte à rebours, heures à faire par jour calculées toutes seules,
 objectif du jour, planning de la semaine qui se recalcule, alerte quand tu prends du retard, et partiels en commun :
 tu invites tes potes, ils rejoignent, et vous avez le classement des heures de révision.
+
+## Logo
+
+Le cadenas qui garde l'anneau du chrono (`scripts/icon/make.js` génère les icônes de `assets/`).
 
 ## Messagerie
 

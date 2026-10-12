@@ -380,8 +380,16 @@ export const GARDEN_SLOT_NAMES: Record<GardenSlot, string> = {
   boat: 'Bateau',
 };
 
+/** Accessory of the month, in turn. Must match monthly_accessory() in supabase/schema.sql. */
+export const MONTHLY_ACCESSORIES = ['tiara', 'bunny', 'galaxy', 'butterfly'];
+export function monthlyAccessory(now = new Date()): string {
+  return MONTHLY_ACCESSORIES[(now.getFullYear() * 12 + now.getMonth()) % MONTHLY_ACCESSORIES.length];
+}
+
 /** Whether the player can use this item (bought, or free; Lockin+ items need the subscription). */
 export function ownsItem(item: ShopItem, inventory: string[], premium = false): boolean {
+  // A claimed accessory of the month stays yours.
+  if (item.monthly) return inventory.includes(item.id);
   if (item.premium && !premium) return false;
   return item.costHours === 0 || inventory.includes(item.id);
 }
@@ -397,6 +405,8 @@ export type ShopItem = {
   emoji?: string;
   /** Only for Lockin+ subscribers. */
   premium?: boolean;
+  /** Lockin+ accessory of the month: claimed for free during its month (see monthlyAccessory). */
+  monthly?: boolean;
 };
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -496,6 +506,11 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'size28', name: 'Île 28×28', kind: 'upgrade', slot: null, rarity: 'mythique', costHours: 250, emoji: '🏝️' },
   { id: 'size32', name: 'Île 32×32', kind: 'upgrade', slot: null, rarity: 'légendaire', costHours: 500, emoji: '🏝️' },
   // Lockin+ (subscription): an egg with the 10 exclusive creatures, and decorations free for subscribers.
+  // Accessory of the month (Lockin+): free to claim during its month, kept for good.
+  { id: 'tiara', name: 'Diadème étoilé', kind: 'accessory', slot: 'head', rarity: 'légendaire', costHours: 0, premium: true, monthly: true },
+  { id: 'bunny', name: 'Oreilles de lapin', kind: 'accessory', slot: 'head', rarity: 'légendaire', costHours: 0, premium: true, monthly: true },
+  { id: 'galaxy', name: 'Écharpe galaxie', kind: 'accessory', slot: 'neck', rarity: 'légendaire', costHours: 0, premium: true, monthly: true },
+  { id: 'butterfly', name: 'Ailes de papillon', kind: 'accessory', slot: 'back', rarity: 'légendaire', costHours: 0, premium: true, monthly: true },
   { id: 'egg_plus', name: 'Œuf Lockin+', kind: 'egg', slot: null, rarity: 'légendaire', costHours: 50, emoji: '🥚', premium: true },
   { id: 'portal', name: 'Portail magique', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '🌀', premium: true },
   { id: 'crystals', name: 'Cristaux lumineux', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '💠', premium: true },

@@ -1748,3 +1748,143 @@ begin
 end $$;
 revoke execute on function public.rename_pet(uuid, text) from public, anon;
 grant execute on function public.rename_pet(uuid, text) to authenticated;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- v19: more Lockin+: the accessory of the month, two more islands (snow, floating),
+-- and bigger group lock-ins (30 people instead of 8).
+-- ═════════════════════════════════════════════════════════════════════════════
+insert into public.shop_items (id, kind, slot, rarity, cost_seconds, premium) values
+  ('tiara', 'accessory', 'head', 'légendaire', 0, true),
+  ('bunny', 'accessory', 'head', 'légendaire', 0, true),
+  ('galaxy', 'accessory', 'neck', 'légendaire', 0, true),
+  ('butterfly', 'accessory', 'back', 'légendaire', 0, true)
+on conflict (id) do update set kind = excluded.kind, slot = excluded.slot, rarity = excluded.rarity,
+  cost_seconds = excluded.cost_seconds, premium = excluded.premium;
+
+-- Must match MONTHLY_ACCESSORIES in src/creatures/species.ts.
+create or replace function public.monthly_accessory()
+returns text language sql stable set search_path = public as $$
+  select (array['tiara', 'bunny', 'galaxy', 'butterfly'])[
+    ((extract(year from now() at time zone 'Europe/Paris')::int * 12 + extract(month from now() at time zone 'Europe/Paris')::int - 1) % 4) + 1];
+$$;
+
+create or replace function public.claim_monthly_accessory()
+returns text language plpgsql security definer set search_path = public as $$
+declare item text := public.monthly_accessory();
+begin
+  if not public.is_premium(auth.uid()) then raise exception 'Réservé à Lockin+' using errcode = 'P0001'; end if;
+  insert into public.inventory (user_id, item_id) values (auth.uid(), item) on conflict do nothing;
+  return item;
+end $$;
+revoke execute on function public.claim_monthly_accessory() from public, anon;
+grant execute on function public.claim_monthly_accessory() to authenticated;
+
+-- Islands 2 (snow) and 3 (floating, on clouds): Lockin+ only, same stock of objects as the first one.
+alter table public.profiles add column if not exists world2 jsonb, add column if not exists world3 jsonb;
+
+create or replace function public.save_world(world jsonb, island int)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  size int;
+  sea boolean := coalesce((world->>'sea')::boolean, false);
+  tiles text := world->>'tiles';
+  objects jsonb := world->'objects';
+  tile_items constant jsonb := '{"g":"grass","p":"path","o":"cobble","w":"water","f":"meadow","s":"beach","d":"wood","n":"snow","c":"clouds"}';
+  ch text;
+  o jsonb;
+  x int;
+  z int;
+  boat boolean;
+  -- The other islands' objects count against the same stock.
+  others jsonb;
+  free_tile text := case island when 2 then 'n' when 3 then 'c' else '' end;
+begin
+  if auth.uid() is null then raise exception 'Non connecté'; end if;
+  if island not in (1, 2, 3) then raise exception 'Île invalide'; end if;
+  if island > 1 and not public.is_premium(auth.uid()) then raise exception 'Réservé à Lockin+' using errcode = 'P0001'; end if;
+  select case when island = 1 then '[]'::jsonb else coalesce(p.world->'objects', '[]'::jsonb) end
+    || case when island = 2 then '[]'::jsonb else coalesce(p.world2->'objects', '[]'::jsonb) end
+    || case when island = 3 then '[]'::jsonb else coalesce(p.world3->'objects', '[]'::jsonb) end
+    into others from public.profiles p where p.id = auth.uid();
+  size := coalesce((world->>'size')::int, 16);
+  if size not in (16, 20, 24, 28, 32) then raise exception 'Île invalide'; end if;
+  if size > 16 and not exists (select 1 from public.inventory where user_id = auth.uid() and item_id = 'size' || size) then
+    raise exception 'Agrandissement non acheté';
+  end if;
+  if sea and not exists (select 1 from public.inventory where user_id = auth.uid() and item_id = 'sea') then
+    raise exception 'Mer non achetée';
+  end if;
+  if tiles is null or length(tiles) <> size * size or tiles !~ '^[gpowfsdnc]+$' then raise exception 'Île invalide'; end if;
+  if objects is null or jsonb_typeof(objects) <> 'array' or jsonb_array_length(objects) > 200 then
+    raise exception 'Trop d''objets (200 max)';
+  end if;
+  -- Without Lockin+ (it ended), its decorations are taken off the island instead of blocking the save.
+  if not public.is_premium(auth.uid()) then
+    select coalesce(jsonb_agg(e), '[]'::jsonb) into objects
+    from jsonb_array_elements(objects) e
+    where not exists (select 1 from public.shop_items s where s.id = e->>0 and s.premium);
+  end if;
+  for ch in select distinct c from regexp_split_to_table(tiles, '') as c loop
+    -- The snow island's snow and the floating island's clouds come free with it.
+    if ch <> free_tile and not public.owns_item(auth.uid(), tile_items->>ch) then raise exception 'Sol non possédé'; end if;
+  end loop;
+  for o in select * from jsonb_array_elements(objects) loop
+    if jsonb_typeof(o) <> 'array' or jsonb_array_length(o) <> 4
+      or jsonb_typeof(o->1) <> 'number' or jsonb_typeof(o->2) <> 'number' or jsonb_typeof(o->3) <> 'number'
+      or (o->>1)::numeric <> floor((o->>1)::numeric) or (o->>2)::numeric <> floor((o->>2)::numeric)
+      or (o->>3)::numeric not in (0, 1, 2, 3) then
+      raise exception 'Objet mal placé';
+    end if;
+    x := (o->>1)::numeric::int;
+    z := (o->>2)::numeric::int;
+    if not exists (select 1 from public.shop_items where id = o->>0 and kind in ('garden', 'special') and slot <> 'ground')
+      or not public.owns_item(auth.uid(), o->>0) then
+      raise exception 'Objet non possédé';
+    end if;
+    boat := exists (select 1 from public.shop_items where id = o->>0 and slot = 'boat');
+    -- No more copies of a paid object than bought.
+    if exists (select 1 from public.shop_items where id = o->>0 and cost_seconds > 0) and
+       (select count(*) from jsonb_array_elements(objects) e where e->>0 = o->>0)
+       + (select count(*) from jsonb_array_elements(others) e where e->>0 = o->>0) >
+       coalesce((select quantity from public.inventory where user_id = auth.uid() and item_id = o->>0), 0) then
+      raise exception 'Tu n''as pas assez de % : achète-en un de plus', o->>0 using errcode = 'P0001';
+    end if;
+    if x >= 0 and z >= 0 and x < size and z < size then
+      -- On the island: boats only on water tiles.
+      if boat and substr(tiles, z * size + x + 1, 1) <> 'w' then raise exception 'Un bateau doit être sur l''eau'; end if;
+    elsif not (boat and sea and x >= -4 and z >= -4 and x < size + 4 and z < size + 4) then
+      raise exception 'Objet mal placé';
+    end if;
+  end loop;
+  if island = 1 then
+    update public.profiles set world = jsonb_build_object('v', 2, 'size', size, 'sea', sea, 'tiles', tiles, 'objects', objects) where id = auth.uid();
+  elsif island = 2 then
+    update public.profiles set world2 = jsonb_build_object('v', 2, 'size', size, 'sea', sea, 'tiles', tiles, 'objects', objects) where id = auth.uid();
+  else
+    update public.profiles set world3 = jsonb_build_object('v', 2, 'size', size, 'sea', sea, 'tiles', tiles, 'objects', objects) where id = auth.uid();
+  end if;
+end $$;
+revoke execute on function public.save_world(jsonb, int) from public, anon;
+grant execute on function public.save_world(jsonb, int) to authenticated;
+
+-- The first island keeps its old entry point.
+create or replace function public.save_world(world jsonb)
+returns void language sql security definer set search_path = public as $$
+  select public.save_world(world, 1);
+$$;
+
+-- Group lock-ins: 8 people, or 30 when the host has Lockin+.
+create or replace function public.check_event_size()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  host uuid := public.event_host(new.event_id);
+  cap int := case when public.is_premium(host) then 30 else 8 end;
+begin
+  if (select count(*) from public.event_members where event_id = new.event_id) >= cap then
+    raise exception 'Lock in de groupe plein (% personnes max%)', cap, case when cap = 8 then ', 30 avec Lockin+' else '' end using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+drop trigger if exists check_event_size on public.event_members;
+create trigger check_event_size before insert on public.event_members
+  for each row execute function public.check_event_size();

@@ -5,13 +5,14 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetView } from '../components/PetView';
-import { GARDEN_SLOT_NAMES, GardenSlot, levelFor, ownsItem, RARITY_COLORS, SHOP_ITEMS, ShopItem, Slot, SLOT_NAMES } from '../creatures/species';
+import { GARDEN_SLOT_NAMES, GardenSlot, levelFor, monthlyAccessory, ownsItem, RARITY_COLORS, SHOP_ITEMS, ShopItem, Slot, SLOT_NAMES } from '../creatures/species';
 import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
 import { formatDuration } from '../lib/time';
 import { formatWallet, walletSeconds } from '../lib/wallet';
 import { isPremium } from '../lib/premium';
+import { errorMessage, supabase } from '../lib/supabase';
 
 /** Time left before the daily shop changes (midnight, Paris time). */
 function msUntilNextShop(now: Date): number {
@@ -34,7 +35,7 @@ function msUntilNextShop(now: Date): number {
 
 export default function Shop() {
   const { profile, reloadProfile } = useAuth();
-  const { pets, inventory, stock, buyItem, equipItem, deals, buyDeal, featured } = useSocial();
+  const { pets, inventory, stock, buyItem, equipItem, deals, buyDeal, featured, refresh } = useSocial();
   const params = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<'pet' | 'garden' | 'deals'>(
     params.tab === 'garden' ? 'garden' : params.tab === 'deals' ? 'deals' : 'pet',
@@ -59,6 +60,20 @@ export default function Shop() {
   const buy = (item: ShopItem) => {
     if (item.premium && !premium) {
       router.push('/premium');
+      return;
+    }
+    if (item.monthly) {
+      // Free for subscribers during its month, kept for good.
+      setBuying(item.id);
+      supabase
+        .rpc('claim_monthly_accessory')
+        .then(async ({ error }) => {
+          if (error) return Alert.alert('Oups', errorMessage(error));
+          await refresh();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert(`${item.name} récupéré 🎁`, 'Il est à toi pour de bon. Équipe-le sur ton animal.');
+        })
+        .then(() => setBuying(null));
       return;
     }
     const deal = dealFor(item);
@@ -147,10 +162,14 @@ export default function Shop() {
           })),
         ]
       : [
+          {
+            title: 'Accessoire du mois · Lockin+',
+            items: SHOP_ITEMS.filter((i) => i.monthly && (i.id === monthlyAccessory() || inventory.includes(i.id))),
+          },
           { title: 'Œuf', items: SHOP_ITEMS.filter((i) => i.kind === 'egg') },
           ...(['head', 'eyes', 'neck', 'back'] as const).map((slot) => ({
             title: { head: 'Chapeaux', eyes: 'Lunettes', neck: 'Cou', back: 'Dos' }[slot],
-            items: SHOP_ITEMS.filter((i) => i.kind === 'accessory' && i.slot === slot),
+            items: SHOP_ITEMS.filter((i) => i.kind === 'accessory' && i.slot === slot && !i.monthly),
           })),
         ];
   /** Bigger islands are bought in order: 20×20 before 24×24, etc. */
@@ -272,7 +291,7 @@ export default function Shop() {
                       </Text>
                     )}
                     <Text style={[styles.buyText, { color: affordable ? colors.onAccent : colors.secondary }]}>
-                      {buying === item.id ? '…' : price === 0 ? 'Gratuit' : `${price} h`}
+                      {buying === item.id ? '…' : item.monthly ? 'Récupérer 🎁' : price === 0 ? 'Gratuit' : `${price} h`}
                     </Text>
                   </Pressable>
                 )}
