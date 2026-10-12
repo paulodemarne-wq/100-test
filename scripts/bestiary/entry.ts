@@ -5,7 +5,7 @@ import { addLights, buildCreature, Creature } from '../../src/creatures/build';
 import { buildDecor, makeKit, TILE_COLORS } from '../../src/world/decor';
 import { buildIsland, IslandCamera, PetSpec } from '../../src/world/scene';
 import { defaultWorld, World } from '../../src/world/world';
-import { displayName, Equipped, LEVEL_HOURS, LEVEL_UNLOCKS, PLAN_NAMES, SHOP_ITEMS, SPECIES, TIERS, formFor, tierFor } from '../../src/creatures/species';
+import { displayName, Equipped, LEVEL_HOURS, LEVEL_UNLOCKS, PLAN_NAMES, PLUS_SPECIES, SHOP_ITEMS, Species, SPECIES, speciesById, TIERS, formFor, tierFor } from '../../src/creatures/species';
 
 type Item = { species: number | null; level: number; equipped?: Equipped };
 
@@ -301,23 +301,27 @@ function mountDecor(canvas: HTMLCanvasElement, opts: { ids: string[]; cols: numb
   };
 }
 
+const card = (s: Species) => ({
+  id: s.id,
+  names: s.names,
+  element: s.element.name,
+  line: s.line.map((p) => PLAN_NAMES[p]),
+  color: s.traits.body,
+});
+
 (window as unknown as { LockinBestiary: unknown }).LockinBestiary = {
   mountDecor,
   mount,
   mountWorld,
   defaultWorld,
-  species: SPECIES.map((s) => ({
-    id: s.id,
-    names: s.names,
-    element: s.element.name,
-    line: s.line.map((p) => PLAN_NAMES[p]),
-    color: s.traits.body,
-  })),
+  species: SPECIES.map(card),
+  /** The 10 Lockin+ creatures (ids 100..109). */
+  plusSpecies: PLUS_SPECIES.map(card),
   tiers: TIERS,
   levelHours: LEVEL_HOURS,
   unlocks: LEVEL_UNLOCKS,
   tierFor,
   formFor,
-  nameAt: (id: number, level: number) => displayName(SPECIES[id] ?? null, level),
+  nameAt: (id: number, level: number) => displayName(speciesById(id), level),
   items: SHOP_ITEMS,
 };
