@@ -14,20 +14,23 @@ export function weekSeconds(sessions: SessionRow[], now = new Date()): number {
 
 export type StreakInfo = {
   days: number;
-  /** Day keys rescued by a joker (one per calendar month). */
+  /** Day keys rescued by a joker (1 per calendar month, 2 with Lockin+). */
   jokerDays: string[];
-  /** Whether this month's joker is still available. */
+  /** Whether a joker is still available this month. */
   jokerAvailable: boolean;
+  jokersLeft: number;
 };
 
 /**
  * Consecutive days with a completed session, ending today (or yesterday if nothing yet today).
  * One missed day per calendar month is forgiven automatically (the "joker").
  */
-export function streakInfo(sessions: SessionRow[], now = new Date()): StreakInfo {
+/** `jokers`: days forgiven per month (1, or 2 with Lockin+). */
+export function streakInfo(sessions: SessionRow[], now = new Date(), jokers = 1): StreakInfo {
   const days = new Set(done(sessions).map((s) => dayKey(new Date(s.started_at))));
   const monthOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
-  const usedMonths = new Set<string>();
+  const used = new Map<string, number>();
+  const left = (d: Date) => jokers - (used.get(monthOf(d)) ?? 0);
   const jokerDays: string[] = [];
   const cursor = new Date(now);
   if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
@@ -36,20 +39,20 @@ export function streakInfo(sessions: SessionRow[], now = new Date()): StreakInfo
     if (days.has(dayKey(cursor))) {
       count++;
     } else {
-      // A joker only bridges a gap: the day before must have a session, and the month's joker must be free.
+      // A joker only bridges a one-day gap: the day before must have a session, and a joker must be left this month.
       const before = new Date(cursor);
       before.setDate(before.getDate() - 1);
-      if (usedMonths.has(monthOf(cursor)) || !days.has(dayKey(before))) break;
-      usedMonths.add(monthOf(cursor));
+      if (left(cursor) <= 0 || !days.has(dayKey(before))) break;
+      used.set(monthOf(cursor), (used.get(monthOf(cursor)) ?? 0) + 1);
       jokerDays.push(dayKey(cursor));
     }
     cursor.setDate(cursor.getDate() - 1);
   }
-  return { days: count, jokerDays, jokerAvailable: !usedMonths.has(monthOf(now)) };
+  return { days: count, jokerDays, jokerAvailable: left(now) > 0, jokersLeft: Math.max(0, left(now)) };
 }
 
-export function streak(sessions: SessionRow[], now = new Date()): number {
-  return streakInfo(sessions, now).days;
+export function streak(sessions: SessionRow[], now = new Date(), jokers = 1): number {
+  return streakInfo(sessions, now, jokers).days;
 }
 
 export type Badge = { id: string; emoji: string; name: string; description: string; unlocked: boolean };

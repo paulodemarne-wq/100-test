@@ -17,12 +17,15 @@ import * as stats from '../lib/stats';
 import { useLockin } from '../lib/store';
 import { card, colors, type } from '../lib/theme';
 import { dayKey, formatDuration } from '../lib/time';
-import { decorationOf, isPremium } from '../lib/premium';
+import { decorationOf, isPremium, titleOf } from '../lib/premium';
+import { PetView } from '../components/PetView';
+import { displayName, levelFor, speciesById } from '../creatures/species';
 import { Named } from '../components/Badge';
 
 export default function Profile() {
   const { profile, setPhoto, signOut, updateSettings } = useAuth();
-  const { mySessions, myWeekSeconds, myStreak, myStreakInfo, exams } = useSocial();
+  const { mySessions, myWeekSeconds, myStreak, myStreakInfo, exams, pets } = useSocial();
+  const pet = pets[0] ?? null;
   const [reminder, setReminder] = useState<ReminderSetting>(DEFAULT_REMINDER);
   useEffect(() => {
     loadReminder().then(setReminder);
@@ -98,8 +101,24 @@ export default function Profile() {
           <Text style={[type.title, { marginTop: decorationOf(profile) ? 36 : 12 }]}>
             <Named person={profile} size={22} />
           </Text>
+          {titleOf(profile) && <Text style={styles.title}>{titleOf(profile)}</Text>}
           <Text style={type.subhead}>@{profile.username}</Text>
         </View>
+
+        {pet && (
+          <Pressable onPress={() => router.navigate('/pet')} style={styles.petCard}>
+            <PetView species={pet.species} level={levelFor(pet.xp_seconds)} equipped={pet.equipped} interactive={false} style={{ width: 150, height: 170 }} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={type.footnote}>MON ANIMAL</Text>
+              <Text style={styles.petName} numberOfLines={1}>
+                {pet.nickname ?? displayName(speciesById(pet.species), levelFor(pet.xp_seconds))}
+              </Text>
+              <Text style={type.subhead}>
+                {pet.nickname ? `${displayName(speciesById(pet.species), levelFor(pet.xp_seconds))} · ` : ''}Niv. {levelFor(pet.xp_seconds)}
+              </Text>
+            </View>
+          </Pressable>
+        )}
 
         <View style={styles.stats}>
           {[
@@ -126,11 +145,11 @@ export default function Profile() {
 
         <Section
           title="Série"
-          footer="Un jour raté par mois est pardonné automatiquement, pour ne pas perdre ta série sur une journée de flemme."
+          footer="Un jour raté par mois est pardonné automatiquement (2 avec Lockin+), pour ne pas perdre ta série sur une journée de flemme."
         >
           <Row
             left={<Text style={{ fontSize: 28 }}>🛡️</Text>}
-            title={myStreakInfo.jokerAvailable ? 'Joker du mois disponible' : 'Joker du mois utilisé'}
+            title={myStreakInfo.jokersLeft > 0 ? `${myStreakInfo.jokersLeft} joker${myStreakInfo.jokersLeft > 1 ? 's' : ''} dispo ce mois-ci` : 'Jokers du mois utilisés'}
             subtitle={
               myStreakInfo.jokerDays.length
                 ? `Il a sauvé ta série le ${myStreakInfo.jokerDays
@@ -246,6 +265,9 @@ const styles = StyleSheet.create({
   },
   stats: { flexDirection: 'row', gap: 10, marginTop: 20 },
   duo: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  title: { fontSize: 15, fontWeight: '700', color: colors.accent, marginTop: 2 },
+  petCard: { ...card, flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 16, marginTop: 16, overflow: 'hidden' },
+  petName: { fontSize: 24, fontWeight: '800', color: colors.text },
   duoCard: { ...card, flex: 1, padding: 14, gap: 2 },
   stat: { ...card, flex: 1, padding: 12, alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: '700', color: colors.text },

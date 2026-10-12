@@ -3,7 +3,7 @@
 import type { ImageSourcePropType } from 'react-native';
 import type { ProfileRow } from './supabase';
 
-type Someone = Pick<ProfileRow, 'featured' | 'premium_until' | 'badge' | 'badge_color' | 'decoration'> | null | undefined;
+type Someone = Pick<ProfileRow, 'featured' | 'premium_until' | 'badge' | 'badge_color' | 'decoration'> & Partial<Pick<ProfileRow, 'title'>> | null | undefined;
 
 export const PLUS_NAME = 'Lockin+';
 /** Shown on the Lockin+ screen (the real price comes from the App Store once payments are on). */
@@ -71,6 +71,27 @@ export const DECORATIONS: {
   { id: 'orbit', name: 'Étoiles en orbite', hint: 'Ça gravite autour de toi', image: require('../../assets/decorations/orbit.png') },
   { id: 'sakura', name: 'Sakura', hint: 'Branche en fleurs', image: require('../../assets/decorations/sakura.png') },
 ];
+
+/** Titles shown under the name. Must match profiles_title_check. */
+export const TITLES = [
+  'Machine de guerre',
+  'Roi des partiels',
+  'Reine des partiels',
+  'Lève-tôt',
+  'Oiseau de nuit',
+  'Inarrêtable',
+  'Cerveau en feu',
+  'Rat de bibliothèque',
+  'Zéro distraction',
+  'Futur major',
+  'Mode moine',
+  'Légende de la BU',
+] as const;
+
+/** This person's title (only while they have Lockin+). */
+export function titleOf(p: Someone): string | null {
+  return isPremium(p) ? (p?.title ?? null) : null;
+}
 
 /** This person's badge (only while they have Lockin+). */
 export function badgeOf(p: Someone): { d: string; color: string } | null {

@@ -9,7 +9,7 @@ import { Badge } from '../components/Badge';
 import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { errorMessage, supabase } from '../lib/supabase';
-import { BADGE_COLORS, BADGES, DECORATIONS, isPremium, PLUS_NAME, PLUS_PERKS, PLUS_PRICE, PLUS_PRICE_YEAR } from '../lib/premium';
+import { BADGE_COLORS, BADGES, DECORATIONS, isPremium, PLUS_NAME, PLUS_PERKS, PLUS_PRICE, PLUS_PRICE_YEAR, TITLES } from '../lib/premium';
 import { card, colors, type } from '../lib/theme';
 
 /** Lockin+: what it gives, how to get it, and (once you have it) your badge and photo decoration. */
@@ -156,6 +156,23 @@ export default function Premium() {
           </View>
         </View>
 
+        <Text style={styles.sectionTitle}>MON TITRE (SOUS TON PRÉNOM)</Text>
+        <View style={[card, styles.pickerCard]}>
+          <View style={styles.titles}>
+            <Pressable onPress={() => save({ title: null })} style={[styles.chip, premium && !profile.title && styles.chipOn]}>
+              <Text style={[styles.chipText, premium && !profile.title && { color: colors.onAccent }]}>Aucun</Text>
+            </Pressable>
+            {TITLES.map((t) => {
+              const on = premium && profile.title === t;
+              return (
+                <Pressable key={t} onPress={() => save({ title: t })} style={[styles.chip, on && styles.chipOn]}>
+                  <Text style={[styles.chipText, on && { color: colors.onAccent }]}>{t}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
         <Text style={styles.sectionTitle}>MA DÉCORATION DE PHOTO</Text>
         <View style={[card, styles.pickerCard]}>
           <View style={styles.grid}>
@@ -257,6 +274,7 @@ const styles = StyleSheet.create({
   sectionTitle: { ...type.footnote, fontWeight: '700', marginTop: 8, marginLeft: 4 },
   pickerCard: { padding: 12, gap: 12 },
   colors: { flexDirection: 'row', gap: 8 },
+  titles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.fill },
   chipOn: { backgroundColor: colors.text },
   chipText: { fontSize: 14, fontWeight: '700', color: colors.text },

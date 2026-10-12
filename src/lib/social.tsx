@@ -2,6 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { AppState } from 'react-native';
 import { useAuth } from './auth';
 import * as stats from './stats';
+import { isPremium } from './premium';
 import {
   errorMessage,
   EventMemberRow,
@@ -336,7 +337,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       const p = allProfiles[id];
       if (!p) return null;
       const own = byUser[id] ?? [];
-      return { profile: p, status: statusOf(own, now), weekSeconds: stats.weekSeconds(own), streak: stats.streak(own) };
+      return { profile: p, status: statusOf(own, now), weekSeconds: stats.weekSeconds(own), streak: stats.streak(own, new Date(now), isPremium(p) ? 2 : 1) };
     };
 
     const friends: Person[] = [];
@@ -461,8 +462,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       shameWall,
       mySessions,
       myWeekSeconds,
-      myStreak: stats.streak(mySessions),
-      myStreakInfo: stats.streakInfo(mySessions),
+      myStreak: stats.streak(mySessions, new Date(), isPremium(profile) ? 2 : 1),
+      myStreakInfo: stats.streakInfo(mySessions, new Date(), isPremium(profile) ? 2 : 1),
       weekLeaderId: top.seconds > 0 ? top.id : null,
       reactions,
       pets: myPets,

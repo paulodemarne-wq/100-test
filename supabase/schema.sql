@@ -1708,3 +1708,43 @@ begin
     alter publication supabase_realtime add table public.messages;
   end if;
 end $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- v18: Lockin+ extras: a title under the name, and a name for your pet.
+-- ═════════════════════════════════════════════════════════════════════════════
+alter table public.profiles add column if not exists title text;
+alter table public.profiles drop constraint if exists profiles_title_check;
+alter table public.profiles add constraint profiles_title_check check (title is null or title in (
+  'Machine de guerre', 'Roi des partiels', 'Reine des partiels', 'Lève-tôt', 'Oiseau de nuit', 'Inarrêtable',
+  'Cerveau en feu', 'Rat de bibliothèque', 'Zéro distraction', 'Futur major', 'Mode moine', 'Légende de la BU'));
+grant update (title) on public.profiles to authenticated;
+
+create or replace function public.check_profile_premium()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  -- The SQL editor (no signed-in user) can do anything.
+  if auth.uid() is null or public.is_premium(new.id) then return new; end if;
+  if (new.badge is not null and (tg_op = 'INSERT' or new.badge is distinct from old.badge))
+     or (new.decoration is not null and (tg_op = 'INSERT' or new.decoration is distinct from old.decoration))
+     or (new.title is not null and (tg_op = 'INSERT' or new.title is distinct from old.title)) then
+    raise exception 'Réservé à Lockin+' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+drop trigger if exists check_profile_premium on public.profiles;
+create trigger check_profile_premium before insert or update of badge, decoration, title on public.profiles
+  for each row execute function public.check_profile_premium();
+
+alter table public.pets add column if not exists nickname text;
+alter table public.pets drop constraint if exists pets_nickname_check;
+alter table public.pets add constraint pets_nickname_check check (nickname is null or char_length(nickname) between 1 and 20);
+
+create or replace function public.rename_pet(pet uuid, name text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_premium(auth.uid()) then raise exception 'Réservé à Lockin+' using errcode = 'P0001'; end if;
+  update public.pets set nickname = nullif(trim(name), '') where id = pet and user_id = auth.uid();
+  if not found then raise exception 'Animal introuvable' using errcode = 'P0001'; end if;
+end $$;
+revoke execute on function public.rename_pet(uuid, text) from public, anon;
+grant execute on function public.rename_pet(uuid, text) to authenticated;

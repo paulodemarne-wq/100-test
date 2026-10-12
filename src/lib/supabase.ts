@@ -50,6 +50,8 @@ export type ProfileRow = {
   decoration: string | null;
   /** Code to share: a friend who takes Lockin+ with it gives both one month. */
   referral_code: string;
+  /** Lockin+: title shown under the name (see TITLES). */
+  title: string | null;
   referred_by: string | null;
 };
 
@@ -75,6 +77,8 @@ export type PetRow = {
   equipped: Partial<Record<'head' | 'eyes' | 'neck' | 'back', string>>;
   created_at: string;
   hatched_at: string | null;
+  /** Lockin+: a name given by the owner. */
+  nickname: string | null;
 };
 
 export type SessionRow = {

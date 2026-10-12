@@ -8,7 +8,7 @@ import { Avatar } from '../../components/Avatar';
 import { Named } from '../../components/Badge';
 import { useAuth } from '../../lib/auth';
 import { useChat } from '../../lib/chat';
-import { decorationOf } from '../../lib/premium';
+import { decorationOf, titleOf } from '../../lib/premium';
 import { useSocial } from '../../lib/social';
 import { colors, type } from '../../lib/theme';
 
@@ -68,7 +68,7 @@ export default function ChatScreen() {
           <Text style={type.headline} numberOfLines={1}>
             <Named person={friend.profile} />
           </Text>
-          <Text style={type.footnote}>{friend.status.kind === 'working' ? 'En lock in 🔒' : `@${friend.profile.username}`}</Text>
+          <Text style={type.footnote}>{friend.status.kind === 'working' ? 'En lock in 🔒' : (titleOf(friend.profile) ?? `@${friend.profile.username}`)}</Text>
         </View>
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>

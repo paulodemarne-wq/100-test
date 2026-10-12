@@ -26,6 +26,9 @@ import { useSocial } from '../../lib/social';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration } from '../../lib/time';
 import { formatWallet, walletSeconds } from '../../lib/wallet';
+import { isPremium } from '../../lib/premium';
+import { errorMessage, supabase } from '../../lib/supabase';
+import * as Haptics from 'expo-haptics';
 
 const SLOTS: Slot[] = ['head', 'eyes', 'neck', 'back'];
 
@@ -102,6 +105,30 @@ export default function PetScreen() {
 
   const visitors = friends.filter((f) => friendPets[f.profile.id]).length;
 
+  /** Lockin+: give the active pet a name. */
+  const rename = () => {
+    if (!pet) return;
+    if (!isPremium(profile)) {
+      Alert.alert('Renommer ton animal', 'Avec Lockin+, tu peux lui donner le nom que tu veux.', [
+        { text: 'Plus tard', style: 'cancel' },
+        { text: 'Voir Lockin+', onPress: () => router.push('/premium') },
+      ]);
+      return;
+    }
+    Alert.prompt(
+      'Son nom',
+      '20 lettres max. Laisse vide pour revenir au nom de son espèce.',
+      async (name) => {
+        const { error } = await supabase.rpc('rename_pet', { pet: pet.id, name: name ?? '' });
+        if (error) return fail(new Error(errorMessage(error)));
+        Haptics.selectionAsync();
+        refresh();
+      },
+      'plain-text',
+      pet.nickname ?? '',
+    );
+  };
+
   const switchPet = async (id: string) => {
     setBusy(true);
     try {
@@ -119,10 +146,16 @@ export default function PetScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={type.footnote}>{species && form > 0 ? `${species.element.name} · ${PLAN_NAMES[species.line[form - 1]]}` : 'Il éclot après 5 h 30 de lock in'}</Text>
-            <Text style={type.largeTitle} numberOfLines={1}>
-              {displayName(species, level)}
+            <Text style={type.footnote}>
+              {pet?.nickname ? `${displayName(species, level)} · ` : ''}
+              {species && form > 0 ? `${species.element.name} · ${PLAN_NAMES[species.line[form - 1]]}` : 'Il éclot après 5 h 30 de lock in'}
             </Text>
+            <Pressable onPress={rename} hitSlop={6} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[type.largeTitle, { flexShrink: 1 }]} numberOfLines={1}>
+                {pet?.nickname ?? displayName(species, level)}
+              </Text>
+              {pet && <Ionicons name="pencil" size={16} color={colors.tertiary} />}
+            </Pressable>
           </View>
           <Pressable onPress={() => router.push('/shop')} style={styles.wallet} hitSlop={8}>
             <Ionicons name="hourglass" size={16} color={colors.accent} />
