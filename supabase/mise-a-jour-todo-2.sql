@@ -63,25 +63,28 @@ end $$;
 create or replace function public.feed_todo()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
-  left_sec int := coalesce(new.duration_sec, 0);
+  duration int := coalesce(new.duration_sec, 0);
+  total numeric := 0;
+  k numeric;
   part record;
-  sec int;
 begin
-  if new.status <> 'done' or old.status is not distinct from 'done' or left_sec <= 0 then
+  if new.status <> 'done' or old.status is not distinct from 'done' or duration <= 0 then
     return new;
   end if;
   if new.todo_split is not null and new.todo_split <> '{}'::jsonb then
     for part in select key, value from jsonb_each(new.todo_split) loop
-      exit when left_sec <= 0;
       continue when part.key !~ '^[0-9a-fA-F-]{36}$' or jsonb_typeof(part.value) <> 'number';
-      sec := floor(least(left_sec::numeric, greatest(0, (part.value #>> '{}')::numeric)))::int;
-      continue when sec <= 0;
-      update public.todos set worked_seconds = worked_seconds + sec
+      total := total + greatest(0, (part.value #>> '{}')::numeric);
+    end loop;
+    -- More time announced than the session lasted: every part shrinks by the same factor.
+    k := greatest(total, duration);
+    for part in select key, value from jsonb_each(new.todo_split) loop
+      continue when part.key !~ '^[0-9a-fA-F-]{36}$' or jsonb_typeof(part.value) <> 'number';
+      update public.todos set worked_seconds = worked_seconds + floor(greatest(0, (part.value #>> '{}')::numeric) * duration / k)::int
       where id = part.key::uuid and user_id = new.user_id;
-      if found then left_sec := left_sec - sec; end if;
     end loop;
   elsif new.todo_id is not null then
-    update public.todos set worked_seconds = worked_seconds + left_sec
+    update public.todos set worked_seconds = worked_seconds + duration
     where id = new.todo_id and user_id = new.user_id;
   end if;
   return new;

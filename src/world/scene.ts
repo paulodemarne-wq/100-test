@@ -32,6 +32,7 @@ const DECOR_SCALE: Record<string, number> = {
   pine: 1.3, apple: 1.35, palm: 1.35, sakura: 1.35, crystal: 1.3, fountain: 1.15, well: 1.1, rainbow: 1.6,
   boutique: 1.9, igloo: 1.35, treehouse: 1.5, windmill: 1.5, autumn: 1.35, bamboo: 1.2, lighthouse: 1.5,
   rowboat: 1.2, duckboat: 1.2, sailboat: 1.6, yacht: 1.7, pirateship: 2.2,
+  portal: 1.3, crystals: 1.25, lanterns: 1.2, throne: 1.2, balloon: 1.3, gazebo: 1.4,
 };
 
 /**

@@ -20,7 +20,7 @@ type Auth = {
   setPhoto: (localPhotoUri: string | null) => Promise<void>;
   /** Reloads the profile (after a purchase, for the wallet). */
   reloadProfile: () => Promise<void>;
-  updateSettings: (settings: Partial<Pick<ProfileRow, 'weekly_goal_minutes' | 'notify_friend_sessions'>>) => Promise<void>;
+  updateSettings: (settings: Partial<Pick<ProfileRow, 'weekly_goal_minutes' | 'notify_friend_sessions' | 'badge' | 'frame'>>) => Promise<void>;
 };
 
 const AuthContext = createContext<Auth | null>(null);
@@ -28,10 +28,8 @@ const AuthContext = createContext<Auth | null>(null);
 async function uploadAvatar(userId: string, localUri: string): Promise<string> {
   const path = `${userId}/avatar-${Date.now()}.jpg`;
   const bytes = await new File(localUri).bytes();
-  const { error } = await supabase.storage.from('avatars').upload(path, bytes, {
-    contentType: 'image/jpeg',
-    upsert: true,
-  });
+  // Each photo gets a new name, so no "upsert" (it would need extra storage rights and failed).
+  const { error } = await supabase.storage.from('avatars').upload(path, bytes, { contentType: 'image/jpeg' });
   if (error) throw error;
   return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
 }

@@ -226,7 +226,33 @@ export const SPECIES: Species[] = Array.from({ length: 100 }, (_, id) => {
   return { id, element, line, names, traits };
 });
 
+/** The 10 Lockin+ creatures (ids 100..109), only from the Lockin+ egg. Made by hand, not drawn at random. */
+export const PLUS_ELEMENT: Element = { id: 'plus', name: 'Lockin+', colors: ['#FFD86B', '#FFF4D6', '#5856D6', '#FFE58A'], syllables: [] };
+
+const plus = (
+  names: [string, string, string],
+  line: [Plan, Plan, Plan],
+  t: Omit<Traits, 'chunky' | 'legs' | 'snout'> & Partial<Pick<Traits, 'chunky' | 'legs' | 'snout'>>,
+): Omit<Species, 'id'> => ({ element: PLUS_ELEMENT, line, names, traits: { chunky: 1, legs: 1, snout: 1, ...t } });
+
+export const PLUS_SPECIES: Species[] = [
+  plus(['Solari', 'Solarion', 'Solarius'], ['bird', 'bird', 'dragon'], { ears: 'pointy', tail: 'flame', horns: 'double', eyes: 'big', pattern: 'belly', body: '#FFB020', accent: '#FFF1B8', detail: '#C2410C', glow: '#FFE58A' }),
+  plus(['Nébulo', 'Nébulard', 'Nébulagon'], ['jelly', 'ghost', 'ghost'], { ears: 'antenna', tail: 'spiral', horns: 'none', eyes: 'four', pattern: 'spots', body: '#4C3BCF', accent: '#C9B8FF', detail: '#1E1B4B', glow: '#FF8BF2' }),
+  plus(['Auro', 'Aurorix', 'Aurorathe'], ['quadruped', 'quadruped', 'dragon'], { ears: 'long', tail: 'bushy', horns: 'antlers', eyes: 'round', pattern: 'stripes', body: '#2DD4BF', accent: '#FBCFE8', detail: '#0F766E', glow: '#F0ABFC', legs: 1.2 }),
+  plus(['Prismi', 'Prismard', 'Prismaros'], ['slime', 'golem', 'golem'], { ears: 'none', tail: 'club', horns: 'single', eyes: 'visor', pattern: 'socks', body: '#A5F3FC', accent: '#FFFFFF', detail: '#8B5CF6', glow: '#F472B6', chunky: 1.2 }),
+  plus(['Luno', 'Lunova', 'Lunaria'], ['bird', 'bird', 'bird'], { ears: 'round', tail: 'leaf', horns: 'none', eyes: 'sleepy', pattern: 'mask', body: '#CBD5E1', accent: '#F8FAFC', detail: '#1E3A8A', glow: '#BFDBFE' }),
+  plus(['Kitsu', 'Kitsura', 'Kitsunéa'], ['quadruped', 'quadruped', 'quadruped'], { ears: 'pointy', tail: 'spiral', horns: 'none', eyes: 'big', pattern: 'socks', body: '#FFF7ED', accent: '#FDA4AF', detail: '#E11D48', glow: '#FFE4E6', snout: 1.4 }),
+  plus(['Abysso', 'Abyssard', 'Abyssoros'], ['fish', 'serpent', 'dragon'], { ears: 'fin', tail: 'fin', horns: 'ram', eyes: 'cyclops', pattern: 'spots', body: '#1E3A8A', accent: '#67E8F9', detail: '#0B1026', glow: '#22D3EE' }),
+  plus(['Sylphi', 'Sylphéon', 'Sylphéa'], ['insect', 'insect', 'insect'], { ears: 'antenna', tail: 'none', horns: 'none', eyes: 'big', pattern: 'spots', body: '#A3E635', accent: '#FEF9C3', detail: '#CA8A04', glow: '#FDE047' }),
+  plus(['Magmi', 'Magmax', 'Magmarch'], ['biped', 'biped', 'golem'], { ears: 'none', tail: 'flame', horns: 'double', eyes: 'visor', pattern: 'stripes', body: '#292524', accent: '#FB923C', detail: '#7C2D12', glow: '#F97316', chunky: 1.25 }),
+  plus(['Chrono', 'Chronik', 'Chronagon'], ['serpent', 'serpent', 'dragon'], { ears: 'fin', tail: 'thin', horns: 'antlers', eyes: 'round', pattern: 'belly', body: '#111827', accent: '#FCD34D', detail: '#B45309', glow: '#FDE68A', snout: 1.3 }),
+].map((sp, i) => ({ ...sp, id: 100 + i }));
+
+/** Whether a creature is one of the Lockin+ ones. */
+export const isPlusSpecies = (id: number | null | undefined) => id !== null && id !== undefined && id >= 100;
+
 export function speciesById(id: number | null | undefined): Species | null {
+  if (isPlusSpecies(id)) return PLUS_SPECIES[id! - 100] ?? null;
   return id === null || id === undefined ? null : (SPECIES[id] ?? null);
 }
 
@@ -354,8 +380,9 @@ export const GARDEN_SLOT_NAMES: Record<GardenSlot, string> = {
   boat: 'Bateau',
 };
 
-/** Whether the player can use this item (bought, or free). */
-export function ownsItem(item: ShopItem, inventory: string[]): boolean {
+/** Whether the player can use this item (bought, or free; Lockin+ items need the subscription). */
+export function ownsItem(item: ShopItem, inventory: string[], premium = false): boolean {
+  if (item.premium && !premium) return false;
   return item.costHours === 0 || inventory.includes(item.id);
 }
 
@@ -368,6 +395,8 @@ export type ShopItem = {
   /** Price in hours of lock in (0 = free for everyone). Must match supabase/schema.sql (shop_items). */
   costHours: number;
   emoji?: string;
+  /** Only for Lockin+ subscribers. */
+  premium?: boolean;
 };
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -466,6 +495,14 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'size24', name: 'Île 24×24', kind: 'upgrade', slot: null, rarity: 'épique', costHours: 120, emoji: '🏝️' },
   { id: 'size28', name: 'Île 28×28', kind: 'upgrade', slot: null, rarity: 'mythique', costHours: 250, emoji: '🏝️' },
   { id: 'size32', name: 'Île 32×32', kind: 'upgrade', slot: null, rarity: 'légendaire', costHours: 500, emoji: '🏝️' },
+  // Lockin+ (subscription): an egg with the 10 exclusive creatures, and decorations free for subscribers.
+  { id: 'egg_plus', name: 'Œuf Lockin+', kind: 'egg', slot: null, rarity: 'légendaire', costHours: 50, emoji: '🥚', premium: true },
+  { id: 'portal', name: 'Portail magique', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '🌀', premium: true },
+  { id: 'crystals', name: 'Cristaux lumineux', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '💠', premium: true },
+  { id: 'lanterns', name: 'Lanternes', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '🏮', premium: true },
+  { id: 'throne', name: 'Trône doré', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '👑', premium: true },
+  { id: 'balloon', name: 'Montgolfière', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '🎈', premium: true },
+  { id: 'gazebo', name: 'Kiosque', kind: 'garden', slot: 'house', rarity: 'légendaire', costHours: 0, emoji: '⛩️', premium: true },
 ];
 
 export function itemById(id: string | null | undefined): ShopItem | null {

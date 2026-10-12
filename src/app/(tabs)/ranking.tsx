@@ -11,6 +11,7 @@ import { Person, useSocial } from '../../lib/social';
 import { useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, timeAgo } from '../../lib/time';
+import { badged, frameOf } from '../../lib/premium';
 
 const PODIUM = ['#F5B400', '#A1A1AA', '#C77B30'];
 
@@ -34,7 +35,7 @@ export default function RankingScreen() {
   const ranking = useMemo(() => {
     const toEntry = (p: Person): Entry => ({
       id: p.profile.id,
-      name: p.profile.display_name,
+      name: badged(p.profile),
       photoUri: p.profile.avatar_url,
       seconds: p.weekSeconds,
       streak: p.streak,
@@ -43,7 +44,7 @@ export default function RankingScreen() {
     });
     const me: Entry = {
       id: userId ?? 'me',
-      name: profile?.display_name ?? '?',
+      name: badged(profile),
       photoUri: profile?.avatar_url ?? null,
       seconds: myWeekSeconds,
       streak: myStreak,
@@ -152,8 +153,8 @@ export default function RankingScreen() {
               return (
                 <Row
                   key={s.id}
-                  left={<Avatar name={p.display_name} photoUri={p.avatar_url} />}
-                  title={p.id === userId ? `${p.display_name} (toi)` : p.display_name}
+                  left={<Avatar name={p.display_name} photoUri={p.avatar_url} frame={frameOf(p)} />}
+                  title={p.id === userId ? `${badged(p)} (toi)` : badged(p)}
                   subtitle={`A craqué après ${formatDuration((end - Date.parse(s.started_at)) / 1000)}${labelSuffix(s.subject)} · ${timeAgo(end, now)}`}
                   subtitleColor={colors.danger}
                 />

@@ -4,7 +4,10 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetView } from '../components/PetView';
-import { displayName, levelFor, PLAN_EMOJI, PLAN_NAMES, SPECIES, Species } from '../creatures/species';
+import { displayName, levelFor, PLAN_EMOJI, PLAN_NAMES, PLUS_SPECIES, SPECIES, Species } from '../creatures/species';
+
+/** The 100 creatures, then the 10 Lockin+ ones. */
+const ALL = [...SPECIES, ...PLUS_SPECIES];
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
 
@@ -19,14 +22,14 @@ export default function Bestiary() {
     }
     return seen;
   }, [pets, friendPets]);
-  const first = SPECIES.find((s) => discovered.has(s.id)) ?? null;
+  const first = ALL.find((s) => discovered.has(s.id)) ?? null;
   const [selected, setSelected] = useState<Species | null>(first);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={type.title}>Bestiaire</Text>
-        <Text style={[type.subhead, { marginLeft: 'auto' }]}>{discovered.size}/100 découverts</Text>
+        <Text style={[type.subhead, { marginLeft: 'auto' }]}>{discovered.size}/{ALL.length} découverts</Text>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.close}>
           <Ionicons name="close" size={20} color={colors.secondary} />
         </Pressable>
@@ -54,7 +57,7 @@ export default function Bestiary() {
       </View>
 
       <ScrollView contentContainerStyle={styles.grid}>
-        {SPECIES.map((s) => {
+        {ALL.map((s) => {
           const known = discovered.has(s.id);
           return (
             <Pressable

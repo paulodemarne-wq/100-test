@@ -16,6 +16,7 @@ import * as stats from '../lib/stats';
 import { useLockin } from '../lib/store';
 import { card, colors, type } from '../lib/theme';
 import { dayKey, formatDuration } from '../lib/time';
+import { badged, frameOf } from '../lib/premium';
 
 function Stepper({ value, onChange, min, max, unit }: { value: number; onChange: (v: number) => void; min: number; max: number; unit: string }) {
   return (
@@ -120,12 +121,12 @@ export default function Profile() {
 
         <View style={styles.top}>
           <Pressable onPress={changePhoto}>
-            <Avatar name={profile.display_name} photoUri={profile.avatar_url} size={96} />
+            <Avatar name={profile.display_name} photoUri={profile.avatar_url} frame={frameOf(profile)} size={96} />
             <View style={styles.cameraBadge}>
               <Ionicons name="camera" size={14} color={colors.onAccent} />
             </View>
           </Pressable>
-          <Text style={[type.title, { marginTop: 12 }]}>{profile.display_name}</Text>
+          <Text style={[type.title, { marginTop: 12 }]}>{badged(profile)}</Text>
           <Text style={type.subhead}>@{profile.username}</Text>
         </View>
 

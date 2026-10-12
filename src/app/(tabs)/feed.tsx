@@ -14,6 +14,7 @@ import { Person, useSocial } from '../../lib/social';
 import { focusSeconds, useLockin, useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, formatTimer, timeAgo } from '../../lib/time';
+import { badged, frameOf } from '../../lib/premium';
 
 export default function FeedScreen() {
   const { profile, userId } = useAuth();
@@ -117,8 +118,8 @@ export default function FeedScreen() {
           {incomingRequests.map((p) => (
             <Row
               key={p.id}
-              left={<Avatar name={p.display_name} photoUri={p.avatar_url} />}
-              title={p.display_name}
+              left={<Avatar name={p.display_name} photoUri={p.avatar_url} frame={frameOf(p)} />}
+              title={badged(p)}
               subtitle={`@${p.username} veut lock in avec toi`}
               right={
                 <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -176,8 +177,8 @@ export default function FeedScreen() {
         <Section title="En lock in">
           {friends.length > 0 && active && profile ? (
             <Row
-              left={<Avatar name={profile.display_name} photoUri={profile.avatar_url} live />}
-              title={`${crown(profile.id, profile.display_name)} (toi)`}
+              left={<Avatar name={profile.display_name} photoUri={profile.avatar_url} frame={frameOf(profile)} live />}
+              title={`${crown(profile.id, badged(profile))} (toi)`}
               subtitle={active.pause ? 'En pause ☕' : labelOr(active.subject, 'En lock in')}
               right={<Text style={styles.liveTimer}>{formatTimer(focusSeconds(active, now))}</Text>}
             />
@@ -187,8 +188,8 @@ export default function FeedScreen() {
               key={f.profile.id}
               onPress={() => reactTo(f)}
               onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
-              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} live={f.status.kind === 'working'} />}
-              title={crown(f.profile.id, f.profile.display_name)}
+              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} frame={frameOf(f.profile)} live={f.status.kind === 'working'} />}
+              title={crown(f.profile.id, badged(f.profile))}
               subtitle={describeStatus(f.status, now)}
               footer={reactionsOf(f)}
               right={
@@ -210,8 +211,8 @@ export default function FeedScreen() {
               key={f.profile.id}
               onPress={() => reactTo(f)}
               onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
-              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} />}
-              title={crown(f.profile.id, f.profile.display_name)}
+              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} frame={frameOf(f.profile)} />}
+              title={crown(f.profile.id, badged(f.profile))}
               subtitle={describeStatus(f.status, now)}
               subtitleColor={f.status.kind === 'abandoned' ? colors.danger : undefined}
               footer={reactionsOf(f)}
@@ -232,8 +233,8 @@ export default function FeedScreen() {
             <Row
               key={p.id}
               onLongPress={() => confirmRemove(p.id, p.display_name)}
-              left={<Avatar name={p.display_name} photoUri={p.avatar_url} />}
-              title={p.display_name}
+              left={<Avatar name={p.display_name} photoUri={p.avatar_url} frame={frameOf(p)} />}
+              title={badged(p)}
               subtitle={`@${p.username} · en attente`}
             />
           ))}

@@ -13,6 +13,7 @@ import { useSocial } from '../lib/social';
 import * as stats from '../lib/stats';
 import { colors, type } from '../lib/theme';
 import { formatDuration } from '../lib/time';
+import { badged, frameOf } from '../lib/premium';
 
 export default function Recap() {
   const { profile } = useAuth();
@@ -62,9 +63,9 @@ export default function Recap() {
         <View ref={cardRef} collapsable={false} style={styles.cardWrap}>
           <LinearGradient colors={['#5856D6', '#AF52DE', '#FF2D55']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
             <View style={styles.cardTop}>
-              <Avatar name={profile?.display_name ?? '?'} photoUri={profile?.avatar_url} size={44} />
+              <Avatar name={profile?.display_name ?? '?'} photoUri={profile?.avatar_url} frame={frameOf(profile)} size={44} />
               <View>
-                <Text style={styles.cardName}>{profile?.display_name}</Text>
+                <Text style={styles.cardName}>{badged(profile)}</Text>
                 <Text style={styles.cardSmall}>ma semaine sur Lockin 🔒</Text>
               </View>
             </View>

@@ -30,6 +30,7 @@ import {
   World,
 } from '../world/world';
 import { walletSeconds } from '../lib/wallet';
+import { badged, frameOf } from '../lib/premium';
 
 /** What a tap does: nothing special (select objects), paint a ground, or put an object down. */
 type Tool = { kind: 'none' } | { kind: 'tile'; id: string } | { kind: 'object'; id: string };
@@ -134,10 +135,10 @@ export default function WorldScreen() {
       owners[pet.id] = ownerId;
     };
     if (profile) add(profile.id, 'Toi', pets[0]);
-    if (mine) for (const f of friends) add(f.profile.id, f.profile.display_name, friendPets[f.profile.id]);
-    else if (host && !host.featured) add(host.id, host.display_name, friendPets[host.id]);
+    if (mine) for (const f of friends) add(f.profile.id, badged(f.profile), friendPets[f.profile.id]);
+    else if (host && !host.featured) add(host.id, badged(host), friendPets[host.id]);
     // Featured accounts visit every island.
-    for (const f of featured) if (!owners[friendPets[f.id]?.id ?? '']) add(f.id, `⭐ ${f.display_name}`, friendPets[f.id]);
+    for (const f of featured) if (!owners[friendPets[f.id]?.id ?? '']) add(f.id, `⭐ ${badged(f)}`, friendPets[f.id]);
     return { specs, labels, owners };
   }, [profile, pets, friends, friendPets, mine, host, featured]);
 
@@ -340,7 +341,7 @@ export default function WorldScreen() {
     return (
       <>
         <Text style={styles.focusName} numberOfLines={1}>
-          {friend ? `${friend.featured ? '⭐ ' : ''}${friend.display_name}` : 'Toi'}
+          {friend ? `${friend.featured ? '⭐ ' : ''}${badged(friend)}` : 'Toi'}
         </Text>
         <Text style={[styles.focusPet, { color: tier.color }]} numberOfLines={1}>
           {displayName(speciesById(pet.species), level)} · Niv. {level}
@@ -487,7 +488,7 @@ export default function WorldScreen() {
                 onPress={() => router.setParams({ user: f.profile.id })}
                 style={[styles.visit, params.user === f.profile.id && styles.visitActive]}
               >
-                <Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} size={22} />
+                <Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} frame={frameOf(f.profile)} size={22} />
                 <Text style={styles.visitText} numberOfLines={1}>
                   {f.profile.display_name}
                 </Text>

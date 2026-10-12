@@ -504,6 +504,61 @@ export function buildDecor(id: string, k: Kit): THREE.Group {
       add(g, box(0.12, 0.2, 0.02), mat('#4A2E1B'), [0, 0.1, 0.31]);
       break;
 
+    // ─── Lockin+ decorations (free for subscribers) ──────────────────────────
+    case 'portal':
+      add(g, new THREE.TorusGeometry(0.36, 0.06, 10, 32), mat('#7B3FE4', 0.4), [0, 0.46, 0]);
+      add(g, cyl(0.31, 0.31, 0.02, 28), mat('#C77DFF', 0.9, 0.75), [0, 0.46, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+      add(g, box(0.5, 0.08, 0.24), mat('#4B4A6B'), [0, 0.04, 0]);
+      for (const x of [-0.42, 0.42]) add(g, sphere(0.05, 10), mat('#FF8BF2', 1), [x, 0.46, 0]);
+      break;
+    case 'crystals':
+      add(g, cyl(0.3, 0.34, 0.08, 10), mat('#5E4632'), [0, 0.04, 0]);
+      (
+        [
+          [0, 0.55, 0, 0.13, '#7FE0FF'],
+          [-0.17, 0.38, 0.08, 0.09, '#C77DFF'],
+          [0.16, 0.42, -0.06, 0.1, '#FF8BF2'],
+          [0.06, 0.32, 0.18, 0.07, '#B6F26B'],
+        ] as const
+      ).forEach(([x, h, z, r, c]) => add(g, new THREE.OctahedronGeometry(r, 0), mat(c, 0.7), [x, 0.08 + h / 2, z], [1, h / r / 2, 1]));
+      break;
+    case 'lanterns':
+      add(g, cyl(0.02, 0.025, 1.0, 6), mat('#6B4A2A'), [0, 0.5, 0]);
+      add(g, box(0.7, 0.02, 0.02), mat('#6B4A2A'), [0, 0.98, 0]);
+      for (const [x, c] of [[-0.3, '#FF6B3D'], [0, '#FFD43B'], [0.3, '#FF4D8D']] as const) {
+        add(g, cyl(0.004, 0.004, 0.14, 4), mat('#2B2B33'), [x, 0.9, 0]);
+        add(g, sphere(0.09, 12), mat(c, 0.9), [x, 0.76, 0], [1, 1.25, 1]);
+      }
+      break;
+    case 'throne':
+      add(g, box(0.5, 0.3, 0.45), mat('#F5B400', 0.15), [0, 0.15, 0]);
+      add(g, box(0.5, 0.65, 0.08), mat('#F5B400', 0.15), [0, 0.6, -0.19]);
+      add(g, box(0.42, 0.06, 0.38), mat('#C2185B'), [0, 0.33, 0.02]);
+      for (const x of [-0.25, 0.25]) add(g, box(0.06, 0.18, 0.4), mat('#E0A100', 0.15), [x, 0.39, 0]);
+      for (const x of [-0.17, 0, 0.17]) add(g, cone(0.05, 0.14, 4), mat('#FFD43B', 0.3), [x, 0.99, -0.19]);
+      add(g, sphere(0.05, 10), mat('#7FE0FF', 0.6), [0, 0.78, -0.14]);
+      break;
+    case 'balloon':
+      add(g, sphere(0.38, 20), mat('#FF5A5F'), [0, 1.25, 0], [1, 1.15, 1]);
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        add(g, sphere(0.385, 20), mat(i % 2 ? '#FFD43B' : '#3BA7F5'), [0, 1.25, 0], [0.25, 1.16, 1.01], [0, a, 0]);
+      }
+      for (const [x, z] of [[-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12], [0.12, 0.12]] as const)
+        add(g, cyl(0.006, 0.006, 0.5, 4), mat('#6B4A2A'), [x, 0.62, z]);
+      add(g, box(0.3, 0.2, 0.3), mat('#9C6B3F'), [0, 0.32, 0]);
+      add(g, box(0.06, 0.32, 0.06), mat('#6B4A2A'), [0, 0.12, 0]);
+      break;
+    case 'gazebo':
+      add(g, cyl(0.46, 0.48, 0.08, 8), mat('#E6D3BC'), [0, 0.04, 0]);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        add(g, cyl(0.03, 0.03, 0.62, 8), mat('#FFFFFF'), [Math.cos(a) * 0.38, 0.39, Math.sin(a) * 0.38]);
+      }
+      add(g, cone(0.56, 0.36, 8), mat('#5856D6'), [0, 0.88, 0]);
+      add(g, sphere(0.05, 10), mat('#FFD43B', 0.4), [0, 1.08, 0]);
+      break;
+
     // ─── Boats (hull bottom at y=0, waterline around y=0.35) ─────────────────
     case 'rowboat':
       add(g, new THREE.SphereGeometry(0.4, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), k.matTwoSided('#9C6B3F'), [0, 0.4, 0], [0.55, 0.6, 1.1]);

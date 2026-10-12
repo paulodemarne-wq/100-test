@@ -42,6 +42,11 @@ export type ProfileRow = {
   world: unknown;
   /** The app's creator: their pet visits every island and their island has a shop. */
   featured: boolean;
+  /** Lockin+ (subscription) end date, set by the server only. See src/lib/premium.ts. */
+  premium_until: string | null;
+  /** Lockin+: emoji next to the name, and frame around the photo. */
+  badge: string | null;
+  frame: string | null;
 };
 
 export type TodoRow = {
