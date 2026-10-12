@@ -5,7 +5,6 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ambience } from '../../components/Ambience';
 import { Avatar } from '../../components/Avatar';
 import { PauseSheet } from '../../components/PauseSheet';
 import { ProgressRing } from '../../components/ProgressRing';
@@ -209,7 +208,6 @@ export default function FocusScreen() {
                   ? "Tu peux quitter l'app. Reviens avant la fin de la pause, on te prévient 1 min avant ⏰"
                   : `Reste sur Lockin. Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon 💀`}
               </Text>
-              <Ambience playing={!pause} />
               <View style={styles.todoBox}>
                 <View style={styles.todoHeader}>
                   <Text style={styles.todoTitle}>📝 Tu bosses sur quoi ?</Text>
@@ -302,11 +300,13 @@ export default function FocusScreen() {
                   <Text style={styles.todoLink}>Nouvelle to-do</Text>
                 </Pressable>
               </View>
-              <Ambience playing={false} />
             </View>
           )}
         </View>
 
+      </ScrollView>
+      {/* Always on screen: no need to scroll to lock in. */}
+      <View style={styles.footer}>
         {active ? (
           <View style={styles.buttonRow}>
             <Pressable
@@ -329,7 +329,7 @@ export default function FocusScreen() {
             <Text style={styles.buttonText}>Lock in</Text>
           </Pressable>
         )}
-      </ScrollView>
+      </View>
       <PauseSheet
         visible={pauseSheet}
         onClose={() => setPauseSheet(false)}
@@ -386,6 +386,7 @@ const styles = StyleSheet.create({
   todoLink: { fontSize: 15, fontWeight: '600', color: colors.accent },
   todoAdd: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
   safe: { flex: 1, backgroundColor: colors.bg },
+  footer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12, backgroundColor: colors.bg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
   container: { paddingHorizontal: 20, paddingBottom: 24, gap: 16, flexGrow: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
   stats: { flexDirection: 'row', gap: 12 },

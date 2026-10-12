@@ -19,7 +19,6 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 - **Pause** : durée au choix, le chrono s'arrête, on peut quitter l'app ; notif 1 min avant la fin.
 - **To-do** (onglet à part) : chaque to-do a un temps de travail et une date. Pendant le chrono, on touche la to-do sur laquelle on bosse (ex : maths, puis français) : chaque morceau de temps remplit la bonne to-do.
   Triées de la plus proche à la plus lointaine, avec un rappel si elle n'est pas finie (20 % du délai avant la date, 2 jours minimum).
-- **Ambiances sonores** : pluie, bruit blanc, bruit brun (sons générés, libres de droits).
 - **Réactions** 🔥 💪 🫡 💀 😴 sur les sessions des amis, **couronne 👑** pour le n°1 de la semaine.
 - **Mon animal** 🐾 : un œuf qui éclot en un des **100 animaux** (16 corps différents : slime, golem, dragon, pieuvre, escargot…), à faire tourner en 3D.
   Il gagne l'expérience de tes sessions : **40 niveaux**, un changement visible à chaque niveau, 3 formes d'évolution,
@@ -64,7 +63,6 @@ Le téléphone et l'ordinateur doivent être sur le même Wi-Fi (sinon : `npx ex
 ## Structure
 
 ```
-assets/sounds/           ambiances, générées par scripts/generate_sounds.py
 src/app/                 écrans (Expo Router : chaque fichier = un écran)
   _layout.tsx            racine (+ notifications)
   login.tsx              connexion / création de compte
@@ -83,7 +81,7 @@ src/app/                 écrans (Expo Router : chaque fichier = un écran)
   world.tsx              l'île : visite, amis qui s'y promènent, mode Modifier
 src/creatures/           100 espèces, niveaux, boutique (species.ts) modèles 3D (build.ts)
 src/world/               l'île : données (world.ts), objets 3D (decor.ts), scène et caméra (scene.ts)
-src/components/          PetView et WorldView (3D), Avatar, anneau, listes, date/heure, pause, tâches, sons, réactions
+src/components/          PetView et WorldView (3D), Avatar, anneau, listes, date/heure, pause, tâches, réactions
 src/lib/
   supabase.ts            connexion à Supabase
   auth.tsx               compte et profil

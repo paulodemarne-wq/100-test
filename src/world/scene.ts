@@ -34,7 +34,30 @@ const DECOR_SCALE: Record<string, number> = {
   rowboat: 1.2, duckboat: 1.2, sailboat: 1.6, yacht: 1.7, pirateship: 2.2,
 };
 
-type Boat = { group: THREE.Group; baseY: number; seed: number };
+/**
+ * A boat that sails by itself. On the sea it goes round the island; on a pond it cruises from
+ * one water cell to the next. cell = where it was placed (what the editor knows it by).
+ */
+type Boat = {
+  group: THREE.Group;
+  cell: [number, number];
+  baseY: number;
+  seed: number;
+  sea: boolean;
+  /** Sea: angle and distance around the island centre, and which way it goes (1 or -1). */
+  angle: number;
+  radius: number;
+  dir: number;
+  /** Pond: where it is and the water cell it heads to. */
+  x: number;
+  z: number;
+  tx: number;
+  tz: number;
+  heading: number;
+};
+
+/** Sailing speed, in cells per second. */
+const BOAT_SPEED = 0.45;
 
 /** A rounded square from lo to hi (in shape x/y). */
 function roundedSquare<T extends THREE.Path>(shape: T, lo: number, hi: number, radius: number): T {
@@ -165,8 +188,32 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       flat.position.set(x + 0.5, 0, z + 0.5);
       flat.rotation.y = (turns * Math.PI) / 2;
       boatGroup.add(flat);
-      // On the sea the water is lower than on a pond inside the island.
-      boats.push({ group: flat, baseY: inside(world, x, z) ? -0.04 : -0.36, seed: i * 1.7 });
+      const c = world.size / 2;
+      const sea = !inside(world, x, z);
+      // Far enough out to clear the island's corners.
+      const radius = Math.max(Math.hypot(x + 0.5 - c, z + 0.5 - c), world.size * 0.71 + 1.2);
+      const angle = Math.atan2(z + 0.5 - c, x + 0.5 - c);
+      const dir = i % 2 === 0 ? 1 : -1;
+      // On the sea, start on its round, already facing the way it sails.
+      const px = sea ? c + Math.cos(angle) * radius : x + 0.5;
+      const pz = sea ? c + Math.sin(angle) * radius : z + 0.5;
+      if (sea) flat.rotation.y = Math.atan2(-Math.sin(angle) * dir, Math.cos(angle) * dir);
+      boats.push({
+        group: flat,
+        cell: [x, z],
+        // On the sea the water is lower than on a pond inside the island.
+        baseY: sea ? -0.36 : -0.04,
+        seed: i * 1.7,
+        sea,
+        angle,
+        radius,
+        dir,
+        x: px,
+        z: pz,
+        tx: px,
+        tz: pz,
+        heading: flat.rotation.y,
+      });
     });
   };
 
@@ -239,6 +286,55 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     const flat = flatten(g);
     disposeGeometries(g);
     return flat;
+  };
+
+  /** Moves a boat a little: round the island on the sea, from water cell to water cell on a pond. */
+  const sail = (b: Boat, dt: number) => {
+    const c = world.size / 2;
+    let dx: number;
+    let dz: number;
+    if (b.sea) {
+      b.angle += (b.dir * BOAT_SPEED * dt) / b.radius;
+      const nx = c + Math.cos(b.angle) * b.radius;
+      const nz = c + Math.sin(b.angle) * b.radius;
+      dx = nx - b.x;
+      dz = nz - b.z;
+      b.x = nx;
+      b.z = nz;
+    } else {
+      dx = b.tx - b.x;
+      dz = b.tz - b.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.05) {
+        // Next stop: a random water cell next to this one (stays put on a 1-cell pond).
+        const cx = Math.floor(b.x);
+        const cz = Math.floor(b.z);
+        const next = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const)
+          .map(([ox, oz]) => [cx + ox, cz + oz] as const)
+          .filter(([nx, nz]) => inside(world, nx, nz) && tileAt(world, nx, nz) === 'water');
+        b.seed = (b.seed * 16807 + 11) % 2147483647;
+        if (next.length) {
+          const [nx, nz] = next[Math.floor((b.seed / 2147483647) * next.length) % next.length];
+          b.tx = nx + 0.5;
+          b.tz = nz + 0.5;
+        }
+        dx = 0;
+        dz = 0;
+      } else {
+        const step = Math.min(d, BOAT_SPEED * 0.7 * dt);
+        b.x += (dx / d) * step;
+        b.z += (dz / d) * step;
+      }
+    }
+    b.group.position.x = b.x;
+    b.group.position.z = b.z;
+    // Turn smoothly toward where it goes (the models face +z).
+    if (Math.hypot(dx, dz) > 1e-4) {
+      let turn = Math.atan2(dx, dz) - b.heading;
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+      b.heading += turn * Math.min(1, dt * 3);
+    }
+    b.group.rotation.y = b.heading;
   };
 
   const rand = (w: Walker) => {
@@ -374,6 +470,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
         flashMat.opacity = 0.65 * ((flashUntil - t) / 0.6);
       } else flash.visible = false;
       for (const b of boats) {
+        sail(b, dt);
         b.group.position.y = b.baseY + Math.sin(t * 1.4 + b.seed) * 0.04;
         b.group.rotation.z = Math.sin(t * 1.1 + b.seed) * 0.05;
         b.group.rotation.x = Math.sin(t * 0.9 + b.seed * 2) * 0.03;
@@ -441,7 +538,12 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       let best: [number, number] | null = null;
       let bestD = Infinity;
       const hit = new THREE.Vector3();
-      for (const o of objectBoxes) {
+      const boxes = [
+        ...objectBoxes.filter((o) => !boats.some((b) => b.cell[0] === o.x && b.cell[1] === o.z)),
+        // Boats sail away from their cell: pick them where they are now.
+        ...boats.map((b) => ({ x: b.cell[0], z: b.cell[1], box: new THREE.Box3().setFromObject(b.group) })),
+      ];
+      for (const o of boxes) {
         if (!ray.intersectBox(o.box, hit)) continue;
         const d = hit.distanceTo(ray.origin);
         if (d < bestD) {

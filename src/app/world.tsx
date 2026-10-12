@@ -508,6 +508,7 @@ export default function WorldScreen() {
                       ['none', '✋ Rien'],
                       ['erase', '🧽 Gomme'],
                       ['move', '↔️ Déplacer'],
+                      ['rotate', '🔄 Tourner'],
                     ] as const
                   ).map(([k, label]) => (
                     <Pressable
