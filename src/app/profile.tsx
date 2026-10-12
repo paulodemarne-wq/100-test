@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { DateField } from '../components/DateField';
 import { Row, Section } from '../components/List';
+import { Stepper } from '../components/Stepper';
 import { Button } from '../components/ui';
 import { useAuth } from '../lib/auth';
 import { syncDailyReminders } from '../lib/notifications';
@@ -18,22 +19,6 @@ import { card, colors, type } from '../lib/theme';
 import { dayKey, formatDuration } from '../lib/time';
 import { decorationOf, isPremium } from '../lib/premium';
 import { Named } from '../components/Badge';
-
-function Stepper({ value, onChange, min, max, unit }: { value: number; onChange: (v: number) => void; min: number; max: number; unit: string }) {
-  return (
-    <View style={styles.stepper}>
-      <Pressable onPress={() => onChange(Math.max(min, value - 1))} hitSlop={6} style={styles.stepButton}>
-        <Ionicons name="remove" size={18} color={colors.accent} />
-      </Pressable>
-      <Text style={styles.stepValue}>
-        {value} {unit}
-      </Text>
-      <Pressable onPress={() => onChange(Math.min(max, value + 1))} hitSlop={6} style={styles.stepButton}>
-        <Ionicons name="add" size={18} color={colors.accent} />
-      </Pressable>
-    </View>
-  );
-}
 
 export default function Profile() {
   const { profile, setPhoto, signOut, updateSettings } = useAuth();
@@ -323,16 +308,6 @@ const styles = StyleSheet.create({
   duoCard: { ...card, flex: 1, padding: 14, gap: 2 },
   stat: { ...card, flex: 1, padding: 12, alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: '700', color: colors.text },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  stepButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepValue: { fontSize: 17, fontWeight: '600', minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] },
   exam: { padding: 14, gap: 8 },
   examTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   examDays: { fontSize: 15, fontWeight: '700', color: colors.accent },
