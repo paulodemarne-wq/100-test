@@ -1,6 +1,6 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { FRAMES } from '../lib/premium';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { DECORATIONS } from '../lib/premium';
 
 // Soft background colors for initials, picked from the name so a person keeps the same color.
 const PALETTE = ['#5856D6', '#007AFF', '#34C759', '#FF9500', '#FF2D55', '#AF52DE', '#30B0C7', '#A2845E'];
@@ -17,45 +17,60 @@ type Props = {
   size?: number;
   /** Green dot in the corner: the person is studying right now. */
   live?: boolean;
-  /** Lockin+ frame around the photo (see FRAMES). */
-  frame?: string | null;
+  /** Lockin+ decoration around the photo (see DECORATIONS). */
+  decoration?: string | null;
 };
 
-export function Avatar({ name, photoUri, size = 44, live = false, frame }: Props) {
+export function Avatar({ name, photoUri, size = 44, live = false, decoration }: Props) {
   const initial = name.trim().charAt(0).toUpperCase() || '?';
   const dot = Math.max(10, size * 0.28);
-  const ring = frame ? FRAMES[frame] : undefined;
-  // With a frame, the picture shrinks a little inside a gradient ring (white gap between them).
-  const border = ring ? Math.max(2, Math.round(size * 0.07)) : 0;
-  const gap = ring ? Math.max(1, Math.round(size * 0.03)) : 0;
-  const inner = size - 2 * (border + gap);
-
-  const picture = photoUri ? (
-    <Image source={{ uri: photoUri }} style={{ width: inner, height: inner, borderRadius: inner / 2 }} />
-  ) : (
-    <View style={[styles.initials, { width: inner, height: inner, borderRadius: inner / 2, backgroundColor: colorFor(name) }]}>
-      <Text style={{ color: '#FFF', fontSize: inner * 0.42, fontWeight: '600' }}>{initial}</Text>
-    </View>
-  );
+  const deco = decoration ? DECORATIONS.find((d) => d.id === decoration) : undefined;
 
   return (
     <View style={{ width: size, height: size }}>
-      {ring ? (
-        <LinearGradient
-          colors={ring.colors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <View style={{ padding: gap, borderRadius: size / 2, backgroundColor: '#FFF' }}>{picture}</View>
-        </LinearGradient>
+      {deco?.back && <DecorationLayer source={deco.back} size={size} />}
+      {photoUri ? (
+        <Image source={{ uri: photoUri }} style={{ width: size, height: size, borderRadius: size / 2 }} />
       ) : (
-        picture
+        <View style={[styles.initials, { width: size, height: size, borderRadius: size / 2, backgroundColor: colorFor(name) }]}>
+          <Text style={{ color: '#FFF', fontSize: size * 0.42, fontWeight: '600' }}>{initial}</Text>
+        </View>
       )}
+      {deco && <DecorationLayer source={deco.image} flicker={deco.flicker} float={deco.id === 'angel' || deco.id === 'orbit'} size={size} />}
       {live && (
         <View style={[styles.dot, { width: dot, height: dot, borderRadius: dot / 2, borderWidth: Math.max(2, dot * 0.2) }]} />
       )}
     </View>
+  );
+}
+
+/** A decoration image, 5/3 of the photo, centered on it. Flames switch between two frames; halos float. */
+function DecorationLayer({ source, flicker, float, size }: { source: number | object; flicker?: number | object; float?: boolean; size: number }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!flicker && !float) return;
+    const loop = flicker
+      ? Animated.loop(Animated.sequence([Animated.timing(anim, { toValue: 1, duration: 0, delay: 180, useNativeDriver: true }), Animated.timing(anim, { toValue: 0, duration: 0, delay: 180, useNativeDriver: true })]))
+      : Animated.loop(Animated.sequence([Animated.timing(anim, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }), Animated.timing(anim, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true })]));
+    loop.start();
+    return () => loop.stop();
+  }, [anim, flicker, float]);
+  const big = (size * 5) / 3;
+  // Images never catch touches (pointerEvents on the box style).
+  const box = { position: 'absolute' as const, left: -size / 3, top: -size / 3, width: big, height: big, pointerEvents: 'none' as const };
+  if (flicker) {
+    return (
+      <View pointerEvents="none" style={box}>
+        <Animated.Image source={source as number} style={[StyleSheet.absoluteFill, { opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} />
+        <Animated.Image source={flicker as number} style={[StyleSheet.absoluteFill, { opacity: anim }]} />
+      </View>
+    );
+  }
+  return (
+    <Animated.Image
+      source={source as number}
+      style={[box, float && { transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.06] }) }] }]}
+    />
   );
 }
 

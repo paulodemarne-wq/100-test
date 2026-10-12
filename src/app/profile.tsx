@@ -16,7 +16,8 @@ import * as stats from '../lib/stats';
 import { useLockin } from '../lib/store';
 import { card, colors, type } from '../lib/theme';
 import { dayKey, formatDuration } from '../lib/time';
-import { badged, frameOf } from '../lib/premium';
+import { decorationOf, isPremium } from '../lib/premium';
+import { Named } from '../components/Badge';
 
 function Stepper({ value, onChange, min, max, unit }: { value: number; onChange: (v: number) => void; min: number; max: number; unit: string }) {
   return (
@@ -120,13 +121,15 @@ export default function Profile() {
         </Pressable>
 
         <View style={styles.top}>
-          <Pressable onPress={changePhoto}>
-            <Avatar name={profile.display_name} photoUri={profile.avatar_url} frame={frameOf(profile)} size={96} />
+          <Pressable onPress={changePhoto} style={decorationOf(profile) ? { marginTop: 36 } : undefined}>
+            <Avatar name={profile.display_name} photoUri={profile.avatar_url} decoration={decorationOf(profile)} size={96} />
             <View style={styles.cameraBadge}>
               <Ionicons name="camera" size={14} color={colors.onAccent} />
             </View>
           </Pressable>
-          <Text style={[type.title, { marginTop: 12 }]}>{badged(profile)}</Text>
+          <Text style={[type.title, { marginTop: decorationOf(profile) ? 36 : 12 }]}>
+            <Named person={profile} size={22} />
+          </Text>
           <Text style={type.subhead}>@{profile.username}</Text>
         </View>
 
@@ -142,6 +145,16 @@ export default function Profile() {
             </View>
           ))}
         </View>
+
+        <Section title="Lockin+">
+          <Row
+            left={<Ionicons name="sparkles" size={24} color={colors.accent} />}
+            title={isPremium(profile) ? 'Mon badge et ma décoration' : 'Passer à Lockin+'}
+            subtitle={isPremium(profile) ? 'Badge à côté du prénom, décoration de photo en 3D' : 'Badge, décoration de photo, 10 animaux exclusifs…'}
+            onPress={() => router.push('/premium')}
+            right={<Ionicons name="chevron-forward" size={18} color={colors.tertiary} />}
+          />
+        </Section>
 
         <Section
           title="Série"

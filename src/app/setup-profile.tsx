@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -5,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { Button, ErrorText, Field } from '../components/ui';
 import { suggestUsername, useAuth } from '../lib/auth';
+import { askProfilePhoto } from '../lib/photo';
 import { colors, type } from '../lib/theme';
 
 export default function SetupProfile() {
@@ -12,6 +14,7 @@ export default function SetupProfile() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [usernameEdited, setUsernameEdited] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -39,7 +42,7 @@ export default function SetupProfile() {
     }
     setLoading(true);
     try {
-      await saveProfile({ username, displayName });
+      await saveProfile({ username, displayName, localPhotoUri: photoUri });
       router.replace('/');
     } catch (e) {
       setError((e as Error).message);
@@ -57,11 +60,19 @@ export default function SetupProfile() {
             <Text style={styles.subtitle}>C'est ce que tes amis verront.</Text>
           </View>
 
-          {/* The photo is a Lockin+ perk: it can be added later from the profile. */}
-          <View style={styles.photoButton}>
-            <Avatar name={name || '?'} size={104} />
-            <Text style={type.footnote}>Photo de profil avec Lockin+</Text>
-          </View>
+          <Pressable
+            onPress={() => askProfilePhoto(setPhotoUri, photoUri ? () => setPhotoUri(null) : undefined)}
+            style={styles.photoButton}
+          >
+            {photoUri ? (
+              <Avatar name={name || '?'} photoUri={photoUri} size={104} />
+            ) : (
+              <View style={styles.photoPlaceholder}>
+                <Ionicons name="camera" size={34} color={colors.accent} />
+              </View>
+            )}
+            <Text style={styles.photoLabel}>{photoUri ? 'Modifier la photo' : 'Ajouter une photo'}</Text>
+          </Pressable>
 
           <View style={{ gap: 16 }}>
             <Field label="Prénom" value={name} onChangeText={onNameChange} placeholder="Ton prénom" maxLength={30} autoCapitalize="words" />
@@ -97,4 +108,13 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 12, justifyContent: 'space-between', gap: 28 },
   subtitle: { ...type.body, color: colors.secondary, textAlign: 'center', marginTop: 8 },
   photoButton: { alignItems: 'center', gap: 10 },
+  photoPlaceholder: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoLabel: { fontSize: 15, fontWeight: '600', color: colors.accent },
 });

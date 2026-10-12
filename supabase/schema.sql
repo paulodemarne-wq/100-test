@@ -1231,53 +1231,52 @@ create trigger feed_todo after update of status on public.study_sessions
 -- ═════════════════════════════════════════════════════════════════════════════
 -- v14: Lockin+ (subscription). premium_until is only set by the server (payment,
 -- or by hand in the SQL editor for now). Featured accounts count as Lockin+.
--- Lockin+ gives: profile photo, a badge next to the name, a frame around the photo,
--- the Lockin+ egg (10 exclusive creatures) and free decorations.
+-- Lockin+ gives: a badge next to the name, a decoration around the photo (the photo
+-- itself is free), the Lockin+ egg (10 exclusive creatures) and free island decorations.
 -- ═════════════════════════════════════════════════════════════════════════════
 alter table public.profiles
   add column if not exists premium_until timestamptz,
   add column if not exists badge text,
-  add column if not exists frame text;
-do $$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'profiles_badge_check') then
-    alter table public.profiles add constraint profiles_badge_check
-      check (badge is null or badge in ('🔥', '⚡', '👑', '💎', '🎓', '🦄', '🚀', '🌙', '🍀', '🐉', '🎧', '🧠'));
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'profiles_frame_check') then
-    alter table public.profiles add constraint profiles_frame_check
-      check (frame is null or frame in ('gold', 'rainbow', 'fire', 'ocean', 'galaxy', 'sakura', 'neon'));
-  end if;
-end $$;
-grant update (badge, frame) on public.profiles to authenticated;
+  add column if not exists badge_color text not null default 'noir',
+  add column if not exists decoration text;
+-- Badges and decorations: must match src/lib/premium.ts.
+alter table public.profiles drop constraint if exists profiles_badge_check;
+alter table public.profiles add constraint profiles_badge_check
+  check (badge is null or badge in ('star', 'crown', 'flame', 'bolt', 'gem', 'heart', 'moon', 'cap', 'trophy', 'note', 'sparkle', 'paw'));
+alter table public.profiles drop constraint if exists profiles_badge_color_check;
+alter table public.profiles add constraint profiles_badge_color_check check (badge_color in ('noir', 'or', 'violet'));
+alter table public.profiles drop constraint if exists profiles_decoration_check;
+alter table public.profiles add constraint profiles_decoration_check
+  check (decoration is null or decoration in ('flames', 'crown', 'laurel', 'angel', 'grad', 'headset', 'cat', 'devil', 'orbit', 'sakura'));
+grant update (badge, badge_color, decoration) on public.profiles to authenticated;
 
 create or replace function public.is_premium(u uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select coalesce((select featured or coalesce(premium_until > now(), false) from public.profiles where id = u), false);
 $$;
 
--- Photo, badge and frame are Lockin+ only (taking a photo off is always allowed).
+-- Badge and decoration are Lockin+ only (taking them off is always allowed).
+-- They stay stored when Lockin+ ends; the app only shows them while it is on.
 create or replace function public.check_profile_premium()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   -- The SQL editor (no signed-in user) can do anything.
   if auth.uid() is null or public.is_premium(new.id) then return new; end if;
-  if (new.avatar_url is not null and (tg_op = 'INSERT' or new.avatar_url is distinct from old.avatar_url))
-     or (new.badge is not null and (tg_op = 'INSERT' or new.badge is distinct from old.badge))
-     or (new.frame is not null and (tg_op = 'INSERT' or new.frame is distinct from old.frame)) then
+  if (new.badge is not null and (tg_op = 'INSERT' or new.badge is distinct from old.badge))
+     or (new.decoration is not null and (tg_op = 'INSERT' or new.decoration is distinct from old.decoration)) then
     raise exception 'Réservé à Lockin+' using errcode = 'P0001';
   end if;
   return new;
 end $$;
 drop trigger if exists check_profile_premium on public.profiles;
-create trigger check_profile_premium before insert or update of avatar_url, badge, frame on public.profiles
+create trigger check_profile_premium before insert or update of badge, decoration on public.profiles
   for each row execute function public.check_profile_premium();
 
--- Uploading a photo needs Lockin+. Reading your own files back is needed to replace one.
+-- The profile photo is free. Reading your own files back is needed to replace one.
 drop policy if exists "upload own avatar" on storage.objects;
 create policy "upload own avatar" on storage.objects
   for insert to authenticated
-  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text and public.is_premium(auth.uid()));
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 drop policy if exists "read own avatar" on storage.objects;
 create policy "read own avatar" on storage.objects
   for select to authenticated

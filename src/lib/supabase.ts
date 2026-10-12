@@ -44,9 +44,10 @@ export type ProfileRow = {
   featured: boolean;
   /** Lockin+ (subscription) end date, set by the server only. See src/lib/premium.ts. */
   premium_until: string | null;
-  /** Lockin+: emoji next to the name, and frame around the photo. */
+  /** Lockin+: badge next to the name (see BADGES) and its color, decoration around the photo. */
   badge: string | null;
-  frame: string | null;
+  badge_color: string;
+  decoration: string | null;
 };
 
 export type TodoRow = {

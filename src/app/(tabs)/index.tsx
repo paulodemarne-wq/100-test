@@ -17,7 +17,8 @@ import { focusSeconds, MAX_AWAY_MS, Notice, todoSplitAt, useLockin, useNow } fro
 import { isFinished, sortTodos } from '../../lib/todos';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
-import { badged, frameOf } from '../../lib/premium';
+import { decorationOf } from '../../lib/premium';
+import { Named } from '../../components/Badge';
 
 /** The ring fills up over one focus block, Pomodoro-style. */
 const FOCUS_BLOCK_SEC = 25 * 60;
@@ -129,7 +130,7 @@ export default function FocusScreen() {
             </View>
           </View>
           <Pressable onPress={() => router.push('/profile')} hitSlop={8}>
-            <Avatar name={profile?.display_name ?? '?'} photoUri={profile?.avatar_url} frame={frameOf(profile)} size={40} live={!!active} />
+            <Avatar name={profile?.display_name ?? '?'} photoUri={profile?.avatar_url} decoration={decorationOf(profile)} size={40} live={!!active} />
           </Pressable>
         </View>
 
@@ -169,9 +170,9 @@ export default function FocusScreen() {
 
         {nudges.length > 0 && (
           <Pressable onPress={markNudgesSeen} style={[styles.notice, { backgroundColor: colors.accentSoft }]}>
-            <Avatar name={nudges[0].from.display_name} photoUri={nudges[0].from.avatar_url} frame={frameOf(nudges[0].from)} size={28} />
+            <Avatar name={nudges[0].from.display_name} photoUri={nudges[0].from.avatar_url} decoration={decorationOf(nudges[0].from)} size={28} />
             <Text style={styles.noticeText}>
-              <Text style={{ fontWeight: '600' }}>{badged(nudges[0].from)}</Text>
+              <Text style={{ fontWeight: '600' }}><Named person={nudges[0].from} /></Text>
               {nudges.length > 1 ? ` et ${nudges.length - 1} autre${nudges.length > 2 ? 's' : ''}` : ''}{' '}
               {nudges.length > 1 ? "t'attendent" : "t'attend"}. Lock in. 📣
             </Text>

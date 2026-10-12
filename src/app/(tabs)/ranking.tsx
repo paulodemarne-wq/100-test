@@ -11,13 +11,17 @@ import { Person, useSocial } from '../../lib/social';
 import { useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, timeAgo } from '../../lib/time';
-import { badged, frameOf } from '../../lib/premium';
+import { decorationOf } from '../../lib/premium';
+import { Named } from '../../components/Badge';
+import type { ProfileRow } from '../../lib/supabase';
 
 const PODIUM = ['#F5B400', '#A1A1AA', '#C77B30'];
 
 type Entry = {
   id: string;
   name: string;
+  /** For the Lockin+ badge and decoration. */
+  person: ProfileRow | null;
   photoUri: string | null;
   seconds: number;
   streak: number;
@@ -35,7 +39,8 @@ export default function RankingScreen() {
   const ranking = useMemo(() => {
     const toEntry = (p: Person): Entry => ({
       id: p.profile.id,
-      name: badged(p.profile),
+      name: p.profile.display_name,
+      person: p.profile,
       photoUri: p.profile.avatar_url,
       seconds: p.weekSeconds,
       streak: p.streak,
@@ -44,7 +49,8 @@ export default function RankingScreen() {
     });
     const me: Entry = {
       id: userId ?? 'me',
-      name: badged(profile),
+      name: profile?.display_name ?? '?',
+      person: profile,
       photoUri: profile?.avatar_url ?? null,
       seconds: myWeekSeconds,
       streak: myStreak,
@@ -116,11 +122,11 @@ export default function RankingScreen() {
                     <Text style={styles.rank}>{i + 1}</Text>
                   )}
                 </View>
-                <Avatar name={r.name} photoUri={r.photoUri} size={40} />
+                <Avatar name={r.name} photoUri={r.photoUri} decoration={decorationOf(r.person)} size={40} />
                 <View style={{ flex: 1, gap: 6 }}>
                   <View style={styles.nameLine}>
                     <Text style={[type.headline, { flexShrink: 1 }]} numberOfLines={1}>
-                      {r.isMe ? `${r.name} (toi)` : r.name}
+                      <Named person={r.person} name={r.name} suffix={r.isMe ? ' (toi)' : ''} />
                       {scope === 'friends' && r.id === weekLeaderId ? ' 👑' : ''}
                     </Text>
                     {r.streak > 0 && (
@@ -153,8 +159,8 @@ export default function RankingScreen() {
               return (
                 <Row
                   key={s.id}
-                  left={<Avatar name={p.display_name} photoUri={p.avatar_url} frame={frameOf(p)} />}
-                  title={p.id === userId ? `${badged(p)} (toi)` : badged(p)}
+                  left={<Avatar name={p.display_name} photoUri={p.avatar_url} decoration={decorationOf(p)} />}
+                  title={<Named person={p} suffix={p.id === userId ? ' (toi)' : ''} />}
                   subtitle={`A craqué après ${formatDuration((end - Date.parse(s.started_at)) / 1000)}${labelSuffix(s.subject)} · ${timeAgo(end, now)}`}
                   subtitleColor={colors.danger}
                 />

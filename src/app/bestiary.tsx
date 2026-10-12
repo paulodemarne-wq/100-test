@@ -68,7 +68,7 @@ export default function Bestiary() {
             >
               <Text style={[styles.cellEmoji, !known && { opacity: 0.25 }]}>{known ? PLAN_EMOJI[s.line[0]] : '❔'}</Text>
               <Text style={[styles.cellName, !known && { color: colors.tertiary }]} numberOfLines={1}>
-                {known ? s.names[0] : `n° ${s.id + 1}`}
+                {known ? s.names[0] : s.id >= 100 ? '✨ Lockin+' : `n° ${s.id + 1}`}
               </Text>
               <View style={[styles.cellDot, { backgroundColor: s.traits.body, opacity: known ? 1 : 0.3 }]} />
             </Pressable>

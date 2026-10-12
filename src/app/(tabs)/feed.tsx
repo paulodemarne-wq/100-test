@@ -14,7 +14,8 @@ import { Person, useSocial } from '../../lib/social';
 import { focusSeconds, useLockin, useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, formatTimer, timeAgo } from '../../lib/time';
-import { badged, frameOf } from '../../lib/premium';
+import { decorationOf } from '../../lib/premium';
+import { Named } from '../../components/Badge';
 
 export default function FeedScreen() {
   const { profile, userId } = useAuth();
@@ -118,8 +119,8 @@ export default function FeedScreen() {
           {incomingRequests.map((p) => (
             <Row
               key={p.id}
-              left={<Avatar name={p.display_name} photoUri={p.avatar_url} frame={frameOf(p)} />}
-              title={badged(p)}
+              left={<Avatar name={p.display_name} photoUri={p.avatar_url} decoration={decorationOf(p)} />}
+              title={<Named person={p} />}
               subtitle={`@${p.username} veut lock in avec toi`}
               right={
                 <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -177,8 +178,8 @@ export default function FeedScreen() {
         <Section title="En lock in">
           {friends.length > 0 && active && profile ? (
             <Row
-              left={<Avatar name={profile.display_name} photoUri={profile.avatar_url} frame={frameOf(profile)} live />}
-              title={`${crown(profile.id, badged(profile))} (toi)`}
+              left={<Avatar name={profile.display_name} photoUri={profile.avatar_url} decoration={decorationOf(profile)} live />}
+              title={<Named person={profile} name={crown(profile.id, profile.display_name)} suffix=" (toi)" />}
               subtitle={active.pause ? 'En pause ☕' : labelOr(active.subject, 'En lock in')}
               right={<Text style={styles.liveTimer}>{formatTimer(focusSeconds(active, now))}</Text>}
             />
@@ -188,8 +189,8 @@ export default function FeedScreen() {
               key={f.profile.id}
               onPress={() => reactTo(f)}
               onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
-              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} frame={frameOf(f.profile)} live={f.status.kind === 'working'} />}
-              title={crown(f.profile.id, badged(f.profile))}
+              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} decoration={decorationOf(f.profile)} live={f.status.kind === 'working'} />}
+              title={<Named person={f.profile} name={crown(f.profile.id, f.profile.display_name)} />}
               subtitle={describeStatus(f.status, now)}
               footer={reactionsOf(f)}
               right={
@@ -211,8 +212,8 @@ export default function FeedScreen() {
               key={f.profile.id}
               onPress={() => reactTo(f)}
               onLongPress={() => confirmRemove(f.profile.id, f.profile.display_name)}
-              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} frame={frameOf(f.profile)} />}
-              title={crown(f.profile.id, badged(f.profile))}
+              left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} decoration={decorationOf(f.profile)} />}
+              title={<Named person={f.profile} name={crown(f.profile.id, f.profile.display_name)} />}
               subtitle={describeStatus(f.status, now)}
               subtitleColor={f.status.kind === 'abandoned' ? colors.danger : undefined}
               footer={reactionsOf(f)}
@@ -233,8 +234,8 @@ export default function FeedScreen() {
             <Row
               key={p.id}
               onLongPress={() => confirmRemove(p.id, p.display_name)}
-              left={<Avatar name={p.display_name} photoUri={p.avatar_url} frame={frameOf(p)} />}
-              title={badged(p)}
+              left={<Avatar name={p.display_name} photoUri={p.avatar_url} decoration={decorationOf(p)} />}
+              title={<Named person={p} />}
               subtitle={`@${p.username} · en attente`}
             />
           ))}

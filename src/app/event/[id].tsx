@@ -12,7 +12,8 @@ import { effectiveStatus, EventParticipant, useSocial } from '../../lib/social';
 import { useLockin, useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
-import { badged, frameOf } from '../../lib/premium';
+import { decorationOf } from '../../lib/premium';
+import { Named } from '../../components/Badge';
 
 /** Joining opens a little before the start. */
 const JOIN_EARLY_MS = 10 * 60_000;
@@ -102,10 +103,10 @@ export default function EventScreen() {
         {firstToCrack && (
           <View style={[card, styles.shame]}>
             <Text style={{ fontSize: 28 }}>💀</Text>
-            <Avatar name={firstToCrack.profile.display_name} photoUri={firstToCrack.profile.avatar_url} frame={frameOf(firstToCrack.profile)} size={36} />
+            <Avatar name={firstToCrack.profile.display_name} photoUri={firstToCrack.profile.avatar_url} decoration={decorationOf(firstToCrack.profile)} size={36} />
             <Text style={styles.shameText}>
               <Text style={{ fontWeight: '700' }}>
-                {firstToCrack.profile.id === userId ? 'Toi' : badged(firstToCrack.profile)}
+                {firstToCrack.profile.id === userId ? 'Toi' : <Named person={firstToCrack.profile} />}
               </Text>{' '}
               {firstToCrack.profile.id === userId ? 'as craqué en premier' : 'a craqué en premier'}
             </Text>
@@ -163,8 +164,8 @@ export default function EventScreen() {
             return (
               <Row
                 key={p.profile.id}
-                left={<Avatar name={p.profile.display_name} photoUri={p.profile.avatar_url} frame={frameOf(p.profile)} live={st === 'working'} />}
-                title={me ? `${badged(p.profile)} (toi)` : badged(p.profile)}
+                left={<Avatar name={p.profile.display_name} photoUri={p.profile.avatar_url} decoration={decorationOf(p.profile)} live={st === 'working'} />}
+                title={<Named person={p.profile} suffix={me ? ' (toi)' : ''} />}
                 subtitle={subtitle}
                 subtitleColor={color}
                 right={right}

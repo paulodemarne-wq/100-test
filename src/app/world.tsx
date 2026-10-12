@@ -30,7 +30,8 @@ import {
   World,
 } from '../world/world';
 import { walletSeconds } from '../lib/wallet';
-import { badged, frameOf } from '../lib/premium';
+import { decorationOf, isPremium } from '../lib/premium';
+import { Named } from '../components/Badge';
 
 /** What a tap does: nothing special (select objects), paint a ground, or put an object down. */
 type Tool = { kind: 'none' } | { kind: 'tile'; id: string } | { kind: 'object'; id: string };
@@ -135,10 +136,10 @@ export default function WorldScreen() {
       owners[pet.id] = ownerId;
     };
     if (profile) add(profile.id, 'Toi', pets[0]);
-    if (mine) for (const f of friends) add(f.profile.id, badged(f.profile), friendPets[f.profile.id]);
-    else if (host && !host.featured) add(host.id, badged(host), friendPets[host.id]);
+    if (mine) for (const f of friends) add(f.profile.id, f.profile.display_name, friendPets[f.profile.id]);
+    else if (host && !host.featured) add(host.id, host.display_name, friendPets[host.id]);
     // Featured accounts visit every island.
-    for (const f of featured) if (!owners[friendPets[f.id]?.id ?? '']) add(f.id, `⭐ ${badged(f)}`, friendPets[f.id]);
+    for (const f of featured) if (!owners[friendPets[f.id]?.id ?? '']) add(f.id, `⭐ ${f.display_name}`, friendPets[f.id]);
     return { specs, labels, owners };
   }, [profile, pets, friends, friendPets, mine, host, featured]);
 
@@ -251,7 +252,16 @@ export default function WorldScreen() {
       { text: 'Boutique', onPress: () => router.push({ pathname: '/shop', params: { tab: 'garden' } }) },
     ]);
 
+  const premium = isPremium(profile);
   const choose = (item: ShopItem) => {
+    // Lockin+ decorations: free, but only with Lockin+.
+    if (item.premium && !premium) {
+      Alert.alert(`${item.name} · Lockin+`, 'Cette déco est offerte avec Lockin+.', [
+        { text: 'Plus tard', style: 'cancel' },
+        { text: 'Voir Lockin+', onPress: () => router.push('/premium') },
+      ]);
+      return;
+    }
     // Grounds are unlocked once in the shop; objects are paid one by one when placed.
     if (item.slot === 'ground' && !ownsItem(item, inventory)) {
       Alert.alert(item.name, `À débloquer dans la boutique pour ${item.costHours} h. Ensuite tu peux en peindre autant que tu veux.`, [
@@ -341,7 +351,7 @@ export default function WorldScreen() {
     return (
       <>
         <Text style={styles.focusName} numberOfLines={1}>
-          {friend ? `${friend.featured ? '⭐ ' : ''}${badged(friend)}` : 'Toi'}
+          {friend ? <Named person={friend} name={`${friend.featured ? '⭐ ' : ''}${friend.display_name}`} size={17} /> : 'Toi'}
         </Text>
         <Text style={[styles.focusPet, { color: tier.color }]} numberOfLines={1}>
           {displayName(speciesById(pet.species), level)} · Niv. {level}
@@ -488,7 +498,7 @@ export default function WorldScreen() {
                 onPress={() => router.setParams({ user: f.profile.id })}
                 style={[styles.visit, params.user === f.profile.id && styles.visitActive]}
               >
-                <Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} frame={frameOf(f.profile)} size={22} />
+                <Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} decoration={decorationOf(f.profile)} size={22} />
                 <Text style={styles.visitText} numberOfLines={1}>
                   {f.profile.display_name}
                 </Text>
@@ -574,7 +584,7 @@ export default function WorldScreen() {
                   const tile = item.slot === 'ground';
                   const left = tile ? 0 : available(item.id);
                   const ready = tile ? ownsItem(item, inventory) : left > 0;
-                  const label = item.costHours === 0 ? 'Gratuit' : tile ? (ready ? '✓' : `🔒 ${item.costHours} h`) : ready ? `×${left}` : `${item.costHours} h`;
+                  const label = item.premium ? (premium ? 'Lockin+ ✓' : '🔒 Lockin+') : item.costHours === 0 ? 'Gratuit' : tile ? (ready ? '✓' : `🔒 ${item.costHours} h`) : ready ? `×${left}` : `${item.costHours} h`;
                   return (
                     <Pressable key={item.id} onPress={() => choose(item)} style={[styles.item, selectedId === item.id && styles.itemActive]}>
                       <Text style={[styles.itemEmoji, tile && !ready && { opacity: 0.35 }]}>{item.emoji}</Text>

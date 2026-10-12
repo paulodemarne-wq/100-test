@@ -20,7 +20,7 @@ type Auth = {
   setPhoto: (localPhotoUri: string | null) => Promise<void>;
   /** Reloads the profile (after a purchase, for the wallet). */
   reloadProfile: () => Promise<void>;
-  updateSettings: (settings: Partial<Pick<ProfileRow, 'weekly_goal_minutes' | 'notify_friend_sessions' | 'badge' | 'frame'>>) => Promise<void>;
+  updateSettings: (settings: Partial<Pick<ProfileRow, 'weekly_goal_minutes' | 'notify_friend_sessions' | 'badge' | 'badge_color' | 'decoration'>>) => Promise<void>;
 };
 
 const AuthContext = createContext<Auth | null>(null);

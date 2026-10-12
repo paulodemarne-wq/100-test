@@ -103,3 +103,11 @@ src/lib/
 - [x] Design clair façon iOS
 - [ ] Icône et écran de démarrage Lockin
 - [ ] Publication sur l'App Store avec EAS (`npx eas-cli build` / `submit`)
+
+## Lockin+ (l'abonnement)
+
+- Badge à côté du prénom (12 symboles, 3 couleurs, style Snap), décoration de photo en 3D (anneau de feu, couronne, ange…),
+  l'œuf Lockin+ (10 animaux exclusifs avec chacun une signature en 3D) et 6 décos d'île gratuites.
+- La photo de profil est gratuite pour tout le monde.
+- C'est la base qui décide qui a Lockin+ (`profiles.premium_until`, ou un compte vedette) : rien ne peut être triché depuis l'app.
+- En attendant le paiement App Store : `supabase/donner-lockin-plus.sql` donne Lockin+ à quelqu'un.

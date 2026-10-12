@@ -9,7 +9,8 @@ import { Row, Section } from '../components/List';
 import { Button, ErrorText } from '../components/ui';
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
-import { badged, frameOf } from '../lib/premium';
+import { decorationOf } from '../lib/premium';
+import { Named } from '../components/Badge';
 
 /** Next round half hour, at least 15 minutes from now. */
 function defaultStart(): Date {
@@ -97,8 +98,8 @@ export default function NewEvent() {
                 <Row
                   key={f.profile.id}
                   onPress={() => toggle(f.profile.id)}
-                  left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} frame={frameOf(f.profile)} />}
-                  title={badged(f.profile)}
+                  left={<Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} decoration={decorationOf(f.profile)} />}
+                  title={<Named person={f.profile} />}
                   subtitle={`@${f.profile.username}`}
                   right={
                     <Ionicons

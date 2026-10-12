@@ -24,7 +24,7 @@ export function Section({ title, footer, children }: { title?: string; footer?: 
 
 type RowProps = {
   left?: ReactNode;
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   subtitleColor?: string;
   right?: ReactNode;
@@ -65,7 +65,7 @@ export function Pill({
   tone = 'soft',
   disabled,
 }: {
-  title: string;
+  title: ReactNode;
   onPress: () => void;
   tone?: 'soft' | 'solid' | 'muted';
   disabled?: boolean;

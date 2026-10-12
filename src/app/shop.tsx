@@ -11,6 +11,7 @@ import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
 import { formatDuration } from '../lib/time';
 import { formatWallet, walletSeconds } from '../lib/wallet';
+import { isPremium } from '../lib/premium';
 
 /** Time left before the daily shop changes (midnight, Paris time). */
 function msUntilNextShop(now: Date): number {
@@ -54,7 +55,12 @@ export default function Shop() {
   const pet = pets[0] ?? null;
   const balance = walletSeconds(profile);
 
+  const premium = isPremium(profile);
   const buy = (item: ShopItem) => {
+    if (item.premium && !premium) {
+      router.push('/premium');
+      return;
+    }
     const deal = dealFor(item);
     const price = priceOf(item);
     if (balance < price * 3600) {
@@ -149,6 +155,7 @@ export default function Shop() {
         ];
   /** Bigger islands are bought in order: 20×20 before 24×24, etc. */
   const lockedBy = (item: ShopItem): string | null => {
+    if (item.premium && !premium) return 'Lockin+';
     const m = /^size(\d+)$/.exec(item.id);
     if (!m || m[1] === '20') return null;
     const before = `size${Number(m[1]) - 4}`;
@@ -216,10 +223,10 @@ export default function Shop() {
             const price = priceOf(item);
             // Island objects are bought one by one (never "owned" for good), the rest once.
             const perPiece = item.kind === 'garden' && item.slot !== 'ground' && item.costHours > 0;
-            const owned = !perPiece && item.kind !== 'egg' && ownsItem(item, inventory);
+            const owned = !perPiece && item.kind !== 'egg' && ownsItem(item, inventory, premium);
             const locked = owned ? null : lockedBy(item);
             const affordable = balance >= price * 3600;
-            const color = item.kind === 'egg' ? colors.accent : RARITY_COLORS[item.rarity];
+            const color = item.premium ? '#B7791F' : item.kind === 'egg' ? colors.accent : RARITY_COLORS[item.rarity];
             return (
               <Pressable
                 key={item.id}
@@ -228,7 +235,7 @@ export default function Shop() {
               >
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={[styles.rarity, { backgroundColor: color }]}>
-                    <Text style={styles.rarityText}>{item.kind === 'egg' ? 'Nouvel animal' : item.rarity}</Text>
+                    <Text style={styles.rarityText}>{item.premium ? 'Lockin+' : item.kind === 'egg' ? 'Nouvel animal' : item.rarity}</Text>
                   </View>
                   {deal && (
                     <View style={[styles.rarity, { backgroundColor: deal.percent === 100 ? colors.success : colors.danger }]}>
@@ -249,9 +256,9 @@ export default function Shop() {
                     <Text style={[styles.buyText, { color: colors.success }]}>{item.costHours === 0 ? 'Gratuit ✓' : 'Possédé ✓'}</Text>
                   </View>
                 ) : locked ? (
-                  <View style={[styles.buy, { backgroundColor: colors.fill }]}>
+                  <Pressable onPress={() => item.premium && router.push('/premium')} style={[styles.buy, { backgroundColor: colors.fill }]}>
                     <Text style={[styles.buyText, { color: colors.secondary, fontSize: 13 }]}>🔒 {locked}</Text>
-                  </View>
+                  </Pressable>
                 ) : (
                   <Pressable
                     onPress={() => buy(item)}
