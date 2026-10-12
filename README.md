@@ -25,7 +25,7 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
   et les paliers Bébé → Rare → Super rare → Épique → Mythique → Légendaire. Le niveau max demande ~2 190 h (2 ans à 3 h/jour).
 - **Mon île** 🏝️ : une île qui commence vide et qu'on décore comme on veut : peindre le sol (herbe, chemin, pavés, eau, sable, neige, nuages…)
   et poser jusqu'à 200 objets (plus de 50 : maisons, igloo, moulin, phare, arbres, balançoire, trampoline, coffre au trésor…).
-  Chaque objet se paie à la pièce (confirmation avant de payer) ; un objet enlevé retourne dans le stock. Outils : gomme et remplacement avec confirmation, déplacer, tourner, mode neutre.
+  Chaque objet se paie à la pièce (confirmation avant de payer) ; un objet enlevé retourne dans le stock. Comme dans Clash of Clans : touche un objet pour le choisir (carré à flèches, « Supprimer » au-dessus avec confirmation, « Tourner » en dessous), maintiens-le pour le déplacer. Bouton « Magasin » pour poser de nouveaux objets ; tout s'enregistre tout seul.
   On peut **l'agrandir** (16×16 → 32×32), **ajouter la mer** autour et y mettre **des bateaux** (barque, pédalo canard, voilier, yacht, bateau pirate).
   **Les animaux de tous tes amis se promènent sur ton île** : touche-en un, il se tourne vers toi avec son nom et un bouton pour visiter son île.
 - **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis 10 h → légendaire 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 100 animaux.
@@ -78,7 +78,7 @@ src/app/                 écrans (Expo Router : chaque fichier = un écran)
   (tabs)/pet.tsx         mon animal 3D, accessoires, collection
   (tabs)/ranking.tsx     classement
   shop.tsx, bestiary.tsx boutique et bestiaire
-  world.tsx              l'île : visite, amis qui s'y promènent, mode Modifier
+  world.tsx              l'île : visite, amis qui s'y promènent, édition à la Clash of Clans + Magasin
 src/creatures/           100 espèces, niveaux, boutique (species.ts) modèles 3D (build.ts)
 src/world/               l'île : données (world.ts), objets 3D (decor.ts), scène et caméra (scene.ts)
 src/components/          PetView et WorldView (3D), Avatar, anneau, listes, date/heure, pause, tâches, réactions

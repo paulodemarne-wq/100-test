@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { WorldView } from '../components/WorldView';
@@ -31,14 +31,9 @@ import {
 } from '../world/world';
 import { walletSeconds } from '../lib/wallet';
 
-type Tool =
-  | { kind: 'none' }
-  | { kind: 'tile'; id: string }
-  | { kind: 'object'; id: string }
-  | { kind: 'erase' }
-  | { kind: 'rotate' }
-  /** Moving an object: first pick it (`from`), then tap where it goes. */
-  | { kind: 'move'; from?: [number, number] };
+/** What a tap does: nothing special (select objects), paint a ground, or put an object down. */
+type Tool = { kind: 'none' } | { kind: 'tile'; id: string } | { kind: 'object'; id: string };
+type Cell = [number, number];
 type Tab = 'tiles' | 'objects' | 'tools';
 
 const TILES = SHOP_ITEMS.filter((i) => i.kind === 'garden' && i.slot === 'ground');
@@ -58,14 +53,19 @@ export default function WorldScreen() {
   const mine = !params.user || params.user === profile?.id;
 
   const saved = useMemo(() => readWorld(host?.world), [host?.world]);
-  // Coming from the shop after buying a bigger island or the sea: apply it right away.
+  // My island is always editable (Clash of Clans style) and saves itself.
+  // draft = my changes not saved yet. Coming from the shop after buying a bigger island or the sea: apply it right away.
   const [draft, setDraft] = useState<World | null>(() => {
-    if (!params.edit || !mine) return null;
+    if (!mine || (!params.grow && !params.sea)) return null;
     let w = saved;
     if (params.grow) w = resizeWorld(w, ownedSize(inventory));
     if (params.sea && ownsSea(inventory)) w = { ...w, sea: true };
     return w;
   });
+  const [shopOpen, setShopOpen] = useState(!!params.edit || !!params.item);
+  const [selected, setSelected] = useState<Cell | null>(null);
+  /** An object being dragged with the finger: where it was and where it is now. */
+  const [drag, setDrag] = useState<{ from: Cell; to: Cell } | null>(null);
   const [tab, setTab] = useState<Tab>(params.item && isTile(params.item) ? 'tiles' : 'objects');
   const [tool, setTool] = useState<Tool>(
     params.item ? (isTile(params.item) ? { kind: 'tile', id: params.item } : { kind: 'object', id: params.item }) : { kind: 'none' },
@@ -75,11 +75,52 @@ export default function WorldScreen() {
     (params.item && SHOP_ITEMS.find((i) => i.id === params.item)?.slot as GardenSlot) || 'house',
   );
   const [picked, setPicked] = useState<string | null>(null);
-  const editing = draft !== null;
+  // Switching island closes the bubble and the selection.
+  useEffect(() => {
+    setPicked(null);
+    setSelected(null);
+    setDrag(null);
+  }, [params.user]);
+  /** My island as it is now (with my latest changes). */
+  const current = mine ? (draft ?? saved) : saved;
+  // While dragging, show the object where the finger is.
+  const world = useMemo(
+    () =>
+      drag
+        ? { ...current, objects: current.objects.map((o) => (o[1] === drag.from[0] && o[2] === drag.from[1] ? ([o[0], drag.to[0], drag.to[1], o[3]] as typeof o) : o)) }
+        : current,
+    [current, drag],
+  );
 
-  // Switching island closes the bubble.
-  useEffect(() => setPicked(null), [params.user]);
-  const world = draft ?? saved;
+  // Save a moment after the last change (and when leaving the island).
+  const unsaved = useRef<World | null>(null);
+  const saver = useRef({ saveWorld, reloadProfile });
+  saver.current = { saveWorld, reloadProfile };
+  useEffect(() => {
+    if (!draft) return;
+    unsaved.current = draft;
+    const timer = setTimeout(async () => {
+      unsaved.current = null;
+      setSaving(true);
+      try {
+        await saver.current.saveWorld(draft);
+        await saver.current.reloadProfile();
+        setDraft((d) => (d === draft ? null : d));
+      } catch (e) {
+        Alert.alert('Oups', `${(e as Error).message}\nTon île revient comme avant.`);
+        setDraft(null);
+      } finally {
+        setSaving(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [draft]);
+  useEffect(
+    () => () => {
+      if (unsaved.current) saver.current.saveWorld(unsaved.current).then(saver.current.reloadProfile).catch(() => {});
+    },
+    [],
+  );
 
   // Who lives here: on my island, me and all my friends; on a friend's, them and me (visiting).
   const { specs, labels, owners } = useMemo(() => {
@@ -114,10 +155,10 @@ export default function WorldScreen() {
   const itemOf = (id: string) => SHOP_ITEMS.find((i) => i.id === id);
   const nameOf = (id: string) => itemOf(id)?.name.toLowerCase() ?? 'cet objet';
   /** How many of an object can still be placed without paying (Infinity if free). */
-  const available = (id: string, w: World | null = draft) => {
+  const available = (id: string, w: World = current) => {
     const item = itemOf(id);
     if (!item || item.costHours === 0) return Infinity;
-    const placed = (w?.objects ?? []).filter((o) => o[0] === id).length;
+    const placed = w.objects.filter((o) => o[0] === id).length;
     return (stock[id] ?? 0) - placed;
   };
   const balance = walletSeconds(profile);
@@ -126,8 +167,10 @@ export default function WorldScreen() {
   const putDown = (base: World, id: string, x: number, z: number) => {
     const occupant = objectAt(base, x, z);
     const apply = () => {
-      setDraft((d) => (d ? placeObject(d, x, z, id) : d));
+      setDraft((d) => placeObject(d ?? saved, x, z, id));
       setTool({ kind: 'none' });
+      setShopOpen(false);
+      setSelected([x, z]);
       Haptics.selectionAsync();
     };
     if (occupant && occupant[0] !== id) {
@@ -138,13 +181,16 @@ export default function WorldScreen() {
     } else apply();
   };
 
-  /** In the editor: apply the tool on a cell. Returns whether something changed (the cell lights green or red). */
-  const tapCell = (x: number, z: number, object: [number, number] | null): boolean | void => {
-    if (!draft) return false;
-    if (tool.kind === 'none') return;
-    // Erasing / turning / picking up works on the object under the finger (tapping its roof counts).
-    if ((tool.kind === 'erase' || tool.kind === 'rotate' || (tool.kind === 'move' && !tool.from)) && object) [x, z] = object;
-
+  /** On my island: tap an object to select it, or use the tool picked in the Magasin. Returns whether it worked (the cell lights green or red). */
+  const tapCell = (x: number, z: number, object: Cell | null): boolean | void => {
+    const draft = current;
+    if (tool.kind === 'none') {
+      setPicked(null);
+      if (!object) return setSelected(null);
+      Haptics.selectionAsync();
+      setSelected((sel) => (sel && sel[0] === object[0] && sel[1] === object[1] ? null : object));
+      return;
+    }
     if (tool.kind === 'tile') {
       const next = setTile(draft, x, z, tool.id);
       if (next === draft) return false;
@@ -152,57 +198,11 @@ export default function WorldScreen() {
       setDraft(next);
       return true;
     }
-    if (tool.kind === 'rotate') {
-      if (!objectAt(draft, x, z)) return false;
-      Haptics.selectionAsync();
-      setDraft(rotateAt(draft, x, z));
-      return true;
-    }
-    if (tool.kind === 'erase') {
-      const target = objectAt(draft, x, z);
-      if (!target) return false;
-      Alert.alert(`Supprimer ${nameOf(target[0])} ?`, itemOf(target[0])?.costHours ? 'Il retourne dans ton stock : tu pourras le reposer sans repayer.' : undefined, [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => {
-            setDraft((d) => (d ? removeAt(d, x, z) : d));
-            setTool({ kind: 'none' });
-            Haptics.selectionAsync();
-          },
-        },
-      ]);
-      return;
-    }
-    if (tool.kind === 'move') {
-      if (!tool.from) {
-        if (!objectAt(draft, x, z)) return false;
-        setTool({ kind: 'move', from: [x, z] });
-        Haptics.selectionAsync();
-        return true;
-      }
-      const [fx, fz] = tool.from;
-      const moving = objectAt(draft, fx, fz);
-      if (!moving || (fx === x && fz === z)) {
-        setTool({ kind: 'none' });
-        return false;
-      }
-      if (objectAt(draft, x, z)) {
-        Alert.alert('Case occupée', 'Choisis une case libre, ou enlève d’abord ce qui est dessus.');
-        return false;
-      }
-      if (!canPlace(draft, moving[0], x, z)) return false;
-      setDraft({ ...draft, objects: draft.objects.map((o) => (o[1] === fx && o[2] === fz ? [o[0], x, z, o[3]] : o)) });
-      setTool({ kind: 'none' });
-      Haptics.selectionAsync();
-      return true;
-    }
 
     // Placing an object.
     const id = tool.id;
     if (!objectAt(draft, x, z) && draft.objects.length >= MAX_OBJECTS) {
-      Alert.alert('Île pleine', `${MAX_OBJECTS} objets maximum. Enlève-en avec la gomme.`);
+      Alert.alert('Île pleine', `${MAX_OBJECTS} objets maximum. Touche un objet puis « Supprimer » pour en enlever.`);
       return false;
     }
     if (!canPlace(draft, id, x, z)) {
@@ -262,27 +262,59 @@ export default function WorldScreen() {
     setTool(item.slot === 'ground' ? { kind: 'tile', id: item.id } : { kind: 'object', id: item.id });
   };
 
-  const save = async () => {
-    if (!draft) return;
-    setSaving(true);
-    try {
-      await saveWorld(draft);
-      await reloadProfile();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setDraft(null);
-    } catch (e) {
-      Alert.alert('Oups', (e as Error).message);
-    } finally {
-      setSaving(false);
-    }
+  const selectedObject = selected ? objectAt(world, selected[0], selected[1]) : undefined;
+
+  /** Supprimer (with "are you sure?"): the object goes back to the stock. */
+  const removeSelected = () => {
+    if (!selectedObject) return;
+    const [id, x, z] = selectedObject;
+    Alert.alert(`Supprimer ${nameOf(id)} ?`, itemOf(id)?.costHours ? 'Êtes-vous sûr ? Il retournera dans ton stock : tu pourras le reposer sans repayer.' : 'Êtes-vous sûr ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => {
+          setDraft(removeAt(current, x, z));
+          setSelected(null);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        },
+      },
+    ]);
   };
 
-  const cancel = () => {
-    if (draft === saved) return setDraft(null);
-    Alert.alert('Annuler les changements ?', undefined, [
-      { text: 'Continuer', style: 'cancel' },
-      { text: 'Annuler', style: 'destructive', onPress: () => setDraft(null) },
-    ]);
+  const rotateSelected = () => {
+    if (!selected) return;
+    Haptics.selectionAsync();
+    setDraft(rotateAt(current, selected[0], selected[1]));
+  };
+
+  // Hold an object to pick it up, slide to move it, let go to put it down.
+  const dragStart = (x: number, z: number) => {
+    if (!mine || tool.kind !== 'none' || !objectAt(current, x, z)) return false;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPicked(null);
+    setSelected([x, z]);
+    setDrag({ from: [x, z], to: [x, z] });
+    return true;
+  };
+  const dragMove = (x: number, z: number) => {
+    if (!drag) return;
+    const moving = objectAt(current, drag.from[0], drag.from[1]);
+    const other = objectAt(current, x, z);
+    // Only on a free cell where this object is allowed (boats on water).
+    if (!moving || (other && other !== moving) || !canPlace(current, moving[0], x, z)) return;
+    Haptics.selectionAsync();
+    setSelected([x, z]);
+    setDrag({ ...drag, to: [x, z] });
+  };
+  const dragEnd = () => {
+    if (!drag) return;
+    const { from, to } = drag;
+    setDrag(null);
+    setSelected(to);
+    if (from[0] === to[0] && from[1] === to[1]) return;
+    setDraft({ ...current, objects: current.objects.map((o) => (o[1] === from[0] && o[2] === from[1] ? [o[0], to[0], to[1], o[3]] : o)) });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   /** Outside the editor: tapping the shop building opens today's shop. */
@@ -346,35 +378,53 @@ export default function WorldScreen() {
         world={world}
         pets={specs}
         labels={labels}
-        onTapCell={editing ? tapCell : tapIsland}
+        onTapCell={mine ? tapCell : tapIsland}
         markers={
-          shopIsland && !editing
+          shopIsland && !selected
             ? world.objects
                 .filter((o) => o[0] === 'boutique')
                 .map((o) => ({ id: `${o[1]},${o[2]}`, x: o[1] + 0.5, y: 2.3, z: o[2] + 0.5, text: '🛍️ Boutique du jour' }))
             : undefined
         }
-        onTapPet={editing ? undefined : (id) => setPicked(id)}
-        focusId={editing ? null : picked}
+        onTapPet={
+          tool.kind !== 'none'
+            ? undefined
+            : (id) => {
+                setSelected(null);
+                setPicked(id);
+              }
+        }
+        focusId={tool.kind !== 'none' ? null : picked}
         renderFocus={renderFocus}
+        selected={mine ? selected : null}
+        selectedTop={
+          <>
+            {selectedObject?.[0] === 'boutique' && (
+              <Pressable onPress={() => router.push({ pathname: '/shop', params: { tab: 'deals' } })} style={[styles.objButton, { backgroundColor: colors.accent }]}>
+                <Text style={styles.objButtonText}>🛍️ Ouvrir</Text>
+              </Pressable>
+            )}
+            <Pressable onPress={removeSelected} style={[styles.objButton, { backgroundColor: colors.danger }]}>
+              <Ionicons name="trash" size={15} color="#FFFFFF" />
+              <Text style={styles.objButtonText}>Supprimer</Text>
+            </Pressable>
+          </>
+        }
+        selectedBottom={
+          <Pressable onPress={rotateSelected} style={[styles.objButton, { backgroundColor: colors.text }]}>
+            <Ionicons name="refresh" size={15} color="#FFFFFF" />
+            <Text style={styles.objButtonText}>Tourner</Text>
+          </Pressable>
+        }
+        onDragStart={mine ? dragStart : undefined}
+        onDragMove={dragMove}
+        onDragEnd={dragEnd}
         style={styles.fill}
       />
 
       <SafeAreaView edges={['top']} style={styles.top} pointerEvents="box-none">
         <View style={styles.topRow}>
-          {editing ? (
-            <>
-              <Pressable onPress={cancel} style={styles.pill}>
-                <Text style={styles.pillText}>Annuler</Text>
-              </Pressable>
-              <Text style={styles.count}>
-                {world.objects.length}/{MAX_OBJECTS} objets
-              </Text>
-              <Pressable onPress={save} disabled={saving} style={[styles.pill, styles.pillAccent]}>
-                {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text style={[styles.pillText, { color: colors.onAccent }]}>Enregistrer</Text>}
-              </Pressable>
-            </>
-          ) : (
+          {
             <>
               <Pressable onPress={() => router.back()} style={styles.round} accessibilityLabel="Retour">
                 <Ionicons name="chevron-back" size={22} color={colors.text} />
@@ -384,7 +434,11 @@ export default function WorldScreen() {
                   {mine ? 'Mon île' : `Île de ${host.display_name}`}
                 </Text>
                 <Text style={styles.subtitle}>
-                  {mine ? `${specs.length - 1} animal${specs.length - 1 > 1 ? 'aux' : ''} en visite` : 'Tu es en visite'}
+                  {!mine
+                    ? 'Tu es en visite'
+                    : saving || draft
+                      ? 'Enregistrement…'
+                      : `${world.objects.length}/${MAX_OBJECTS} objets · ${specs.length - 1} animal${specs.length - 1 > 1 ? 'aux' : ''} en visite`}
                 </Text>
               </View>
               {hostFeatured && (
@@ -393,16 +447,23 @@ export default function WorldScreen() {
                 </Pressable>
               )}
               {mine && (
-                <Pressable onPress={() => setDraft(saved)} style={[styles.pill, styles.pillAccent]}>
-                  <Ionicons name="hammer" size={15} color={colors.onAccent} />
-                  <Text style={[styles.pillText, { color: colors.onAccent }]}>Modifier</Text>
+                <Pressable
+                  onPress={() => {
+                    setShopOpen((o) => !o);
+                    setTool({ kind: 'none' });
+                    setSelected(null);
+                  }}
+                  style={[styles.pill, shopOpen ? styles.pill : styles.pillAccent]}
+                >
+                  <Ionicons name={shopOpen ? 'close' : 'storefront'} size={15} color={shopOpen ? colors.text : colors.onAccent} />
+                  <Text style={[styles.pillText, { color: shopOpen ? colors.text : colors.onAccent }]}>{shopOpen ? 'Fermer' : 'Magasin'}</Text>
                 </Pressable>
               )}
             </>
-          )}
+          }
         </View>
 
-        {!editing && (friends.length > 0 || featured.length > 0) && (
+        {!shopOpen && (friends.length > 0 || featured.length > 0) && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.visits}>
             <Pressable onPress={() => router.setParams({ user: '' })} style={[styles.visit, mine && styles.visitActive]}>
               <Text style={{ fontSize: 18 }}>🏝️</Text>
@@ -436,7 +497,13 @@ export default function WorldScreen() {
         )}
       </SafeAreaView>
 
-      {editing && (
+      {mine && !shopOpen && !selected && !picked && (
+        <SafeAreaView edges={['bottom']} style={styles.bottom} pointerEvents="none">
+          <Text style={styles.tip}>Touche un objet pour le choisir · maintiens-le pour le déplacer</Text>
+        </SafeAreaView>
+      )}
+
+      {mine && shopOpen && (
         <SafeAreaView edges={['bottom']} style={styles.bottom} pointerEvents="box-none">
           <View style={styles.palette}>
             <View style={styles.tabs}>
@@ -455,21 +522,10 @@ export default function WorldScreen() {
             {tab === 'tools' ? (
               <View style={{ gap: 8 }}>
                 <View style={styles.tools}>
-                  {(
-                    [
-                      ['erase', 'Gomme', 'trash-outline'],
-                      ['rotate', 'Tourner', 'refresh'],
-                    ] as const
-                  ).map(([k, label, icon]) => (
-                    <Pressable key={k} onPress={() => setTool({ kind: k })} style={[styles.item, styles.toolItem, tool.kind === k && styles.itemActive]}>
-                      <Ionicons name={icon} size={24} color={colors.text} />
-                      <Text style={styles.itemName}>{label}</Text>
-                    </Pressable>
-                  ))}
                   <Pressable
                     onPress={() => {
                       if (!ownsSea(inventory)) return openShop('La mer', 'Achète la mer pour entourer ton île d’eau et y mettre des bateaux.');
-                      setDraft({ ...world, sea: !world.sea });
+                      setDraft({ ...current, sea: !current.sea });
                     }}
                     style={[styles.item, styles.toolItem, world.sea && styles.itemActive]}
                   >
@@ -486,7 +542,7 @@ export default function WorldScreen() {
                         onPress={() => {
                           if (!unlocked) return openShop(`Île ${size}×${size}`, 'Agrandis ton île dans la boutique.');
                           if (size < world.size) return Alert.alert('Ton île est déjà plus grande', 'On ne peut pas la rétrécir.');
-                          setDraft(resizeWorld(world, size));
+                          setDraft(resizeWorld(current, size));
                         }}
                         style={[styles.sizeChip, world.size === size && styles.itemActive]}
                       >
@@ -501,32 +557,17 @@ export default function WorldScreen() {
               </View>
             ) : (
               <>
-              {tab === 'objects' && (
-                <View style={styles.categories}>
-                  {(
-                    [
-                      ['none', '✋ Rien'],
-                      ['erase', '🧽 Gomme'],
-                      ['move', '↔️ Déplacer'],
-                      ['rotate', '🔄 Tourner'],
-                    ] as const
-                  ).map(([k, label]) => (
-                    <Pressable
-                      key={k}
-                      onPress={() => setTool({ kind: k })}
-                      style={[styles.category, tool.kind === k && { backgroundColor: k === 'erase' ? colors.danger : colors.text }]}
-                    >
-                      <Text style={[styles.categoryText, tool.kind === k && { color: colors.onAccent }]}>{label}</Text>
-                    </Pressable>
-                  ))}
-                  <View style={styles.chipSeparator} />
-                  {(['house', 'tree', 'deco', 'boat'] as const).map((c) => (
+              <View style={styles.categories}>
+                  <Pressable onPress={() => setTool({ kind: 'none' })} style={[styles.category, tool.kind === 'none' && { backgroundColor: colors.text }]}>
+                    <Text style={[styles.categoryText, tool.kind === 'none' && { color: colors.onAccent }]}>✋ Rien</Text>
+                  </Pressable>
+                  {tab === 'objects' && <View style={styles.chipSeparator} />}
+                  {tab === 'objects' && (['house', 'tree', 'deco', 'boat'] as const).map((c) => (
                     <Pressable key={c} onPress={() => setCategory(c)} style={[styles.category, category === c && styles.categoryActive]}>
                       <Text style={[styles.categoryText, category === c && { color: colors.onAccent }]}>{GARDEN_SLOT_NAMES[c]}</Text>
                     </Pressable>
                   ))}
                 </View>
-              )}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.items}>
                 {items.map((item) => {
                   const tile = item.slot === 'ground';
@@ -548,20 +589,12 @@ export default function WorldScreen() {
             )}
             <Text style={styles.hint}>
               {tool.kind === 'none'
-                ? 'Choisis un objet ou un sol, puis touche une case. Glisse pour te déplacer, pince pour zoomer.'
+                ? 'Choisis un objet ou un sol, puis touche une case de ton île.'
                 : tool.kind === 'tile'
                   ? 'Touche des cases pour peindre le sol. « ✋ Rien » pour arrêter.'
-                  : tool.kind === 'object'
-                    ? available(tool.id) > 0
-                      ? `Touche une case pour poser ${nameOf(tool.id)}.`
-                      : `Touche une case : tu pourras acheter ${nameOf(tool.id)} pour ${itemOf(tool.id)?.costHours} h.`
-                    : tool.kind === 'erase'
-                      ? 'Touche un objet pour l’enlever.'
-                      : tool.kind === 'move'
-                        ? tool.from
-                          ? 'Touche la case où le mettre.'
-                          : 'Touche l’objet à déplacer.'
-                        : 'Touche un objet pour le tourner.'}
+                  : available(tool.id) > 0
+                    ? `Touche une case pour poser ${nameOf(tool.id)}.`
+                    : `Touche une case : tu pourras acheter ${nameOf(tool.id)} pour ${itemOf(tool.id)?.costHours} h.`}
               {tool.kind === 'object' && isBoat(tool.id) ? ' Les bateaux vont sur la mer ou sur l’eau.' : ''}
             </Text>
           </View>
@@ -614,6 +647,9 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: 13, fontWeight: '700', color: colors.text },
   sizeChip: { borderRadius: 999, backgroundColor: colors.card, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 2, borderColor: 'transparent' },
   hint: { ...type.footnote, marginHorizontal: 14 },
+  objButton: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  objButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  tip: { ...glass, alignSelf: 'center', marginBottom: 14, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, fontSize: 13, fontWeight: '600', color: colors.text, overflow: 'hidden' },
   focusName: { fontSize: 17, fontWeight: '800', color: colors.text },
   focusPet: { fontSize: 13, fontWeight: '700' },
   focusButton: { marginTop: 2, backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },

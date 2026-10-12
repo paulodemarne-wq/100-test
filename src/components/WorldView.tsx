@@ -21,27 +21,68 @@ type Props = {
   focusId?: string | null;
   /** Content of that bubble. */
   renderFocus?: (petId: string) => ReactNode;
+  /** Selected object (its cell): a square with arrows under it, and buttons above and below it. */
+  selected?: [number, number] | null;
+  selectedTop?: ReactNode;
+  selectedBottom?: ReactNode;
+  /** Holding a finger on an object picks it up (return false to refuse); it follows the finger cell by cell. */
+  onDragStart?: (x: number, z: number) => boolean;
+  onDragMove?: (x: number, z: number) => void;
+  onDragEnd?: () => void;
   style?: ViewStyle;
 };
+
+/** How long to hold a finger on an object before it can be dragged. */
+const HOLD_MS = 350;
 
 type Label = { id: string; x: number; y: number; text: string; marker?: boolean };
 
 /**
  * An island in 3D. One finger moves around, two fingers zoom and turn, a tap picks a pet or a cell.
  */
-export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, focusId = null, renderFocus, style }: Props) {
+export function WorldView({
+  world,
+  pets,
+  labels,
+  markers,
+  onTapCell,
+  onTapPet,
+  focusId = null,
+  renderFocus,
+  selected = null,
+  selectedTop,
+  selectedBottom,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  style,
+}: Props) {
   const islandRef = useRef<IslandScene | null>(null);
   const camRef = useRef<IslandCamera | null>(null);
   const size = useRef({ width: 1, height: 1 });
   const frame = useRef<number | null>(null);
-  const callbacks = useRef({ onTapCell, onTapPet });
-  callbacks.current = { onTapCell, onTapPet };
+  const callbacks = useRef({ onTapCell, onTapPet, onDragStart, onDragMove, onDragEnd });
+  callbacks.current = { onTapCell, onTapPet, onDragStart, onDragMove, onDragEnd };
   const latest = useRef({ world, pets });
   latest.current = { world, pets };
   const [shown, setShown] = useState<Label[]>([]);
   // Bubble position, moved every frame without re-rendering.
   const bubble = useRef(new Animated.ValueXY({ x: -1000, y: -1000 })).current;
   const focus = useRef<{ id: string | null; gliding: boolean }>({ id: null, gliding: false });
+  // Buttons above and below the selected object, moved every frame.
+  const selTop = useRef(new Animated.ValueXY({ x: -1000, y: -1000 })).current;
+  const selFoot = useRef(new Animated.ValueXY({ x: -1000, y: -1000 })).current;
+  const selectedKey = selected ? `${selected[0]},${selected[1]}` : '';
+  useEffect(() => {
+    const cell = selectedKey ? (selectedKey.split(',').map(Number) as [number, number]) : null;
+    islandRef.current?.setSelection(cell);
+    if (!cell) {
+      selTop.setValue({ x: -1000, y: -1000 });
+      selFoot.setValue({ x: -1000, y: -1000 });
+    }
+  }, [selectedKey, selTop, selFoot]);
+  const selectedRef = useRef(selectedKey);
+  selectedRef.current = selectedKey;
 
   useEffect(() => {
     focus.current = { id: focusId, gliding: !!focusId };
@@ -98,6 +139,20 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
   const pan = useMemo(() => {
     let start = { x: 0, y: 0, time: 0 };
     let moved = false;
+    // Hold-to-drag: a timer started when the finger lands; dragging once it fires on an object.
+    let hold: ReturnType<typeof setTimeout> | null = null;
+    let dragging = false;
+    let lastCell = '';
+    const stopHold = () => {
+      if (hold) clearTimeout(hold);
+      hold = null;
+    };
+    const cellUnder = (px: number, py: number) => {
+      const cam = camRef.current;
+      const island = islandRef.current;
+      if (!cam || !island) return null;
+      return island.pickCell(cam.ray(px, py, size.current.width, size.current.height));
+    };
     let prev = { dx: 0, dy: 0, touches: 0, dist: 0, angle: 0 };
     const pinch = (touches: { pageX: number; pageY: number }[]) => {
       const [a, b] = touches;
@@ -111,13 +166,40 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
         // Touching the island stops the camera from gliding to a pet.
         focus.current.gliding = false;
         moved = false;
+        dragging = false;
+        lastCell = '';
         prev = { dx: 0, dy: 0, touches: 1, dist: 0, angle: 0 };
+        stopHold();
+        if (callbacks.current.onDragStart) {
+          const at = { ...start };
+          hold = setTimeout(() => {
+            hold = null;
+            const cam = camRef.current;
+            const island = islandRef.current;
+            if (moved || !cam || !island) return;
+            const object = island.pickObject(cam.ray(at.x, at.y, size.current.width, size.current.height));
+            if (object && callbacks.current.onDragStart?.(object[0], object[1])) {
+              dragging = true;
+              lastCell = `${object[0]},${object[1]}`;
+            }
+          }, HOLD_MS);
+        }
       },
       onPanResponderMove: (e, g) => {
         const cam = camRef.current;
         if (!cam) return;
         const touches = e.nativeEvent.touches;
+        if (dragging) {
+          // The object follows the finger, cell by cell; the map stays still.
+          const cell = cellUnder(start.x + g.dx, start.y + g.dy);
+          if (cell && `${cell[0]},${cell[1]}` !== lastCell) {
+            lastCell = `${cell[0]},${cell[1]}`;
+            callbacks.current.onDragMove?.(cell[0], cell[1]);
+          }
+          return;
+        }
         if (touches.length >= 2) {
+          stopHold();
           const p = pinch(touches);
           if (prev.touches >= 2) {
             cam.zoom(p.dist / Math.max(1, prev.dist));
@@ -134,11 +216,25 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
         // A small wobble of the finger is still a tap (to place things), not a drag.
         if (!moved && Math.hypot(g.dx, g.dy) < 12) return;
         moved = true;
+        stopHold();
         const { width, height } = size.current;
         cam.grab(start.x + prev.dx, start.y + prev.dy, start.x + g.dx, start.y + g.dy, width, height);
         prev = { ...prev, dx: g.dx, dy: g.dy };
       },
+      onPanResponderTerminate: () => {
+        stopHold();
+        if (dragging) {
+          dragging = false;
+          callbacks.current.onDragEnd?.();
+        }
+      },
       onPanResponderRelease: () => {
+        stopHold();
+        if (dragging) {
+          dragging = false;
+          callbacks.current.onDragEnd?.();
+          return;
+        }
         const cam = camRef.current;
         const island = islandRef.current;
         if (moved || !cam || !island || Date.now() - start.time > 800) return;
@@ -173,6 +269,7 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
     scene.add(island.group);
     renderer.setClearColor(island.sky, 1);
     islandRef.current = island;
+    if (selectedRef.current) island.setSelection(selectedRef.current.split(',').map(Number) as [number, number]);
     const cam = new IslandCamera(width / height);
     // On a tall phone screen, start a bit closer so pets are visible.
     cam.fit(latest.current.world.size, width < height);
@@ -192,6 +289,13 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
       if (target) {
         const p = cam.project(target, size.current.width, size.current.height);
         if (p) bubble.setValue(p);
+      }
+      const anchors = selectedRef.current ? island.selectionAnchors() : null;
+      if (anchors) {
+        const top = cam.project(anchors.top, size.current.width, size.current.height);
+        const foot = cam.project(anchors.foot, size.current.width, size.current.height);
+        if (top) selTop.setValue(top);
+        if (foot) selFoot.setValue(foot);
       }
       renderer.render(scene, cam.camera);
       gl.endFrameEXP();
@@ -213,6 +317,16 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
           </Text>
         </View>
       ))}
+      {selected && selectedTop && (
+        <Animated.View style={[styles.anchor, { transform: selTop.getTranslateTransform() }]} pointerEvents="box-none">
+          <View style={styles.above}>{selectedTop}</View>
+        </Animated.View>
+      )}
+      {selected && selectedBottom && (
+        <Animated.View style={[styles.anchor, { transform: selFoot.getTranslateTransform() }]} pointerEvents="box-none">
+          <View style={styles.below}>{selectedBottom}</View>
+        </Animated.View>
+      )}
       {focusId && renderFocus && (
         <Animated.View style={[styles.anchor, { transform: bubble.getTranslateTransform() }]} pointerEvents="box-none">
           <View style={styles.bubble}>{renderFocus(focusId)}</View>
@@ -224,6 +338,8 @@ export function WorldView({ world, pets, labels, markers, onTapCell, onTapPet, f
 }
 
 const styles = StyleSheet.create({
+  above: { position: 'absolute', bottom: 8, width: 240, left: -120, flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  below: { position: 'absolute', top: 44, width: 240, left: -120, flexDirection: 'row', justifyContent: 'center', gap: 8 },
   anchor: { position: 'absolute', left: 0, top: 0, width: 0, height: 0, alignItems: 'center', overflow: 'visible' },
   bubble: {
     position: 'absolute',

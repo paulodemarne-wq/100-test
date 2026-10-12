@@ -39,6 +39,7 @@ const DECOR_SCALE: Record<string, number> = {
  * one water cell to the next. cell = where it was placed (what the editor knows it by).
  */
 type Boat = {
+  id: string;
   group: THREE.Group;
   cell: [number, number];
   baseY: number;
@@ -167,6 +168,40 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   flash.visible = false;
   root.add(flash);
   let flashUntil = 0;
+
+  // The selected object (Clash of Clans style): a square on the ground with an arrow on each side.
+  const selMat = new THREE.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide });
+  const selection = new THREE.Group();
+  const selGeos: THREE.BufferGeometry[] = [];
+  {
+    const edge = new THREE.PlaneGeometry(1.04, 0.07);
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(-0.17, 0);
+    arrowShape.lineTo(0.17, 0);
+    // Tip at -y: once laid flat it points outward (+z).
+    arrowShape.lineTo(0, -0.2);
+    arrowShape.closePath();
+    const arrow = new THREE.ShapeGeometry(arrowShape);
+    selGeos.push(edge, arrow);
+    for (let i = 0; i < 4; i++) {
+      const side = new THREE.Group();
+      side.rotation.y = (i * Math.PI) / 2;
+      const e = new THREE.Mesh(edge, selMat);
+      e.rotation.x = -Math.PI / 2;
+      e.position.set(0, 0, 0.52);
+      side.add(e);
+      // Arrow pointing outward, a little away from the square.
+      const a = new THREE.Mesh(arrow, selMat);
+      a.rotation.x = -Math.PI / 2;
+      a.position.set(0, 0, 0.66);
+      a.name = 'arrow';
+      side.add(a);
+      selection.add(side);
+    }
+  }
+  selection.visible = false;
+  root.add(selection);
+  let selected: [number, number] | null = null;
   let flashColor = '#FFFFFF';
 
   // Boats float on their own (not merged) so they can bob on the waves.
@@ -174,6 +209,8 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
   const boatGroup = new THREE.Group();
   root.add(boatGroup);
   const buildBoats = () => {
+    // Boats that did not move keep sailing from where they are.
+    const before = new Map(boats.map((b) => [`${b.id},${b.cell[0]},${b.cell[1]}`, b]));
     boats.forEach((b) => {
       boatGroup.remove(b.group);
       disposeGeometries(b.group);
@@ -198,7 +235,9 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       const px = sea ? c + Math.cos(angle) * radius : x + 0.5;
       const pz = sea ? c + Math.sin(angle) * radius : z + 0.5;
       if (sea) flat.rotation.y = Math.atan2(-Math.sin(angle) * dir, Math.cos(angle) * dir);
+      const old = before.get(`${id},${x},${z}`);
       boats.push({
+        id,
         group: flat,
         cell: [x, z],
         // On the sea the water is lower than on a pond inside the island.
@@ -213,6 +252,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
         tx: px,
         tz: pz,
         heading: flat.rotation.y,
+        ...(old && { angle: old.angle, x: old.x, z: old.z, tx: old.tx, tz: old.tz, heading: old.heading, seed: old.seed }),
       });
     });
   };
@@ -456,6 +496,21 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       focusId = id;
     },
     /** Lights up a cell for a moment (green: placed, red: not allowed). */
+    /** Shows the selection square under the object on this cell (null hides it). */
+    setSelection(cell: [number, number] | null) {
+      selected = cell;
+      selection.visible = !!cell;
+    },
+    /** Where the selected object's top and foot are now (to put buttons above and below it). */
+    selectionAnchors(): { top: THREE.Vector3; foot: THREE.Vector3 } | null {
+      if (!selected) return null;
+      const [x, z] = selected;
+      const boat = boats.find((b) => b.cell[0] === x && b.cell[1] === z);
+      const box = boat ? new THREE.Box3().setFromObject(boat.group) : objectBoxes.find((o) => o.x === x && o.z === z)?.box;
+      const cx = boat ? boat.x : x + 0.5;
+      const cz = boat ? boat.z : z + 0.5;
+      return { top: new THREE.Vector3(cx, (box?.max.y ?? 0.5) + 0.15, cz), foot: new THREE.Vector3(cx, 0, cz) };
+    },
     flashCell(x: number, z: number, ok = true) {
       flash.position.set(x + 0.5, inside(world, x, z) ? 0.06 : -0.25, z + 0.5);
       flashColor = ok ? '#7CFF9B' : '#FF6B6B';
@@ -469,6 +524,16 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
         flash.visible = true;
         flashMat.opacity = 0.65 * ((flashUntil - t) / 0.6);
       } else flash.visible = false;
+      if (selected) {
+        const boat = boats.find((b) => b.cell[0] === selected![0] && b.cell[1] === selected![1]);
+        selection.position.set(boat ? boat.x : selected[0] + 0.5, boat ? boat.baseY + 0.1 : 0.07, boat ? boat.z : selected[1] + 0.5);
+        // The arrows breathe in and out.
+        const k = Math.sin(t * 4) * 0.06;
+        selection.children.forEach((side) => {
+          const a = side.getObjectByName('arrow');
+          if (a) a.position.z = 0.66 + k;
+        });
+      }
       for (const b of boats) {
         sail(b, dt);
         b.group.position.y = b.baseY + Math.sin(t * 1.4 + b.seed) * 0.04;
@@ -584,6 +649,8 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       seaHandle?.dispose();
       flash.geometry.dispose();
       flashMat.dispose();
+      selGeos.forEach((g) => g.dispose());
+      selMat.dispose();
       lawnMat.dispose();
       kit.dispose();
     },
