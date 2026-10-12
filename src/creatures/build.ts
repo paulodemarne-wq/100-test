@@ -168,7 +168,8 @@ export function buildCreature(opts: { species: number | null; level: number; equ
   }
   // Tails
   if (A.tail) {
-    const tails = form >= 2 ? (L >= 20 ? 3 : L >= 14 ? 2 : 1) : 1;
+    // Kitsu, the Lockin+ fox, grows 3, 6 then 9 tails.
+    const tails = species.id === 105 ? form * 3 : form >= 2 ? (L >= 20 ? 3 : L >= 14 ? 2 : 1) : 1;
     addTails(A, ctx, tails, L >= 6 ? 1.15 : 0.8);
   }
   // Forehead mark, then gem
@@ -249,6 +250,9 @@ export function buildCreature(opts: { species: number | null; level: number; equ
     }
   }
 
+  // Lockin+ creatures: their own signature, from the first form.
+  if (species.id >= 100) addSignature(species.id, A, ctx, root);
+
   // Accessories
   addAccessories(A, ctx, opts.equipped ?? {});
 
@@ -308,6 +312,207 @@ type Ctx = {
   L: number;
   animators: ((t: number) => void)[];
 };
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Lockin+ signatures: what makes each exclusive creature special. Grows with the form.
+// ═════════════════════════════════════════════════════════════════════════════
+
+function addSignature(id: number, A: Anchors, c: Ctx, root: THREE.Group) {
+  const k = [0, 0.75, 1, 1.25][c.form];
+  const pivot = A.head.parent as THREE.Object3D;
+  const R = A.R;
+  const top = A.headTop;
+  const spin = (o: THREE.Object3D, speed: number, axis: 'x' | 'y' | 'z' = 'y') => c.animators.push((t) => (o.rotation[axis] = t * speed));
+  // Every Lockin+ creature sparkles a little.
+  const sparkle = c.mat('#FFFFFF', { glow: 1 });
+  for (let i = 0; i < 3 + c.form; i++) {
+    const s = c.add(root, new THREE.OctahedronGeometry(0.03), sparkle);
+    const a0 = (i / (3 + c.form)) * Math.PI * 2;
+    c.animators.push((t) => {
+      const a = a0 + t * 0.8;
+      s.position.set(Math.cos(a) * 0.62, 0.45 + Math.sin(t * 2 + i) * 0.25 + i * 0.12, Math.sin(a) * 0.62);
+      s.scale.setScalar(0.6 + Math.abs(Math.sin(t * 3 + i)) * 0.8);
+    });
+  }
+
+  switch (id) {
+    case 100: {
+      // Solari: a crown of sun rays behind the head, turning slowly.
+      const sun = c.group(A.head, [0, R * 0.1, -R * 0.55]);
+      const rays = 10 + c.form * 2;
+      const gold = c.mat('#FFB020', { glow: 0.7 });
+      const pale = c.mat('#FFE58A', { glow: 0.9 });
+      for (let i = 0; i < rays; i++) {
+        const a = (i / rays) * Math.PI * 2;
+        const len = R * (i % 2 ? 0.45 : 0.7) * k;
+        c.add(sun, c.cone(R * 0.11, len, 4), i % 2 ? pale : gold, [Math.sin(a) * (R * 1.05 + len / 2), Math.cos(a) * (R * 1.05 + len / 2), 0], [1, 1, 0.35], [0, 0, -a]);
+      }
+      c.add(sun, new THREE.TorusGeometry(R * 1.02, R * 0.06, 8, 40), gold);
+      spin(sun, 0.4, 'z');
+      break;
+    }
+    case 101: {
+      // Nébulo: a little ringed planet and stars orbiting on tilted paths.
+      const orbit = c.group(root, [0, 0.75, 0]);
+      orbit.rotation.x = 0.45;
+      const planet = c.add(orbit, c.sphere(0.12 * k, 18), c.mat('#FF8BF2', { glow: 0.5 }), [0.66, 0, 0]);
+      c.add(planet, new THREE.TorusGeometry(0.2 * k, 0.022, 6, 32), c.mat('#C9B8FF', { glow: 0.8 }), [0, 0, 0], [1, 1, 1], [1.2, 0, 0]);
+      // A see-through nebula cloud around the body.
+      for (const [x, y, z, r, color] of [[0, 0.6, 0, 0.62, '#7C3AED'], [0.2, 0.85, 0.1, 0.4, '#FF8BF2'], [-0.2, 0.45, -0.1, 0.42, '#38BDF8']] as const)
+        c.add(root, c.sphere(r * k, 20), c.mat(color, { glow: 0.6, opacity: 0.16 }), [x, y, z]);
+      spin(orbit, 0.9);
+      const stars = c.group(root, [0, 0.9, 0]);
+      stars.rotation.z = -0.35;
+      for (let i = 0; i < 6 + c.form * 2; i++) {
+        const a = (i / (6 + c.form * 2)) * Math.PI * 2;
+        c.add(stars, new THREE.OctahedronGeometry(0.05), c.mat(i % 2 ? '#FFD86B' : '#FFFFFF', { glow: 1 }), [Math.cos(a) * 0.55, Math.sin(a * 3) * 0.1, Math.sin(a) * 0.55]);
+      }
+      spin(stars, -0.5);
+      break;
+    }
+    case 102: {
+      // Auro: aurora ribbons waving above the back.
+      const colors = ['#2DD4BF', '#F0ABFC', '#A5F3FC'];
+      colors.forEach((color, i) => {
+        const ribbon = c.add(pivot, new THREE.PlaneGeometry(1.15 * k, 0.26 * k, 16, 1), c.mat(color, { glow: 0.9, opacity: 0.7 }), [A.back[0], A.back[1] + 0.45 + i * 0.2 * k, A.back[2] - 0.05], [1, 1, 1], [0, Math.PI / 2 + (i - 1) * 0.35, 0]);
+        const pos = ribbon.geometry.attributes.position as THREE.BufferAttribute;
+        const base = Float32Array.from(pos.array as Float32Array);
+        c.animators.push((t) => {
+          for (let v = 0; v < pos.count; v++) pos.setY(v, base[v * 3 + 1] + Math.sin(base[v * 3] * 5 + t * 2.5 + i) * 0.1);
+          pos.needsUpdate = true;
+        });
+      });
+      break;
+    }
+    case 103: {
+      // Prismi: crystal shards growing out of the back, and a prism floating above.
+      const shards = ['#A5F3FC', '#F472B6', '#C4B5FD', '#FFFFFF', '#8B5CF6'];
+      const n = 3 + c.form * 2;
+      for (let i = 0; i < n; i++) {
+        const p = A.spine[i % A.spine.length] ?? A.back;
+        const h = (0.18 + (i % 3) * 0.08) * k;
+        c.add(pivot, new THREE.OctahedronGeometry(0.08 * k, 0), c.mat(shards[i % shards.length], { glow: 0.5, metal: true }), [p[0] + ((i % 2) - 0.5) * 0.18, p[1] + h * 0.6, p[2] - (i % 3) * 0.04], [0.7, h / 0.08, 0.7], [0.25 * ((i % 3) - 1), 0, 0.3 * ((i % 2) - 0.5)]);
+      }
+      const prism = c.add(A.head, new THREE.OctahedronGeometry(R * 0.28, 0), c.mat('#F472B6', { glow: 0.8, metal: true }), [0, top + R * 0.75, 0], [1, 1.4, 1]);
+      c.animators.push((t) => {
+        prism.rotation.y = t * 1.6;
+        prism.position.y = top + R * 0.75 + Math.sin(t * 2) * R * 0.08;
+      });
+      break;
+    }
+    case 104: {
+      // Luno: a glowing crescent moon over the head, with little stars hanging from it.
+      const moon = c.group(A.head, [0, top + R * 1.1 * k, -R * 0.2]);
+      // A crescent: a big pale disc with a smaller one cut out (drawn in the sky color).
+      c.add(moon, new THREE.TorusGeometry(R * 0.75 * k, R * 0.26 * k, 12, 40, Math.PI * 1.3), c.mat('#FFF4C2', { glow: 0.9 }), [0, 0, 0], [1, 1, 0.45], [0, 0, -Math.PI * 0.15]);
+      c.add(moon, c.sphere(R * 1.1 * k, 24), c.mat('#BFDBFE', { glow: 0.5, opacity: 0.12 }));
+      for (let i = 0; i < c.form + 1; i++) {
+        const x = (i - c.form / 2) * R * 0.55;
+        c.add(moon, c.cyl(0.006, 0.006, R * 0.7), c.mat('#E2E8F0'), [x, -R * 0.75, 0]);
+        c.add(moon, new THREE.OctahedronGeometry(R * 0.16), c.mat('#FDE68A', { glow: 1 }), [x, -R * 1.15, 0]);
+      }
+      c.animators.push((t) => (moon.rotation.z = Math.sin(t * 1.2) * 0.12));
+      break;
+    }
+    case 105: {
+      // Kitsu: pink fox fires dancing around (the 3/6/9 tails are set with the tails).
+      for (let i = 0; i < c.form + 1; i++) {
+        const fire = c.group(root);
+        c.add(fire, c.sphere(0.06, 12), c.mat('#FDA4AF', { glow: 1 }));
+        c.add(fire, c.cone(0.05, 0.14, 10), c.mat('#FFE4E6', { glow: 1, opacity: 0.8 }), [0, 0.08, 0]);
+        const a0 = (i / (c.form + 1)) * Math.PI * 2;
+        c.animators.push((t) => {
+          const a = a0 + t * 1.1;
+          fire.position.set(Math.cos(a) * 0.55, 0.85 + Math.sin(t * 3 + i) * 0.1, Math.sin(a) * 0.55);
+        });
+      }
+      break;
+    }
+    case 106: {
+      // Abysso: an anglerfish lantern hanging in front of the face, and glowing dots.
+      const stalk = c.group(A.head, [0, top * 0.9, R * 0.1]);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 5) * 1.9;
+        c.add(stalk, c.sphere(R * 0.075, 8), c.mat('#1E3A8A'), [0, Math.sin(a) * R * 0.85 * k, (1 - Math.cos(a)) * R * 1.0 * k]);
+      }
+      const bulb = c.add(stalk, c.sphere(R * 0.3, 18), c.mat('#22D3EE', { glow: 1 }), [0, R * 0.62 * k, R * 2.0 * k]);
+      c.add(bulb, c.sphere(R * 0.5, 18), c.mat('#22D3EE', { glow: 1, opacity: 0.2 }));
+      c.animators.push((t) => bulb.scale.setScalar(0.85 + Math.abs(Math.sin(t * 2.5)) * 0.35));
+      c.animators.push((t) => (stalk.rotation.x = Math.sin(t * 1.3) * 0.12));
+      for (const p of A.spine) for (const s of [-1, 1]) c.add(pivot, c.sphere(0.05, 8), c.mat('#67E8F9', { glow: 1 }), [p[0] + s * 0.18, p[1] - 0.05, p[2]]);
+      break;
+    }
+    case 107: {
+      // Sylphi: big see-through butterfly wings with glowing spots, flapping.
+      for (const s of [-1, 1]) {
+        const wing = c.group(pivot, [A.back[0] + s * 0.05, A.back[1] + 0.1, A.back[2]]);
+        const upper = c.add(wing, c.sphere(0.36 * k, 20), c.mat('#A3E635', { glow: 0.35, opacity: 0.7 }), [s * 0.34 * k, 0.22 * k, 0], [1, 0.75, 0.05], [0, 0, s * 0.5]);
+        c.add(upper, c.sphere(0.09, 10), c.mat('#FDE047', { glow: 1 }), [s * 0.25, 0.1, 0.6]);
+        c.add(wing, c.sphere(0.24 * k, 18), c.mat('#FEF9C3', { glow: 0.3, opacity: 0.7 }), [s * 0.26 * k, -0.18 * k, 0], [1, 0.8, 0.05], [0, 0, -s * 0.4]);
+        c.animators.push((t) => (wing.rotation.y = s * (0.5 + Math.sin(t * 6) * 0.45)));
+      }
+      break;
+    }
+    case 108: {
+      // Magmi: glowing lava cracks, a molten crown and embers flying up.
+      const lava = c.mat('#F97316', { glow: 1 });
+      // Glowing lava pools on the body, like cracks in cooling rock.
+      for (const m of A.bodyMeshes) {
+        const box = new THREE.Box3().setFromObject(m);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        for (let i = 0; i < 7; i++) {
+          const a = -1.2 + (i / 6) * 2.4;
+          const y = center.y + (((i * 41) % 7) / 7 - 0.5) * size.y * 0.7;
+          const spot = c.add(pivot, c.sphere(Math.min(size.x, size.y) * 0.09, 10), lava, [center.x + Math.sin(a) * size.x * 0.5, y, center.z + Math.cos(a) * size.z * 0.5], [1, 0.55, 0.3]);
+          spot.lookAt(center.x + Math.sin(a) * 10, y, center.z + Math.cos(a) * 10);
+        }
+      }
+      const crown = c.group(A.head, [0, top + R * 0.05, 0]);
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        c.add(crown, c.cone(R * 0.12, R * 0.4 * k, 6), lava, [Math.cos(a) * R * 0.45, R * 0.15, Math.sin(a) * R * 0.45]);
+      }
+      for (let i = 0; i < 4 + c.form; i++) {
+        const ember = c.add(root, c.sphere(0.022, 6), c.mat('#FDBA74', { glow: 1 }));
+        const x = ((i * 37) % 10) / 10 - 0.5;
+        const z = ((i * 53) % 10) / 10 - 0.5;
+        c.animators.push((t) => {
+          const p = (t * 0.45 + i * 0.23) % 1;
+          ember.position.set(x * 0.8, 0.4 + p * 1.4, z * 0.8);
+          ember.scale.setScalar(1 - p);
+        });
+      }
+      break;
+    }
+    case 109: {
+      // Chrono: a clock dial behind the head with turning hands, and gears.
+      const dial = c.group(A.head, [0, R * 0.15, -R * 0.75]);
+      const gold = c.mat('#FCD34D', { metal: true, glow: 0.25 });
+      c.add(dial, new THREE.TorusGeometry(R * 1.05 * k, R * 0.06, 8, 48), gold);
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        c.add(dial, c.box(R * 0.05, R * (i % 3 ? 0.12 : 0.22), R * 0.04), gold, [Math.sin(a) * R * 0.88 * k, Math.cos(a) * R * 0.88 * k, 0], [1, 1, 1], [0, 0, -a]);
+      }
+      const hour = c.group(dial);
+      c.add(hour, c.box(R * 0.07, R * 0.5 * k, R * 0.04), c.mat('#FDE68A', { glow: 0.6 }), [0, R * 0.25 * k, 0.01]);
+      const minute = c.group(dial);
+      c.add(minute, c.box(R * 0.05, R * 0.75 * k, R * 0.04), c.mat('#FFFFFF', { glow: 0.6 }), [0, R * 0.37 * k, 0.02]);
+      spin(hour, -0.25, 'z');
+      spin(minute, -1.5, 'z');
+      for (const [x, y, r, sp] of [[0.55, 0.35, 0.11, 1], [-0.55, 0.55, 0.08, -1.4]] as const) {
+        const gear = c.group(root, [x, y, -0.1]);
+        c.add(gear, c.cyl(r * k, r * k, 0.04), gold, [0, 0, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          c.add(gear, c.box(r * 0.35, r * 0.35, 0.04), gold, [Math.cos(a) * r * 1.1 * k, Math.sin(a) * r * 1.1 * k, 0], [1, 1, 1], [0, 0, a]);
+        }
+        spin(gear, sp, 'z');
+      }
+      break;
+    }
+  }
+}
 
 function headGroup(pivot: THREE.Object3D, c: Ctx, pos: V3, R: number, round = true) {
   const head = c.group(pivot, pos);
@@ -828,7 +1033,7 @@ function addHorns(A: Anchors, c: Ctx, k: number) {
 function addTails(A: Anchors, c: Ctx, count: number, k: number) {
   const base = A.tail!;
   for (let n = 0; n < count; n++) {
-    const spread = count === 1 ? 0 : (n - (count - 1) / 2) * 0.45;
+    const spread = count === 1 ? 0 : (n - (count - 1) / 2) * Math.min(0.45, 2.6 / count);
     const g = c.group(c.add.length ? (A.head.parent as THREE.Object3D) : A.head, base);
     g.rotation.y = spread;
     switch (c.T.tail) {
