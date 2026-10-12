@@ -15,10 +15,14 @@ type Props = {
   interactive?: boolean;
   /** Called on a tap (not a drag). */
   onPress?: () => void;
+  /** How it feels: jumps and spins for joy, sulks with its head down, or dozes. */
+  mood?: 'party' | 'sad' | 'sleep' | null;
 };
 
 /** A pet in 3D. Drag horizontally to turn it; it keeps spinning slowly on its own. */
-export function PetView({ species, level, equipped, style, interactive = true, onPress }: Props) {
+export function PetView({ species, level, equipped, style, interactive = true, onPress, mood = null }: Props) {
+  const moodRef = useRef(mood);
+  moodRef.current = mood;
   const yaw = useRef(0.5);
   const velocity = useRef(0);
   const dragging = useRef(false);
@@ -94,13 +98,19 @@ export function PetView({ species, level, equipped, style, interactive = true, o
       frame.current = requestAnimationFrame(render);
       if (!dragging.current) {
         velocity.current *= 0.94;
-        yaw.current += velocity.current + 0.006;
+        // A dozing or sulking pet stays turned toward you.
+        yaw.current += velocity.current + (moodRef.current === 'sleep' || moodRef.current === 'sad' ? 0 : 0.006);
       }
       const t = (Date.now() - start) / 1000;
       const c = sceneRef.current?.creature;
       if (c) {
-        c.group.rotation.y = yaw.current;
         c.update(t);
+        const m = moodRef.current;
+        // Moods move the whole creature on top of its own animation.
+        c.group.rotation.y = yaw.current + (m === 'party' ? t * 7 : 0);
+        c.group.position.y = m === 'party' ? Math.abs(Math.sin(t * 7)) * 0.35 : 0;
+        c.group.rotation.x = m === 'sad' ? 0.38 : m === 'sleep' ? 0.12 : 0;
+        c.group.rotation.z = m === 'sleep' ? Math.sin(t * 0.8) * 0.12 : m === 'sad' ? Math.sin(t * 0.6) * 0.05 : 0;
       }
       renderer.render(scene, camera);
       gl.endFrameEXP();

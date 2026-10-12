@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
 import { useAuth } from '../lib/auth';
+import { CHRONO_THEMES, setChronoPrefs, useChronoPrefs } from '../lib/chronoPrefs';
 import { useSocial } from '../lib/social';
 import { errorMessage, supabase } from '../lib/supabase';
 import { BADGE_COLORS, BADGES, DECORATIONS, isPremium, PLUS_NAME, PLUS_PERKS, PLUS_PRICE, PLUS_PRICE_YEAR, TITLES } from '../lib/premium';
@@ -16,6 +17,7 @@ import { card, colors, type } from '../lib/theme';
 export default function Premium() {
   const { profile, updateSettings, reloadProfile } = useAuth();
   const { friends } = useSocial();
+  const chrono = useChronoPrefs();
   // Trials I can give, to which friends, and whether I can still enter a referral code.
   const [trialsLeft, setTrialsLeft] = useState(0);
   const [candidates, setCandidates] = useState<string[]>([]);
@@ -154,6 +156,25 @@ export default function Premium() {
               </Pressable>
             ))}
           </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>EFFETS DU CHRONO</Text>
+        <View style={[card, styles.pickerCard]}>
+          <View style={styles.titles}>
+            {CHRONO_THEMES.map((t) => {
+              const on = premium && chrono.theme === t.id;
+              return (
+                <Pressable key={t.id} onPress={() => (premium ? setChronoPrefs({ theme: t.id }) : locked())} style={[styles.chip, on && styles.chipOn]}>
+                  <View style={[styles.swatch, { backgroundColor: t.ring[0], borderColor: t.ring[1], borderWidth: 3 }]} />
+                  <Text style={[styles.chipText, on && { color: colors.onAccent }]}>{t.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable onPress={() => (premium ? setChronoPrefs({ pet: !chrono.pet }) : locked())} style={styles.giftRow}>
+            <Ionicons name={premium && chrono.pet ? 'checkbox' : 'square-outline'} size={22} color={colors.accent} />
+            <Text style={[type.body, { flex: 1 }]}>Mon animal à côté du chrono (il fait la fête quand tu finis, il boude si tu abandonnes)</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.sectionTitle}>MON TITRE (SOUS TON PRÉNOM)</Text>

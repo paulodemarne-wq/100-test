@@ -135,6 +135,13 @@ export default function Profile() {
 
         <Section title="Lockin+">
           <Row
+            left={<Ionicons name="stats-chart" size={24} color={colors.accent} />}
+            title="Stats détaillées"
+            subtitle="Par matière, meilleur moment de la journée, le mois jour par jour"
+            onPress={() => router.push('/stats')}
+            right={<Ionicons name="chevron-forward" size={18} color={colors.tertiary} />}
+          />
+          <Row
             left={<Ionicons name="sparkles" size={24} color={colors.accent} />}
             title={isPremium(profile) ? 'Mon badge et ma décoration' : 'Passer à Lockin+'}
             subtitle={isPremium(profile) ? 'Badge à côté du prénom, décoration de photo en 3D' : 'Badge, décoration de photo, 10 animaux exclusifs…'}

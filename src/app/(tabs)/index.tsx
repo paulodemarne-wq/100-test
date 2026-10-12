@@ -2,12 +2,15 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../../components/Avatar';
 import { PauseSheet } from '../../components/PauseSheet';
 import { ProgressRing } from '../../components/ProgressRing';
+import { PetView } from '../../components/PetView';
+import { themeOf, useChronoPrefs } from '../../lib/chronoPrefs';
+import { isPremium as hasPlus } from '../../lib/premium';
 import { TodoItem } from '../../components/TodoItem';
 import { useAuth } from '../../lib/auth';
 import { countdown } from '../../lib/labels';
@@ -44,6 +47,30 @@ export default function FocusScreen() {
   const chosenTodo = nextTodos.find((t) => t.id === todoId) ?? null;
   const [pauseSheet, setPauseSheet] = useState(false);
   const pet = pets[0];
+  // Lockin+: timer theme, animated background, the pet next to the timer and how it reacts.
+  const plus = hasPlus(profile);
+  const chrono = useChronoPrefs();
+  const theme = themeOf(plus ? chrono.theme : 'classic');
+  const [mood, setMood] = useState<'party' | 'sad' | null>(null);
+  useEffect(() => {
+    if (!notice || (notice.kind !== 'done' && notice.kind !== 'abandoned')) return;
+    setMood(notice.kind === 'done' ? 'party' : 'sad');
+    const t = setTimeout(() => setMood(null), notice.kind === 'done' ? 6000 : 9000);
+    return () => clearTimeout(t);
+  }, [notice]);
+  // Finishing a to-do is a party too.
+  const finishedTodos = todos.filter(isFinished).length;
+  const lastFinished = useRef(finishedTodos);
+  useEffect(() => {
+    if (finishedTodos > lastFinished.current) {
+      setMood('party');
+      const t = setTimeout(() => setMood(null), 6000);
+      lastFinished.current = finishedTodos;
+      return () => clearTimeout(t);
+    }
+    lastFinished.current = finishedTodos;
+  }, [finishedTodos]);
+  const showPet = plus && chrono.pet && !!pet && (!!active || mood !== null);
   const petSpecies = speciesById(pet?.species);
   const petLevel = pet ? levelFor(pet.xp_seconds) : 0;
   const petTier = pet ? tierFor(petLevel) : null;
@@ -115,6 +142,7 @@ export default function FocusScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {plus && active && !active.pause && <Blobs colors={theme.blobs} />}
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <View>
@@ -203,7 +231,7 @@ export default function FocusScreen() {
         )}
 
         <View style={styles.center}>
-          <ProgressRing size={banners ? 220 : 260} stroke={12} progress={ringProgress}>
+          <ProgressRing size={banners ? 220 : 260} stroke={12} progress={ringProgress} colors={plus ? theme.ring : undefined}>
             <Text style={styles.ringLabel} numberOfLines={1}>
               {pause ? 'En pause ☕' : active ? (active.subject === DEFAULT_LABEL ? 'En lock in' : active.subject) : 'Prêt ?'}
             </Text>
@@ -217,6 +245,12 @@ export default function FocusScreen() {
               </Text>
             )}
           </ProgressRing>
+          {showPet && pet && (
+            <View style={styles.chronoPet} pointerEvents="none">
+              <PetView species={pet.species} level={petLevel} equipped={pet.equipped} interactive={false} mood={mood ?? (active?.pause ? 'sleep' : null)} style={{ flex: 1 }} />
+              {mood && <Text style={styles.moodText}>{mood === 'party' ? 'Trop fier de toi ! 🎉' : 'Pfff… 😤'}</Text>}
+            </View>
+          )}
 
           {active ? (
             <>
@@ -361,6 +395,32 @@ export default function FocusScreen() {
   );
 }
 
+/** Lockin+: soft colored circles drifting slowly behind the timer. */
+function Blobs({ colors: tint }: { colors: [string, string, string] }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(t, { toValue: 1, duration: 9000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(t, { toValue: 0, duration: 9000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [t]);
+  const move = (dx: number, dy: number) => [
+    { translateX: t.interpolate({ inputRange: [0, 1], outputRange: [0, dx] }) },
+    { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, dy] }) },
+  ];
+  return (
+    <View pointerEvents="none" style={styles.blobs}>
+      <Animated.View style={[styles.blob, { backgroundColor: tint[0], top: 80, left: -80, transform: move(120, 60) }]} />
+      <Animated.View style={[styles.blob, { backgroundColor: tint[1], top: 300, right: -90, transform: move(-100, -80) }]} />
+      <Animated.View style={[styles.blob, { backgroundColor: tint[2], bottom: 40, left: 20, transform: move(80, -120) }]} />
+    </View>
+  );
+}
+
 /** Keeps the screen on during a session: locking the phone would count as leaving the app. */
 function KeepAwake() {
   useKeepAwake();
@@ -413,6 +473,10 @@ const styles = StyleSheet.create({
   goalFill: { height: 4, backgroundColor: colors.accent, borderRadius: 2 },
   statValue: { fontSize: 24, fontWeight: '700', color: colors.text, marginTop: 6, fontVariant: ['tabular-nums'] },
   countdown: { fontSize: 17, fontWeight: '900', color: colors.accent, minWidth: 44, textAlign: 'center' },
+  blobs: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' },
+  blob: { position: 'absolute', width: 300, height: 300, borderRadius: 150, opacity: 0.16 },
+  chronoPet: { position: 'absolute', right: -6, top: 150, width: 120, height: 140, alignItems: 'center' },
+  moodText: { position: 'absolute', bottom: -6, fontSize: 12, fontWeight: '800', color: colors.text, backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, padding: 14 },
   noticeText: { flex: 1, fontSize: 15, color: colors.text, lineHeight: 20 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24, paddingVertical: 16 },
