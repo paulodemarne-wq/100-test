@@ -40,6 +40,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Focus', tabBarIcon: tabIcon('timer', 'timer-outline') }} />
+      <Tabs.Screen name="todos" options={{ title: 'To-do', tabBarIcon: tabIcon('checkbox', 'checkbox-outline') }} />
       <Tabs.Screen
         name="feed"
         options={{

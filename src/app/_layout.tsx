@@ -72,7 +72,6 @@ export default function RootLayout() {
             <Stack.Screen name="shop" options={{ presentation: 'modal' }} />
             <Stack.Screen name="bestiary" options={{ presentation: 'modal' }} />
             <Stack.Screen name="world" options={{ gestureEnabled: false }} />
-            <Stack.Screen name="todos" options={{ presentation: 'modal' }} />
           </Stack>
         </LockinProvider>
       </SocialProvider>

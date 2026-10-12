@@ -1,4 +1,5 @@
--- Mise à jour To-do (+ correction du lock in de groupe).
+-- Mise à jour To-do n°2 : changer de to-do pendant le chrono
+-- (contient aussi la 1re mise à jour To-do et la correction du lock in de groupe).
 -- Supabase → SQL Editor → + → colle tout → Run. On peut le relancer sans risque.
 
 drop policy if exists "see own events" on public.lockin_events;
@@ -47,13 +48,40 @@ drop trigger if exists check_session_todo on public.study_sessions;
 create trigger check_session_todo before insert or update of todo_id on public.study_sessions
   for each row execute function public.check_session_todo();
 
--- A finished session adds its focus time to its to-do.
+-- v13: one lock-in can switch between to-dos. todo_split = {"<todo id>": seconds, ...}.
+alter table public.study_sessions add column if not exists todo_split jsonb;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'study_sessions_todo_split_check') then
+    alter table public.study_sessions
+      add constraint study_sessions_todo_split_check
+      check (todo_split is null or (jsonb_typeof(todo_split) = 'object' and pg_column_size(todo_split) < 4000));
+  end if;
+end $$;
+
+-- A finished session adds its focus time to its to-do(s), never more than the session lasted.
 create or replace function public.feed_todo()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  left_sec int := coalesce(new.duration_sec, 0);
+  part record;
+  sec int;
 begin
-  if new.status = 'done' and old.status is distinct from 'done' and new.todo_id is not null
-     and coalesce(new.duration_sec, 0) > 0 then
-    update public.todos set worked_seconds = worked_seconds + new.duration_sec
+  if new.status <> 'done' or old.status is not distinct from 'done' or left_sec <= 0 then
+    return new;
+  end if;
+  if new.todo_split is not null and new.todo_split <> '{}'::jsonb then
+    for part in select key, value from jsonb_each(new.todo_split) loop
+      exit when left_sec <= 0;
+      continue when part.key !~ '^[0-9a-fA-F-]{36}$' or jsonb_typeof(part.value) <> 'number';
+      sec := floor(least(left_sec::numeric, greatest(0, (part.value #>> '{}')::numeric)))::int;
+      continue when sec <= 0;
+      update public.todos set worked_seconds = worked_seconds + sec
+      where id = part.key::uuid and user_id = new.user_id;
+      if found then left_sec := left_sec - sec; end if;
+    end loop;
+  elsif new.todo_id is not null then
+    update public.todos set worked_seconds = worked_seconds + left_sec
     where id = new.todo_id and user_id = new.user_id;
   end if;
   return new;

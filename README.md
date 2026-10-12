@@ -17,7 +17,7 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 - **Récap de la semaine** partageable en image (story).
 - **Notifications push** : relances, demandes d'amis, invitations, réactions, « Léa vient de lock in ».
 - **Pause** : durée au choix, le chrono s'arrête, on peut quitter l'app ; notif 1 min avant la fin.
-- **To-do** : chaque to-do a un temps de travail et une date. On la choisit en lançant un lock in : le temps s'ajoute à sa barre.
+- **To-do** (onglet à part) : chaque to-do a un temps de travail et une date. Pendant le chrono, on touche la to-do sur laquelle on bosse (ex : maths, puis français) : chaque morceau de temps remplit la bonne to-do.
   Triées de la plus proche à la plus lointaine, avec un rappel si elle n'est pas finie (20 % du délai avant la date, 2 jours minimum).
 - **Ambiances sonores** : pluie, bruit blanc, bruit brun (sons générés, libres de droits).
 - **Réactions** 🔥 💪 🫡 💀 😴 sur les sessions des amis, **couronne 👑** pour le n°1 de la semaine.

@@ -32,14 +32,29 @@ export type ActiveSession = {
   /** The break in progress, if any. */
   pause: { startedAt: number; until: number } | null;
   tasks: SessionTask[];
-  /** The to-do this lock-in works on. */
+  /** The to-do being worked on right now (can change during the lock-in). */
   todoId?: string | null;
+  /** Focus seconds at which the current to-do was picked. */
+  todoSince?: number;
+  /** Focus seconds already spent on earlier to-dos of this lock-in. */
+  todoSplit?: Record<string, number>;
 };
 
 /** Seconds actually spent locked in (breaks excluded). */
 export function focusSeconds(a: ActiveSession, at = Date.now()): number {
   const currentPause = a.pause ? Math.max(0, at - a.pause.startedAt) / 1000 : 0;
   return Math.max(0, (at - a.startedAt) / 1000 - a.pausedSeconds - currentPause);
+}
+
+/** Focus seconds per to-do, the current one included. */
+export function todoSplitAt(a: ActiveSession, at = Date.now()): Record<string, number> {
+  const split = { ...a.todoSplit };
+  if (a.todoId) split[a.todoId] = (split[a.todoId] ?? 0) + Math.max(0, focusSeconds(a, at) - (a.todoSince ?? 0));
+  return split;
+}
+
+function roundSplit(split: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(split).map(([id, sec]) => [id, Math.round(sec)]).filter(([, sec]) => (sec as number) > 0));
 }
 
 export type Notice = { kind: 'abandoned' | 'warning' | 'done' | 'tooShort' | 'error' | 'pause'; message: string };
@@ -54,6 +69,8 @@ type Store = {
   startPause: (minutes: number) => void;
   endPause: () => void;
   setTasks: (tasks: SessionTask[]) => void;
+  /** Work on another to-do (or none) from now on; time so far stays with the previous one. */
+  switchTodo: (todoId: string | null, subject?: string) => void;
 };
 
 const StoreContext = createContext<Store | null>(null);
@@ -85,6 +102,7 @@ async function finishRemote(active: ActiveSession, ending: Ending) {
       paused_until: null,
       leaves: active.leaves,
       tasks: active.tasks,
+      todo_split: roundSplit(todoSplitAt(closed, ending.endedAt)),
     })
     .eq('id', active.remoteId);
   if (error) throw error;
@@ -240,7 +258,20 @@ export function LockinProvider({ children }: { children: ReactNode }) {
       if (activeRef.current) return;
       const startedAt = Date.now();
       setNotice(null);
-      setActive({ remoteId: null, subject, eventId, startedAt, leaves: 0, leftAt: null, pausedSeconds: 0, pause: null, tasks, todoId });
+      setActive({
+        remoteId: null,
+        subject,
+        eventId,
+        startedAt,
+        leaves: 0,
+        leftAt: null,
+        pausedSeconds: 0,
+        pause: null,
+        tasks,
+        todoId,
+        todoSince: 0,
+        todoSplit: {},
+      });
       supabase
         .from('study_sessions')
         .insert({
@@ -312,6 +343,21 @@ export function LockinProvider({ children }: { children: ReactNode }) {
     updateRemote(current.remoteId, { tasks });
   }, []);
 
+  const switchTodo = useCallback((todoId: string | null, subject?: string) => {
+    const current = activeRef.current;
+    if (!current || current.todoId === todoId) return;
+    const now = Date.now();
+    const next = {
+      ...current,
+      subject: subject ?? current.subject,
+      todoId,
+      todoSince: focusSeconds(current, now),
+      todoSplit: todoSplitAt(current, now),
+    };
+    setActive(next);
+    updateRemote(current.remoteId, { subject: next.subject, todo_id: todoId, todo_split: roundSplit(next.todoSplit) });
+  }, []);
+
   return (
     <StoreContext.Provider
       value={{
@@ -324,6 +370,7 @@ export function LockinProvider({ children }: { children: ReactNode }) {
         startPause,
         endPause,
         setTasks,
+        switchTodo,
       }}
     >
       {children}

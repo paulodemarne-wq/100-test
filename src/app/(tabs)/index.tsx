@@ -14,7 +14,7 @@ import { useAuth } from '../../lib/auth';
 import { countdown } from '../../lib/labels';
 import { useSocial } from '../../lib/social';
 import { formFor, levelFor, PLAN_EMOJI, speciesById, tierFor } from '../../creatures/species';
-import { focusSeconds, MAX_AWAY_MS, Notice, useLockin, useNow } from '../../lib/store';
+import { focusSeconds, MAX_AWAY_MS, Notice, todoSplitAt, useLockin, useNow } from '../../lib/store';
 import { isFinished, sortTodos } from '../../lib/todos';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
@@ -34,7 +34,7 @@ const NOTICE_STYLE: Record<Notice['kind'], { bg: string; fg: string; icon: keyof
 export default function FocusScreen() {
   const { profile } = useAuth();
   const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, events, pets, todos } = useSocial();
-  const { active, notice, clearNotice, startSession, stopSession, startPause, endPause } = useLockin();
+  const { active, notice, clearNotice, startSession, stopSession, startPause, endPause, switchTodo } = useLockin();
   const [label, setLabel] = useState('');
   const [todoId, setTodoId] = useState<string | null>(null);
   // The 4 nearest unfinished to-dos, to pick one before locking in.
@@ -75,6 +75,19 @@ export default function FocusScreen() {
     : active
       ? (elapsedSec % FOCUS_BLOCK_SEC) / FOCUS_BLOCK_SEC
       : 0;
+
+  // During the lock-in: every unfinished to-do (and any already worked on), tap one to send the time to it.
+  const split = active ? todoSplitAt(active, now) : {};
+  const liveTodos = active ? sortTodos(todos).filter((t) => !isFinished(t) || t.id in split) : [];
+  const pickLive = (id: string, title: string) => {
+    if (!active) return;
+    Haptics.selectionAsync();
+    const current = todos.find((t) => t.id === active.todoId);
+    // The ring shows the to-do's name, unless a label was typed by hand.
+    const keepLabel = active.subject !== DEFAULT_LABEL && active.subject !== current?.title.slice(0, 30);
+    const next = active.todoId === id ? null : id;
+    switchTodo(next, keepLabel ? undefined : next ? title.slice(0, 30) : DEFAULT_LABEL);
+  };
 
   const start = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -197,12 +210,30 @@ export default function FocusScreen() {
                   : `Reste sur Lockin. Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon 💀`}
               </Text>
               <Ambience playing={!pause} />
-              {active.todoId && todos.find((t) => t.id === active.todoId) && (
-                <View style={styles.todoBox}>
-                  <Text style={styles.todoTitle}>📝 Tu bosses sur</Text>
-                  <TodoItem todo={todos.find((t) => t.id === active.todoId)!} liveSeconds={elapsedSec} />
+              <View style={styles.todoBox}>
+                <View style={styles.todoHeader}>
+                  <Text style={styles.todoTitle}>📝 Tu bosses sur quoi ?</Text>
+                  <Pressable onPress={() => router.navigate({ pathname: '/todos', params: { new: '1' } })} hitSlop={8}>
+                    <Text style={styles.todoLink}>+ Nouvelle</Text>
+                  </Pressable>
                 </View>
-              )}
+                {liveTodos.length > 0 ? (
+                  <>
+                    <Text style={type.footnote}>Touche une to-do : le chrono remplit ses heures. Tu peux changer quand tu veux.</Text>
+                    {liveTodos.map((t) => (
+                      <TodoItem
+                        key={t.id}
+                        todo={t}
+                        liveSeconds={split[t.id] ?? 0}
+                        selected={t.id === active.todoId}
+                        onPress={() => pickLive(t.id, t.title)}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <Text style={type.footnote}>Pas de to-do. Crée-en une (ex : Maths, 4 h) et touche-la pour que ton temps aille dessus.</Text>
+                )}
+              </View>
             </>
           ) : (
             <View style={styles.labelBox}>
@@ -244,7 +275,7 @@ export default function FocusScreen() {
               <View style={styles.todoBox}>
                 <View style={styles.todoHeader}>
                   <Text style={styles.todoTitle}>📝 Mes to-do</Text>
-                  <Pressable onPress={() => router.push('/todos')} hitSlop={8}>
+                  <Pressable onPress={() => router.navigate('/todos')} hitSlop={8}>
                     <Text style={styles.todoLink}>{nextTodos.length ? 'Tout voir' : ''}</Text>
                   </Pressable>
                 </View>
@@ -266,7 +297,7 @@ export default function FocusScreen() {
                 ) : (
                   <Text style={type.footnote}>Crée une to-do avec le temps de travail et la date : tu la choisis ici avant de lock in.</Text>
                 )}
-                <Pressable onPress={() => router.push({ pathname: '/todos', params: { new: '1' } })} style={styles.todoAdd}>
+                <Pressable onPress={() => router.navigate({ pathname: '/todos', params: { new: '1' } })} style={styles.todoAdd}>
                   <Ionicons name="add" size={20} color={colors.accent} />
                   <Text style={styles.todoLink}>Nouvelle to-do</Text>
                 </Pressable>

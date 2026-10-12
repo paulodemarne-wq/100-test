@@ -1,15 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DateField } from '../components/DateField';
-import { TodoItem } from '../components/TodoItem';
-import { Button, ErrorText } from '../components/ui';
-import { useSocial } from '../lib/social';
-import { card, colors, type } from '../lib/theme';
-import { formatDay, formatHours, isFinished, reminderAt, sortTodos } from '../lib/todos';
+import { DateField } from '../../components/DateField';
+import { TodoItem } from '../../components/TodoItem';
+import { Button, ErrorText } from '../../components/ui';
+import { useSocial } from '../../lib/social';
+import { todoSplitAt, useLockin, useNow } from '../../lib/store';
+import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
+import { formatDay, formatHours, isFinished, reminderAt, sortTodos } from '../../lib/todos';
 
 const inAWeek = () => {
   const d = new Date();
@@ -18,11 +19,21 @@ const inAWeek = () => {
 };
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-/** My to-dos: hours of work to do before a date. A lock-in can work on one of them. */
+/** My to-dos: hours of work to do before a date. A lock-in fills the one you tap. */
 export default function Todos() {
   const params = useLocalSearchParams<{ new?: string }>();
   const { todos, createTodo, setTodoDone, deleteTodo } = useSocial();
+  const { active, switchTodo } = useLockin();
+  const now = useNow();
+  const split = active ? todoSplitAt(active, now) : {};
   const [adding, setAdding] = useState(!!params.new || todos.length === 0);
+  // "Nouvelle to-do" from Focus opens the form.
+  useEffect(() => {
+    if (params.new) {
+      setAdding(true);
+      router.setParams({ new: undefined });
+    }
+  }, [params.new]);
   const [title, setTitle] = useState('');
   const [hours, setHours] = useState(5);
   const [due, setDue] = useState(inAWeek);
@@ -62,6 +73,18 @@ export default function Todos() {
     }
   };
 
+  // During a lock-in, tapping a to-do sends the running time to it.
+  const pick = (id: string, name: string) => {
+    if (!active) return undefined;
+    return () => {
+      Haptics.selectionAsync();
+      const current = todos.find((t) => t.id === active.todoId);
+      const keepLabel = active.subject !== DEFAULT_LABEL && active.subject !== current?.title.slice(0, 30);
+      const next = active.todoId === id ? null : id;
+      switchTodo(next, keepLabel ? undefined : next ? name.slice(0, 30) : DEFAULT_LABEL);
+    };
+  };
+
   const actions = (id: string, name: string, done: boolean) =>
     Alert.alert(name, undefined, [
       { text: done ? 'Remettre à faire' : 'Marquer comme faite ✓', onPress: () => setTodoDone(id, !done).catch(() => {}) },
@@ -78,12 +101,9 @@ export default function Todos() {
     ]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={type.title}>Mes to-do</Text>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.close}>
-          <Ionicons name="close" size={20} color={colors.secondary} />
-        </Pressable>
+        <Text style={type.largeTitle}>To-do</Text>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -129,6 +149,9 @@ export default function Todos() {
             <Button title="Nouvelle to-do" icon={<Ionicons name="add" size={20} color={colors.onAccent} />} onPress={() => setAdding(true)} />
           )}
 
+          {active && open.length > 0 && (
+            <Text style={styles.live}>⏱ Chrono en cours : touche une to-do pour que ton temps aille dessus.</Text>
+          )}
           {open.length > 0 && <Text style={styles.sectionTitle}>À FAIRE · LA PLUS PROCHE EN PREMIER</Text>}
           {open.length > 0 && (
             <View style={[card, styles.list]}>
@@ -136,6 +159,9 @@ export default function Todos() {
                 <TodoItem
                   key={t.id}
                   todo={t}
+                  liveSeconds={split[t.id] ?? 0}
+                  selected={!!active && active.todoId === t.id}
+                  onPress={pick(t.id, t.title)}
                   right={
                     <Pressable onPress={() => actions(t.id, t.title, false)} hitSlop={10} accessibilityLabel="Options">
                       <Ionicons name="ellipsis-horizontal" size={20} color={colors.secondary} />
@@ -147,8 +173,9 @@ export default function Todos() {
           )}
           {open.length > 0 && (
             <Text style={type.footnote}>
-              Lance un lock in depuis Focus en choisissant ta to-do : ton temps s'ajoute à sa barre. Rappel automatique si elle
-              n'est pas finie (20 % du temps avant la date, 2 jours minimum).
+              Pendant un lock in, touche la to-do sur laquelle tu bosses : le chrono remplit sa barre. Tu peux changer quand tu
+              veux (ex : maths puis français). Rappel automatique si elle n'est pas finie (20 % du temps avant la date, 2 jours
+              minimum).
             </Text>
           )}
 
@@ -159,6 +186,7 @@ export default function Todos() {
                 <TodoItem
                   key={t.id}
                   todo={t}
+                  liveSeconds={split[t.id] ?? 0}
                   right={
                     <Pressable onPress={() => actions(t.id, t.title, true)} hitSlop={10} accessibilityLabel="Options">
                       <Ionicons name="ellipsis-horizontal" size={20} color={colors.secondary} />
@@ -176,8 +204,8 @@ export default function Todos() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16 },
-  close: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
+  header: { paddingHorizontal: 20, marginTop: 8 },
+  live: { ...type.footnote, color: colors.accent, fontWeight: '600', marginLeft: 4 },
   container: { padding: 20, paddingBottom: 40, gap: 12 },
   form: { paddingBottom: 14, gap: 4 },
   titleInput: { fontSize: 17, color: colors.text, paddingHorizontal: 16, paddingVertical: 14 },
