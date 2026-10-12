@@ -59,10 +59,12 @@ function DecorationLayer({ source, flicker, float, size }: { source: number | ob
   // Images never catch touches (pointerEvents on the box style).
   const box = { position: 'absolute' as const, left: -size / 3, top: -size / 3, width: big, height: big, pointerEvents: 'none' as const };
   if (flicker) {
+    // Both frames get the box's exact size: without it an image takes its file size (360 px).
+    const frame = { position: 'absolute' as const, left: 0, top: 0, width: big, height: big };
     return (
-      <View pointerEvents="none" style={box}>
-        <Animated.Image source={source as number} style={[StyleSheet.absoluteFill, { opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} />
-        <Animated.Image source={flicker as number} style={[StyleSheet.absoluteFill, { opacity: anim }]} />
+      <View pointerEvents="none" style={[box, { overflow: 'hidden' }]}>
+        <Animated.Image source={source as number} resizeMode="contain" style={[frame, { opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} />
+        <Animated.Image source={flicker as number} resizeMode="contain" style={[frame, { opacity: anim }]} />
       </View>
     );
   }

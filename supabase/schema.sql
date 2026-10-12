@@ -1888,3 +1888,6 @@ end $$;
 drop trigger if exists check_event_size on public.event_members;
 create trigger check_event_size before insert on public.event_members
   for each row execute function public.check_event_size();
+
+-- L'app voit tout de suite les nouvelles colonnes (badge, titre…).
+notify pgrst, 'reload schema';
