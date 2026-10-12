@@ -17,6 +17,8 @@ export type ExamPlan = {
   leftTotal: number;
   /** Days left to study: today until the day before the exam (just today if the exam is today). */
   studyDays: number;
+  /** How far behind a steady pace since the exam was added (0 when on time). */
+  behind: number;
   pace: Pace;
 };
 
@@ -35,8 +37,14 @@ export function planExam(exam: Exam, sessions: SessionRow[], now = new Date()): 
   const perDay = Math.max(0, goal - (exam.doneSeconds - doneToday)) / studyDays;
   const leftTotal = Math.max(0, goal - exam.doneSeconds);
   const leftToday = Math.min(leftTotal, Math.max(0, perDay - doneToday));
-  const pace: Pace = leftTotal === 0 ? 'done' : perDay > 6 * HOUR ? 'late' : perDay > 3 * HOUR ? 'hard' : 'ok';
-  return { exam, doneToday, perDay, leftToday, leftTotal, studyDays, pace };
+  // Steady pace: the goal spread evenly from the day the exam was added to the day before it.
+  const added = new Date(exam.created_at);
+  added.setHours(0, 0, 0, 0);
+  const totalDays = Math.max(1, exam.daysLeft + Math.round((todayStart.getTime() - added.getTime()) / 86_400_000));
+  const daysGone = totalDays - studyDays;
+  const behind = Math.max(0, (goal * daysGone) / totalDays - (exam.doneSeconds - doneToday));
+  const pace: Pace = leftTotal === 0 ? 'done' : perDay > 6 * HOUR || behind > 5 * HOUR ? 'late' : perDay > 3 * HOUR || behind > HOUR ? 'hard' : 'ok';
+  return { exam, doneToday, perDay, leftToday, leftTotal, studyDays, behind, pace };
 }
 
 export const PACE_TEXT: Record<Pace, string> = {

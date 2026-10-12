@@ -1,7 +1,7 @@
--- Mise à jour Lockin+ (l'abonnement, parrainage, essais à offrir) + réparation de la photo de profil.
--- Contient aussi les mises à jour To-do d'avant : pas besoin de les relancer.
--- Supabase → SQL Editor → + → colle tout → Run. On peut le relancer sans risque.
--- Ton compte vedette a Lockin+ automatiquement.
+-- Mise à jour de la base Lockin : to-do, Lockin+ (abonnement, parrainage, essais à offrir),
+-- photo de profil réparée, partiels en commun, et la suite.
+-- Supabase → SQL Editor → + → colle tout → Run. On peut le relancer sans risque (même si tu as déjà
+-- lancé une ancienne mise à jour To-do ou Lockin+).
 
 drop policy if exists "see own events" on public.lockin_events;
 create policy "see own events" on public.lockin_events
@@ -440,3 +440,82 @@ begin
 end $$;
 revoke execute on function public.give_trial(uuid) from public, anon;
 grant execute on function public.give_trial(uuid) to authenticated;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- v16: shared exams. The owner (or anyone who joined) invites friends; once they join,
+-- they see the exam and its ranking: hours of each member on sessions named like the exam.
+-- ═════════════════════════════════════════════════════════════════════════════
+create table if not exists public.exam_members (
+  exam_id uuid not null references public.exams (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  status text not null default 'invited' check (status in ('invited', 'joined')),
+  invited_by uuid references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now(),
+  primary key (exam_id, user_id)
+);
+alter table public.exam_members enable row level security;
+
+create or replace function public.in_exam(e uuid, u uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.exams where id = e and user_id = u)
+      or exists (select 1 from public.exam_members where exam_id = e and user_id = u and status = 'joined');
+$$;
+
+-- An invited or joined member sees the exam (only its owner changes or deletes it).
+drop policy if exists "see shared exams" on public.exams;
+create policy "see shared exams" on public.exams
+  for select to authenticated using (
+    exists (select 1 from public.exam_members m where m.exam_id = exams.id and m.user_id = auth.uid())
+  );
+
+drop policy if exists "see exam members" on public.exam_members;
+create policy "see exam members" on public.exam_members
+  for select to authenticated using (user_id = auth.uid() or public.in_exam(exam_id, auth.uid()));
+-- Joining (invited → joined) and leaving are the member's own choice.
+drop policy if exists "answer exam invites" on public.exam_members;
+create policy "answer exam invites" on public.exam_members
+  for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid() and status = 'joined');
+drop policy if exists "leave exams" on public.exam_members;
+create policy "leave exams" on public.exam_members
+  for delete to authenticated using (user_id = auth.uid() or exists (select 1 from public.exams x where x.id = exam_id and x.user_id = auth.uid()));
+revoke insert, update on public.exam_members from anon, authenticated;
+grant update (status) on public.exam_members to authenticated;
+
+create or replace function public.invite_to_exam(exam uuid, friend uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  x public.exams;
+  me public.profiles;
+begin
+  select * into me from public.profiles where id = auth.uid();
+  select * into x from public.exams where id = exam;
+  if x.id is null or not public.in_exam(exam, auth.uid()) then raise exception 'Partiel introuvable' using errcode = 'P0001'; end if;
+  if not public.is_friend(auth.uid(), friend) then raise exception 'Tu ne peux inviter que tes amis' using errcode = 'P0001'; end if;
+  if friend = x.user_id or exists (select 1 from public.exam_members where exam_id = exam and user_id = friend) then
+    raise exception 'Déjà invité' using errcode = 'P0001';
+  end if;
+  if (select count(*) from public.exam_members where exam_id = exam) >= 50 then raise exception 'Trop de monde (50 max)' using errcode = 'P0001'; end if;
+  insert into public.exam_members (exam_id, user_id, invited_by) values (exam, friend, me.id);
+  perform public.send_push(array[friend], me.display_name || ' révise ' || x.name || ' 📚', 'Rejoins son partiel pour réviser ensemble et voir qui bosse le plus.', jsonb_build_object('type', 'exam_invite', 'exam_id', exam));
+end $$;
+revoke execute on function public.invite_to_exam(uuid, uuid) from public, anon;
+grant execute on function public.invite_to_exam(uuid, uuid) to authenticated;
+
+-- Hours of each member on this exam (sessions named like it, since it was created). Members only.
+create or replace function public.exam_ranking(exam uuid)
+returns table (user_id uuid, display_name text, avatar_url text, seconds bigint)
+language sql stable security definer set search_path = public as $$
+  with x as (select * from public.exams where id = exam and public.in_exam(exam, auth.uid())),
+  people as (
+    select x.user_id from x
+    union
+    select m.user_id from public.exam_members m, x where m.exam_id = x.id and m.status = 'joined'
+  )
+  select p.id, p.display_name, p.avatar_url,
+    coalesce((select sum(s.duration_sec) from public.study_sessions s, x
+              where s.user_id = p.id and s.status = 'done' and lower(s.subject) = lower(x.name) and s.started_at >= x.created_at), 0)::bigint
+  from people pe join public.profiles p on p.id = pe.user_id
+  order by 4 desc;
+$$;
+revoke execute on function public.exam_ranking(uuid) from public, anon;
+grant execute on function public.exam_ranking(uuid) to authenticated;

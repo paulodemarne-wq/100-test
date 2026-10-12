@@ -15,6 +15,7 @@ import { useSocial } from '../../lib/social';
 import { formFor, levelFor, PLAN_EMOJI, speciesById, tierFor } from '../../creatures/species';
 import { focusSeconds, MAX_AWAY_MS, Notice, todoSplitAt, useLockin, useNow } from '../../lib/store';
 import { isFinished, sortTodos } from '../../lib/todos';
+import { countdown as examCountdown, planExam } from '../../lib/exams';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
 import { decorationOf } from '../../lib/premium';
@@ -34,7 +35,7 @@ const NOTICE_STYLE: Record<Notice['kind'], { bg: string; fg: string; icon: keyof
 
 export default function FocusScreen() {
   const { profile } = useAuth();
-  const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, events, pets, todos } = useSocial();
+  const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, examInvites, events, pets, todos } = useSocial();
   const { active, notice, clearNotice, startSession, stopSession, startPause, endPause, switchTodo } = useLockin();
   const [label, setLabel] = useState('');
   const [todoId, setTodoId] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export default function FocusScreen() {
 
   const goalSeconds = (profile?.weekly_goal_minutes ?? 0) * 60;
   const nextExam = exams[0];
+  const nextPlan = useMemo(() => (nextExam ? planExam(nextExam, mySessions) : null), [nextExam, mySessions]);
   // A group lock-in I'm going to that starts within 10 minutes or is running.
   const liveEvent = events.find(
     (e) => e.myRsvp === 'going' && now >= e.startsAt - 10 * 60_000 && now < e.startsAt + 3 * 3_600_000,
@@ -145,14 +147,28 @@ export default function FocusScreen() {
           <Stat icon="flame-outline" label="Série" value={`${myStreak} j`} onPress={() => router.push('/profile')} />
         </View>
 
-        {nextExam && !active && (
-          <Pressable onPress={() => setLabel(nextExam.name)} style={[styles.notice, { backgroundColor: colors.card }]}>
-            <Ionicons name="school" size={20} color={colors.accent} />
+        {(nextPlan || examInvites.length > 0) && !active && (
+          <Pressable
+            onPress={() => router.push('/exams')}
+            style={[styles.notice, { backgroundColor: nextPlan && nextPlan.behind >= 3600 ? colors.warningSoft : colors.card }]}
+          >
+            <Text style={styles.countdown}>{nextPlan ? examCountdown(nextPlan.exam.daysLeft).toUpperCase() : '📚'}</Text>
             <Text style={styles.noticeText}>
-              <Text style={{ fontWeight: '600' }}>{nextExam.name}</Text>
-              {nextExam.daysLeft === 0 ? " aujourd'hui" : nextExam.daysLeft === 1 ? ' demain' : ` dans ${nextExam.daysLeft} j`} ·{' '}
-              {formatDuration(nextExam.doneSeconds)} / {Math.round(nextExam.goal_minutes / 60)} h
+              {nextPlan ? (
+                <>
+                  <Text style={{ fontWeight: '700' }}>{nextPlan.exam.name}</Text>
+                  {nextPlan.leftTotal === 0
+                    ? ' · objectif atteint 🎉'
+                    : nextPlan.leftToday < 60
+                      ? " · objectif du jour fait ✓"
+                      : ` · encore ${formatDuration(nextPlan.leftToday)} aujourd'hui`}
+                  {nextPlan.behind >= 3600 ? `\n⚠️ ${formatDuration(nextPlan.behind)} de retard` : ''}
+                </>
+              ) : (
+                `${examInvites.length} invitation${examInvites.length > 1 ? 's' : ''} à réviser un partiel`
+              )}
             </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.tertiary} />
           </Pressable>
         )}
 
@@ -396,6 +412,7 @@ const styles = StyleSheet.create({
   goalTrack: { height: 4, backgroundColor: colors.fill, borderRadius: 2, overflow: 'hidden', marginVertical: 2 },
   goalFill: { height: 4, backgroundColor: colors.accent, borderRadius: 2 },
   statValue: { fontSize: 24, fontWeight: '700', color: colors.text, marginTop: 6, fontVariant: ['tabular-nums'] },
+  countdown: { fontSize: 17, fontWeight: '900', color: colors.accent, minWidth: 44, textAlign: 'center' },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, padding: 14 },
   noticeText: { flex: 1, fontSize: 15, color: colors.text, lineHeight: 20 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24, paddingVertical: 16 },

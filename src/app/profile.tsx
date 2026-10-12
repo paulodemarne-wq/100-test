@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { DateField } from '../components/DateField';
@@ -22,7 +22,7 @@ import { Named } from '../components/Badge';
 
 export default function Profile() {
   const { profile, setPhoto, signOut, updateSettings } = useAuth();
-  const { mySessions, myWeekSeconds, myStreak, myStreakInfo, exams, addExam, deleteExam } = useSocial();
+  const { mySessions, myWeekSeconds, myStreak, myStreakInfo, exams } = useSocial();
   const [reminder, setReminder] = useState<ReminderSetting>(DEFAULT_REMINDER);
   useEffect(() => {
     loadReminder().then(setReminder);
@@ -35,10 +35,6 @@ export default function Profile() {
     syncDailyReminders(next, lockedInToday, myStreak).catch(() => {});
   };
   const { active, stopSession } = useLockin();
-  const [examName, setExamName] = useState('');
-  const [examDate, setExamDate] = useState(() => new Date(Date.now() + 14 * 86_400_000));
-  const [examGoal, setExamGoal] = useState(20);
-  const [adding, setAdding] = useState(false);
 
   const badges = useMemo(
     () => stats.badges(mySessions, profile?.weekly_goal_minutes ?? 0),
@@ -69,19 +65,6 @@ export default function Profile() {
       ...(profile.avatar_url ? [{ text: 'Supprimer la photo', style: 'destructive' as const, onPress: () => run('remove') }] : []),
       { text: 'Annuler', style: 'cancel' as const },
     ]);
-  };
-
-  const submitExam = async () => {
-    if (!examName.trim()) return Alert.alert('Oups', 'Donne un nom à ton partiel.');
-    setAdding(true);
-    try {
-      await addExam({ name: examName, date: examDate, goalMinutes: examGoal * 60 });
-      setExamName('');
-    } catch (e) {
-      fail(e);
-    } finally {
-      setAdding(false);
-    }
   };
 
   const confirmSignOut = () =>
@@ -177,57 +160,15 @@ export default function Profile() {
           />
         </Section>
 
-        <Section title="Mes partiels" footer="Écris le nom du partiel comme sujet de session pour que tes heures comptent. Appui long pour supprimer.">
-          {exams.map((x) => {
-            const pct = x.goal_minutes > 0 ? Math.min(1, x.doneSeconds / (x.goal_minutes * 60)) : 0;
-            return (
-              <Pressable
-                key={x.id}
-                onLongPress={() =>
-                  Alert.alert(`Supprimer « ${x.name} » ?`, undefined, [
-                    { text: 'Annuler', style: 'cancel' },
-                    { text: 'Supprimer', style: 'destructive', onPress: () => deleteExam(x.id).catch(fail) },
-                  ])
-                }
-                style={styles.exam}
-              >
-                <View style={styles.examTop}>
-                  <Text style={type.headline}>{x.name}</Text>
-                  <Text style={[styles.examDays, x.daysLeft <= 3 && { color: colors.danger }]}>
-                    {x.daysLeft === 0 ? "aujourd'hui" : x.daysLeft === 1 ? 'demain' : `J-${x.daysLeft}`}
-                  </Text>
-                </View>
-                <View style={styles.barTrack}>
-                  <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
-                </View>
-                <Text style={type.footnote}>
-                  {formatDuration(x.doneSeconds)} / {Math.round(x.goal_minutes / 60)} h
-                </Text>
-              </Pressable>
-            );
-          })}
-        </Section>
-
-        <View style={[card, { marginTop: exams.length ? 12 : 20 }]}>
-          <TextInput
-            value={examName}
-            onChangeText={setExamName}
-            placeholder="Nouveau partiel (ex : Compta)"
-            placeholderTextColor={colors.tertiary}
-            maxLength={30}
-            style={styles.examInput}
+        <Section title="Partiels">
+          <Row
+            left={<Ionicons name="school" size={24} color={colors.accent} />}
+            title="Mode partiels"
+            subtitle={exams.length ? `${exams.length} partiel${exams.length > 1 ? 's' : ''} · prochain : ${exams[0].name} (J-${exams[0].daysLeft})` : 'Compte à rebours, heures par jour, révisions avec tes potes'}
+            onPress={() => router.push('/exams')}
+            right={<Ionicons name="chevron-forward" size={18} color={colors.tertiary} />}
           />
-          <View style={styles.separator} />
-          <DateField label="Date" mode="date" value={examDate} onChange={setExamDate} minimumDate={new Date()} />
-          <View style={styles.separator} />
-          <View style={styles.goalRow}>
-            <Text style={type.body}>Objectif</Text>
-            <Stepper value={examGoal} min={1} max={200} unit="h" onChange={setExamGoal} />
-          </View>
-          <View style={{ padding: 12 }}>
-            <Button title="Ajouter le partiel" onPress={submitExam} loading={adding} disabled={!examName.trim()} />
-          </View>
-        </View>
+        </Section>
 
         <Section title={`Badges · ${badges.filter((b) => b.unlocked).length}/${badges.length}`}>
           <View style={styles.badges}>
@@ -308,20 +249,6 @@ const styles = StyleSheet.create({
   duoCard: { ...card, flex: 1, padding: 14, gap: 2 },
   stat: { ...card, flex: 1, padding: 12, alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: '700', color: colors.text },
-  exam: { padding: 14, gap: 8 },
-  examTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  examDays: { fontSize: 15, fontWeight: '700', color: colors.accent },
-  barTrack: { height: 6, backgroundColor: colors.fill, borderRadius: 3, overflow: 'hidden' },
-  barFill: { height: 6, backgroundColor: colors.accent, borderRadius: 3 },
-  examInput: { fontSize: 17, color: colors.text, paddingHorizontal: 16, paddingVertical: 15 },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator, marginLeft: 16 },
-  goalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
   badges: { flexDirection: 'row', flexWrap: 'wrap', padding: 8 },
   badge: { width: '33.33%', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, gap: 2 },
   badgeEmoji: { fontSize: 34 },

@@ -64,6 +64,9 @@ export function openFromNotification(data: Record<string, unknown> | undefined) 
     case 'todo':
       router.navigate('/todos');
       break;
+    case 'exam_invite':
+      router.navigate('/exams');
+      break;
     case 'plus':
       router.navigate('/premium');
       break;

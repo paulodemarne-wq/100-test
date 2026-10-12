@@ -112,3 +112,10 @@ src/lib/
 - C'est la base qui décide qui a Lockin+ (`profiles.premium_until`, ou un compte vedette) : rien ne peut être triché depuis l'app.
 - Parrainage : un pote qui prend Lockin+ avec ton code = 1 mois offert chacun. Un abonné peut offrir 5 essais de 7 jours.
 - Tout passe par `grant_plus` (table `plus_grants`). En attendant le paiement App Store : `supabase/donner-lockin-plus.sql`.
+- Mise à jour de la base : `supabase/mise-a-jour-tout.sql` (tout depuis les to-do, relançable).
+
+## Mode partiels
+
+Écran « Mode partiels » (depuis Focus ou le profil) : compte à rebours, heures à faire par jour calculées toutes seules,
+objectif du jour, planning de la semaine qui se recalcule, alerte quand tu prends du retard, et partiels en commun :
+tu invites tes potes, ils rejoignent, et vous avez le classement des heures de révision.

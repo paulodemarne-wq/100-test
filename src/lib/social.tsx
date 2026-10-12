@@ -62,7 +62,14 @@ export type LockinEvent = EventRow & {
   myRsvp: EventMemberRow['status'];
 };
 
-export type Exam = ExamRow & { doneSeconds: number; daysLeft: number };
+export type Exam = ExamRow & {
+  doneSeconds: number;
+  daysLeft: number;
+  /** I created it (else it is a friend's exam I joined or was invited to). */
+  owner: boolean;
+  /** Invited by this person, not joined yet. */
+  invitedBy?: ProfileRow | null;
+};
 
 /** An abandoned session this week, for the wall of shame. */
 export type Shame = { profile: ProfileRow; session: SessionRow };
@@ -128,6 +135,11 @@ type Social = {
   cancelEvent: (eventId: string) => Promise<void>;
   addExam: (input: { name: string; date: Date; goalMinutes: number }) => Promise<void>;
   deleteExam: (examId: string) => Promise<void>;
+  /** Friends' exams I was invited to (not joined yet). */
+  examInvites: Exam[];
+  inviteToExam: (examId: string, friendId: string) => Promise<void>;
+  /** Join an exam I was invited to, or say no / leave it. */
+  answerExam: (examId: string, join: boolean) => Promise<void>;
 };
 
 const SocialContext = createContext<Social | null>(null);
@@ -178,6 +190,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [eventRows, setEventRows] = useState<EventRow[]>([]);
   const [eventMembers, setEventMembers] = useState<EventMemberRow[]>([]);
   const [examRows, setExamRows] = useState<ExamRow[]>([]);
+  const [examMemberships, setExamMemberships] = useState<{ exam_id: string; status: 'invited' | 'joined'; invited_by: string | null }[]>([]);
   const [reactionRows, setReactionRows] = useState<ReactionRow[]>([]);
   const [petRows, setPetRows] = useState<PetRow[]>([]);
   const [inventory, setInventory] = useState<string[]>([]);
@@ -199,6 +212,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       supabase.from('exams').select('*').order('exam_date'),
       supabase.from('nudges').select('*').eq('to_user', userId).is('seen_at', null).order('created_at', { ascending: false }),
     ]);
+    const { data: myExamMemberships } = await supabase.from('exam_members').select('exam_id, status, invited_by').eq('user_id', userId);
     const fs = (fsRes.data ?? []) as FriendshipRow[];
     const gm = (membersRes.data ?? []) as GroupMemberRow[];
     const evs = (eventsRes.data ?? []) as EventRow[];
@@ -256,6 +270,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     setEventRows(evs);
     setEventMembers(em);
     setExamRows((examsRes.data ?? []) as ExamRow[]);
+    setExamMemberships((myExamMemberships ?? []) as typeof examMemberships);
     setNudgeRows((nudgesRes.data ?? []) as NudgeRow[]);
     setProfiles(Object.fromEntries(((profilesRes.data ?? []) as ProfileRow[]).map((p) => [p.id, p])));
     setSessions(merged);
@@ -369,8 +384,9 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       .filter((e) => e.hostProfile);
 
     const today = localDate(new Date(now));
-    const exams: Exam[] = examRows
-      .filter((x) => x.exam_date >= today)
+    const membership = new Map(examMemberships.map((m) => [m.exam_id, m]));
+    const allExams: Exam[] = examRows
+      .filter((x) => x.exam_date >= today && (x.user_id === userId || membership.has(x.id)))
       .map((x) => {
         const since = Date.parse(x.created_at);
         const doneSeconds = mySessions
@@ -382,8 +398,17 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           )
           .reduce((sum, s) => sum + (s.duration_sec ?? 0), 0);
         const daysLeft = Math.round((Date.parse(`${x.exam_date}T00:00:00`) - Date.parse(`${today}T00:00:00`)) / 86_400_000);
-        return { ...x, doneSeconds, daysLeft };
+        const m = membership.get(x.id);
+        return {
+          ...x,
+          doneSeconds,
+          daysLeft,
+          owner: x.user_id === userId,
+          invitedBy: m?.status === 'invited' ? (profiles[m.invited_by ?? ''] ?? null) : undefined,
+        };
       });
+    const exams = allExams.filter((x) => x.invitedBy === undefined);
+    const examInvites = allExams.filter((x) => x.invitedBy !== undefined);
 
     // Abandons this week by me and my friends.
     const weekStart = stats.weekStart();
@@ -432,6 +457,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       groups,
       events,
       exams,
+      examInvites,
       shameWall,
       mySessions,
       myWeekSeconds,
@@ -549,6 +575,13 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           supabase.from('exams').insert({ name: name.trim(), exam_date: localDate(date), goal_minutes: goalMinutes }),
         ),
       deleteExam: (examId) => run(() => supabase.from('exams').delete().eq('id', examId)),
+      inviteToExam: (examId, friendId) => run(() => supabase.rpc('invite_to_exam', { exam: examId, friend: friendId })),
+      answerExam: (examId, join) =>
+        run(() =>
+          join
+            ? supabase.from('exam_members').update({ status: 'joined' }).eq('exam_id', examId).eq('user_id', userId!)
+            : supabase.from('exam_members').delete().eq('exam_id', examId).eq('user_id', userId!),
+        ),
     };
   }, [
     loading,
@@ -562,6 +595,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     eventRows,
     eventMembers,
     examRows,
+    examMemberships,
     reactionRows,
     petRows,
     inventory,
