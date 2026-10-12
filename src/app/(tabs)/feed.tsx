@@ -16,9 +16,11 @@ import { card, colors, type } from '../../lib/theme';
 import { formatDuration, formatTimer, timeAgo } from '../../lib/time';
 import { decorationOf } from '../../lib/premium';
 import { Named } from '../../components/Badge';
+import { useChat } from '../../lib/chat';
 
 export default function FeedScreen() {
   const { profile, userId } = useAuth();
+  const { unreadTotal } = useChat();
   const {
     friends,
     incomingRequests,
@@ -106,6 +108,14 @@ export default function FeedScreen() {
             )}
             <Pressable onPress={() => router.push('/add-friend')} hitSlop={10} style={styles.headerButton}>
               <Ionicons name="person-add" size={19} color={colors.accent} />
+            </Pressable>
+            <Pressable onPress={() => router.push('/messages')} hitSlop={10} style={styles.headerButton} accessibilityLabel="Messages">
+              <Ionicons name="chatbubbles" size={19} color={colors.accent} />
+              {unreadTotal > 0 && (
+                <View style={styles.unreadDot}>
+                  <Text style={styles.unreadDotText}>{unreadTotal > 9 ? '9+' : unreadTotal}</Text>
+                </View>
+              )}
             </Pressable>
           </View>
         </View>
@@ -293,6 +303,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  unreadDot: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
+  unreadDotText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   liveTimer: { fontSize: 17, fontWeight: '500', color: colors.success, fontVariant: ['tabular-nums'] },
   duration: { fontSize: 15, color: colors.secondary, fontVariant: ['tabular-nums'] },
   sessionIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

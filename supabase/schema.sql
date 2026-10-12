@@ -1653,3 +1653,58 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke execute on function public.exam_ranking(uuid) from public, anon;
 grant execute on function public.exam_ranking(uuid) to authenticated;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- v17: messages between friends (private, live, with a push notification).
+-- ═════════════════════════════════════════════════════════════════════════════
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  sender uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  recipient uuid not null references public.profiles (id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 1000),
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+create index if not exists messages_recipient on public.messages (recipient, created_at desc);
+create index if not exists messages_sender on public.messages (sender, created_at desc);
+alter table public.messages enable row level security;
+
+drop policy if exists "see own messages" on public.messages;
+create policy "see own messages" on public.messages
+  for select to authenticated using (sender = auth.uid() or recipient = auth.uid());
+-- Only to friends, only as yourself.
+drop policy if exists "send messages to friends" on public.messages;
+create policy "send messages to friends" on public.messages
+  for insert to authenticated with check (sender = auth.uid() and recipient <> auth.uid() and public.is_friend(auth.uid(), recipient));
+-- The recipient marks as read; the sender can delete what they sent.
+drop policy if exists "read received messages" on public.messages;
+create policy "read received messages" on public.messages
+  for update to authenticated using (recipient = auth.uid()) with check (recipient = auth.uid());
+drop policy if exists "delete sent messages" on public.messages;
+create policy "delete sent messages" on public.messages
+  for delete to authenticated using (sender = auth.uid());
+revoke insert, update on public.messages from anon, authenticated;
+grant insert (recipient, body) on public.messages to authenticated;
+grant update (read_at) on public.messages to authenticated;
+
+create or replace function public.push_on_message()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.send_push(
+    array[new.recipient],
+    (select display_name from public.profiles where id = new.sender),
+    left(new.body, 140),
+    jsonb_build_object('type', 'message', 'from', new.sender)
+  );
+  return new;
+end $$;
+drop trigger if exists push_on_message on public.messages;
+create trigger push_on_message after insert on public.messages
+  for each row execute function public.push_on_message();
+
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages') then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+end $$;

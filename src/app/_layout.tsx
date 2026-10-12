@@ -9,6 +9,7 @@ import { loadReminder } from '../lib/reminder';
 import { dayKey } from '../lib/time';
 import { SocialProvider, useSocial } from '../lib/social';
 import { LockinProvider } from '../lib/store';
+import { ChatProvider } from '../lib/chat';
 import { colors } from '../lib/theme';
 
 /** Registers for push, opens tapped notifications and schedules group lock-in reminders. */
@@ -62,6 +63,7 @@ export default function RootLayout() {
     <AuthProvider>
       <SocialProvider>
         <LockinProvider>
+          <ChatProvider>
           <StatusBar style="dark" />
           {Platform.OS !== 'web' && <NotificationsBridge />}
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
@@ -75,6 +77,7 @@ export default function RootLayout() {
             <Stack.Screen name="exams" options={{ presentation: 'modal' }} />
             <Stack.Screen name="world" options={{ gestureEnabled: false }} />
           </Stack>
+          </ChatProvider>
         </LockinProvider>
       </SocialProvider>
     </AuthProvider>

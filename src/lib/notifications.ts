@@ -64,6 +64,9 @@ export function openFromNotification(data: Record<string, unknown> | undefined) 
     case 'todo':
       router.navigate('/todos');
       break;
+    case 'message':
+      if (typeof data.from === 'string') router.navigate({ pathname: '/chat/[id]', params: { id: data.from } });
+      break;
     case 'exam_invite':
       router.navigate('/exams');
       break;

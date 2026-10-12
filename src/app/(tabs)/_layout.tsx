@@ -4,6 +4,7 @@ import { ActivityIndicator, ColorValue, View } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useSocial } from '../../lib/social';
 import { useLockin } from '../../lib/store';
+import { useChat } from '../../lib/chat';
 import { colors } from '../../lib/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -18,6 +19,8 @@ export default function TabsLayout() {
   const { ready, session, profile, profileReady } = useAuth();
   const { loaded } = useLockin();
   const { incomingRequests } = useSocial();
+  const { unreadTotal } = useChat();
+  const amisBadge = incomingRequests.length + unreadTotal;
 
   if (ready && !session) return <Redirect href="/login" />;
   if (ready && profileReady && !profile) return <Redirect href="/setup-profile" />;
@@ -46,7 +49,7 @@ export default function TabsLayout() {
         options={{
           title: 'Amis',
           tabBarIcon: tabIcon('people', 'people-outline'),
-          tabBarBadge: incomingRequests.length > 0 ? incomingRequests.length : undefined,
+          tabBarBadge: amisBadge > 0 ? amisBadge : undefined,
         }}
       />
       <Tabs.Screen name="pet" options={{ title: 'Mon animal', tabBarIcon: tabIcon('paw', 'paw-outline') }} />

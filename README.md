@@ -119,3 +119,8 @@ src/lib/
 Écran « Mode partiels » (depuis Focus ou le profil) : compte à rebours, heures à faire par jour calculées toutes seules,
 objectif du jour, planning de la semaine qui se recalcule, alerte quand tu prends du retard, et partiels en commun :
 tu invites tes potes, ils rejoignent, et vous avez le classement des heures de révision.
+
+## Messagerie
+
+Messages privés entre amis (onglet Amis → bulle en haut) : en direct, avec « Vu », une notification à chaque message
+et le nombre de non-lus sur l'onglet. La base n'accepte que les messages entre amis.
