@@ -1,8 +1,8 @@
 import * as Notifications from 'expo-notifications';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { openFromNotification, registerForPushNotifications, syncDailyReminders, syncEventReminders, syncTodoReminders } from '../lib/notifications';
 import { loadReminder } from '../lib/reminder';
@@ -11,6 +11,35 @@ import { SocialProvider, useSocial } from '../lib/social';
 import { LockinProvider } from '../lib/store';
 import { ChatProvider } from '../lib/chat';
 import { colors } from '../lib/theme';
+import { takePendingGift } from '../lib/gifts';
+import { supabase } from '../lib/supabase';
+
+/** Says "you've got Lockin+" once when it arrives, and opens a gift link kept from before sign-in. */
+function PlusBridge() {
+  const { profile } = useAuth();
+  const userId = profile?.id;
+  const premiumUntil = profile?.premium_until;
+  useEffect(() => {
+    if (!userId) return;
+    takePendingGift().then((code) => code && router.push(`/gift/${code}`));
+  }, [userId]);
+  useEffect(() => {
+    if (!userId) return;
+    const check = async () => {
+      const { data } = await supabase.rpc('unseen_plus');
+      const rows = (data ?? []) as { source: string; days: number; giver_name: string | null }[];
+      if (!rows.length) return;
+      await supabase.rpc('mark_plus_seen');
+      const last = rows[rows.length - 1];
+      const days = rows.reduce((n, r) => n + r.days, 0);
+      router.push({ pathname: '/plus-received', params: { source: last.source, days: String(days), from: last.giver_name ?? '' } });
+    };
+    check().catch(() => {});
+    const sub = AppState.addEventListener('change', (s) => s === 'active' && check().catch(() => {}));
+    return () => sub.remove();
+  }, [userId, premiumUntil]);
+  return null;
+}
 
 /** Registers for push, opens tapped notifications and schedules group lock-in reminders. */
 function NotificationsBridge() {
@@ -66,6 +95,7 @@ export default function RootLayout() {
           <ChatProvider>
           <StatusBar style="dark" />
           {Platform.OS !== 'web' && <NotificationsBridge />}
+          <PlusBridge />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
             <Stack.Screen name="add-friend" options={{ presentation: 'modal' }} />
             <Stack.Screen name="new-event" options={{ presentation: 'modal' }} />
@@ -76,6 +106,8 @@ export default function RootLayout() {
             <Stack.Screen name="premium" options={{ presentation: 'modal' }} />
             <Stack.Screen name="exams" options={{ presentation: 'modal' }} />
             <Stack.Screen name="stats" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="plus-received" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="gift/[code]" options={{ presentation: 'modal' }} />
             <Stack.Screen name="world" options={{ gestureEnabled: false }} />
           </Stack>
           </ChatProvider>

@@ -113,7 +113,7 @@ src/lib/
   2 îles en plus (neige, volante), lock in de groupe jusqu'à 30 (8 sans Lockin+).
 - La photo de profil est gratuite pour tout le monde.
 - C'est la base qui décide qui a Lockin+ (`profiles.premium_until`, ou un compte vedette) : rien ne peut être triché depuis l'app.
-- Parrainage : un pote qui prend Lockin+ avec ton code = 1 mois offert chacun. Un abonné peut offrir 5 essais de 7 jours.
+- Parrainage : un pote qui prend Lockin+ avec ton code = 1 mois offert chacun. Un abonné peut offrir 5 essais de 7 jours avec un lien cadeau (comme Snapchat+). Quand tu reçois Lockin+, l'app te le dit. Pendant un essai, tu peux quand même t'abonner.
 - Tout passe par `grant_plus` (table `plus_grants`). En attendant le paiement App Store : `supabase/donner-lockin-plus.sql`.
 - Mise à jour de la base : `supabase/mise-a-jour-tout.sql` (tout depuis les to-do, relançable).
 

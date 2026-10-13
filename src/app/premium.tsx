@@ -8,7 +8,7 @@ import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
 import { useAuth } from '../lib/auth';
 import { CHRONO_THEMES, setChronoPrefs, useChronoPrefs } from '../lib/chronoPrefs';
-import { useSocial } from '../lib/social';
+import { giftMessage } from '../lib/gifts';
 import { errorMessage, supabase } from '../lib/supabase';
 import { BADGE_COLORS, BADGES, DECORATIONS, isPremium, PLUS_NAME, PLUS_PERKS, PLUS_PRICE, PLUS_PRICE_YEAR, TITLES } from '../lib/premium';
 import { card, colors, type } from '../lib/theme';
@@ -16,29 +16,31 @@ import { card, colors, type } from '../lib/theme';
 /** Lockin+: what it gives, how to get it, and (once you have it) your badge and photo decoration. */
 export default function Premium() {
   const { profile, updateSettings, reloadProfile } = useAuth();
-  const { friends } = useSocial();
   const chrono = useChronoPrefs();
-  // Trials I can give, to which friends, and whether I can still enter a referral code.
+  // Trials I can give, whether I pay, and whether I can still enter a referral or gift code.
   const [trialsLeft, setTrialsLeft] = useState(0);
-  const [candidates, setCandidates] = useState<string[]>([]);
+  const [hasPaid, setHasPaid] = useState(false);
   const [hadPlus, setHadPlus] = useState(true);
   const [code, setCode] = useState('');
+  const [giftCode, setGiftCode] = useState('');
   const load = useCallback(async () => {
     if (!profile) return;
-    const [left, cands, grants] = await Promise.all([
+    const [left, grants] = await Promise.all([
       supabase.rpc('trials_left', { u: profile.id }),
-      supabase.rpc('trial_candidates'),
-      supabase.from('plus_grants').select('id').eq('user_id', profile.id).limit(1),
+      supabase.from('plus_grants').select('source').eq('user_id', profile.id),
     ]);
+    const sources = ((grants.data ?? []) as { source: string }[]).map((g) => g.source);
     setTrialsLeft((left.data as number) ?? 0);
-    setCandidates(((cands.data as { id: string }[]) ?? []).map((c) => c.id));
-    setHadPlus((grants.data ?? []).length > 0 || !!profile.premium_until);
+    setHasPaid(sources.includes('paid'));
+    setHadPlus(sources.length > 0 || !!profile.premium_until);
   }, [profile]);
   useEffect(() => {
     load().catch(() => {});
   }, [load]);
   if (!profile) return null;
   const premium = isPremium(profile);
+  // A trial (gift, referral) doesn't stop you from subscribing.
+  const onTrial = premium && !profile.featured && !hasPaid;
   const until = profile.premium_until ? new Date(profile.premium_until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
 
   const subscribe = () =>
@@ -50,20 +52,14 @@ export default function Premium() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(`Réservé à ${PLUS_NAME}`, 'Prends Lockin+ pour choisir ton badge et ta décoration.');
   };
-  const give = (id: string, name: string) =>
-    Alert.alert(`Offrir Lockin+ à ${name} ?`, '7 jours gratuits. Tu peux en offrir 5 en tout.', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Offrir 🎁',
-        onPress: async () => {
-          const { error } = await supabase.rpc('give_trial', { friend: id });
-          if (error) return Alert.alert('Oups', errorMessage(error));
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert('Cadeau envoyé 🎉', `${name} a 7 jours de Lockin+.`);
-          load().catch(() => {});
-        },
-      },
-    ]);
+  // Like Snapchat+: a link to send to anyone; the first who opens it gets 7 days.
+  const shareGift = async () => {
+    const { data, error } = await supabase.rpc('create_gift_link');
+    if (error) return Alert.alert('Oups', errorMessage(error));
+    Haptics.selectionAsync();
+    await Share.share({ message: giftMessage(data as string) }).catch(() => {});
+    load().catch(() => {});
+  };
   const shareCode = () =>
     Share.share({
       message: `Rejoins-moi sur Lockin 🔒 Mon code de parrainage : ${profile.referral_code}. Quand tu prends Lockin+, on gagne 1 mois gratuit chacun.`,
@@ -100,7 +96,9 @@ export default function Premium() {
             {premium
               ? profile.featured
                 ? 'Compte créateur : Lockin+ à vie.'
-                : `Jusqu'au ${until}.`
+                : onTrial
+                  ? `Essai gratuit jusqu'au ${until}. Tu peux t'abonner quand tu veux.`
+                  : `Jusqu'au ${until}.`
               : 'Le look en plus, sans jamais t’aider à gagner : le classement reste juste.'}
           </Text>
         </View>
@@ -119,11 +117,35 @@ export default function Premium() {
           ))}
         </View>
 
-        {!premium && (
+        {!hadPlus && (
+          <View style={[card, styles.pickerCard]}>
+            <Text style={type.headline}>J'ai un code cadeau 🎁</Text>
+            <View style={styles.codeRow}>
+              <TextInput
+                value={giftCode}
+                onChangeText={(t) => setGiftCode(t.toUpperCase().replace(/[^0-9A-Z]/g, ''))}
+                placeholder="Code reçu"
+                placeholderTextColor={colors.tertiary}
+                autoCapitalize="characters"
+                maxLength={8}
+                style={styles.codeInput}
+              />
+              <Pressable
+                onPress={() => router.push(`/gift/${giftCode}`)}
+                disabled={giftCode.length < 8}
+                style={[styles.giftButton, giftCode.length < 8 && { opacity: 0.4 }]}
+              >
+                <Text style={styles.giftText}>Ouvrir</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {(!premium || onTrial) && (
           <View style={{ gap: 10 }}>
             <Pressable onPress={subscribe} style={[styles.buy, styles.buyMain]}>
-              <Text style={styles.buyMainText}>Essai gratuit 7 jours</Text>
-              <Text style={styles.buyMainSub}>puis {PLUS_PRICE}</Text>
+              <Text style={styles.buyMainText}>{hadPlus ? "S'abonner" : 'Essai gratuit 7 jours'}</Text>
+              <Text style={styles.buyMainSub}>{hadPlus ? PLUS_PRICE : `puis ${PLUS_PRICE}`}</Text>
             </Pressable>
             <Pressable onPress={subscribe} style={styles.buy}>
               <Text style={styles.buyText}>{PLUS_PRICE_YEAR} · 44 % moins cher</Text>
@@ -215,24 +237,12 @@ export default function Premium() {
           <>
             <Text style={styles.sectionTitle}>OFFRIR LOCKIN+ · {trialsLeft} ESSAI{trialsLeft > 1 ? 'S' : ''} DE 7 JOURS À DONNER</Text>
             <View style={[card, styles.pickerCard]}>
-              {candidates.length === 0 ? (
-                <Text style={type.footnote}>Tous tes potes ont déjà eu Lockin+ (ou tu n'as pas encore d'amis).</Text>
-              ) : (
-                friends
-                  .filter((f) => candidates.includes(f.profile.id))
-                  .map((f) => (
-                    <View key={f.profile.id} style={styles.giftRow}>
-                      <Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} size={40} />
-                      <Text style={[type.headline, { flex: 1 }]} numberOfLines={1}>
-                        {f.profile.display_name}
-                      </Text>
-                      <Pressable onPress={() => give(f.profile.id, f.profile.display_name)} style={styles.giftButton}>
-                        <Ionicons name="gift" size={15} color={colors.onAccent} />
-                        <Text style={styles.giftText}>Offrir 7 jours</Text>
-                      </Pressable>
-                    </View>
-                  ))
-              )}
+              <Text style={type.body}>
+                Envoie un lien à un pote (Snap, Insta, SMS…). Le premier qui l'ouvre a <Text style={{ fontWeight: '800' }}>7 jours de Lockin+</Text> gratuits.
+              </Text>
+              <Pressable onPress={shareGift} style={[styles.buy, styles.buyMain]}>
+                <Text style={styles.buyMainText}>Envoyer un lien cadeau 🎁</Text>
+              </Pressable>
             </View>
           </>
         )}
