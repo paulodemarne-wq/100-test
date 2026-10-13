@@ -43,7 +43,7 @@ type Anchors = {
 const GOLD = '#F5C542';
 const FORM_SCALE = [0.8, 0.72, 0.92, 1.1];
 
-export function buildCreature(opts: { species: number | null; level: number; equipped?: Equipped }): Creature {
+export function buildCreature(opts: { species: number | null; level: number; equipped?: Equipped; lite?: boolean }): Creature {
   const species = speciesById(opts.species);
   const L = Math.max(0, Math.min(40, Math.floor(opts.level)));
   const form = species ? formFor(L) : 0;

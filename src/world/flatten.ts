@@ -15,6 +15,11 @@ export function flatten(root: THREE.Object3D): THREE.Group {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', o.geometry.getAttribute('position'));
     g.setAttribute('normal', o.geometry.getAttribute('normal'));
+    // Textured (realistic) objects need their UVs; vertex-colored ones (leaves) their colors.
+    const count = o.geometry.getAttribute('position').count;
+    g.setAttribute('uv', o.geometry.getAttribute('uv') ?? new THREE.Float32BufferAttribute(new Float32Array(count * 2), 2));
+    if ((o.material as THREE.MeshStandardMaterial).vertexColors)
+      g.setAttribute('color', o.geometry.getAttribute('color') ?? new THREE.Float32BufferAttribute(new Float32Array(count * 3).fill(1), 3));
     if (o.geometry.index) g.setIndex(o.geometry.index);
     const m = new THREE.Matrix4().multiplyMatrices(toLocal, o.matrixWorld);
     const placed = g.clone().applyMatrix4(m);
@@ -30,7 +35,13 @@ export function flatten(root: THREE.Object3D): THREE.Group {
     const parts = anyLoose ? list.map((g) => (g.index ? g.toNonIndexed() : g)) : list;
     const merged = mergeGeometries(parts, false);
     parts.forEach((g) => g.dispose());
-    if (merged) out.add(new THREE.Mesh(merged, material));
+    if (merged) {
+      const mesh = new THREE.Mesh(merged, material);
+      // Realistic lighting: everything casts and receives shadows (except see-through things).
+      mesh.castShadow = !(material as THREE.Material).transparent;
+      mesh.receiveShadow = true;
+      out.add(mesh);
+    }
   });
   return out;
 }
@@ -44,13 +55,14 @@ function flipWinding(g: THREE.BufferGeometry) {
       index.setX(i + 2, b);
     }
   } else {
-    const pos = g.getAttribute('position');
-    const nor = g.getAttribute('normal');
-    for (const attr of [pos, nor]) {
+    const attrs = ['position', 'normal', 'uv', 'color'].map((n) => g.getAttribute(n)).filter(Boolean);
+    for (const attr of attrs) {
       for (let i = 0; i < attr.count; i += 3) {
-        const x = attr.getX(i + 1), y = attr.getY(i + 1), z = attr.getZ(i + 1);
-        attr.setXYZ(i + 1, attr.getX(i + 2), attr.getY(i + 2), attr.getZ(i + 2));
-        attr.setXYZ(i + 2, x, y, z);
+        for (let c = 0; c < attr.itemSize; c++) {
+          const a = attr.getComponent(i + 1, c);
+          attr.setComponent(i + 1, c, attr.getComponent(i + 2, c));
+          attr.setComponent(i + 2, c, a);
+        }
       }
     }
   }

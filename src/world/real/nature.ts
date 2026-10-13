@@ -242,7 +242,7 @@ function bark(): THREE.MeshStandardMaterial {
   return barkMat;
 }
 
-function leafCards(center: THREE.Vector3, radius: number, count: number, r: () => number, tint: THREE.Color, mat?: THREE.Material): THREE.Mesh {
+export function leafCards(center: THREE.Vector3, radius: number, count: number, r: () => number, tint: THREE.Color, mat?: THREE.Material): THREE.Mesh {
   const g = new THREE.BufferGeometry();
   const pos: number[] = [];
   const uv: number[] = [];
