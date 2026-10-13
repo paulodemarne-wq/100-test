@@ -2,7 +2,7 @@
 -- Compte vedette Lockin : à lancer UNE fois dans Supabase → SQL Editor,
 -- APRÈS schema.sql. Remplace TON_PSEUDO (ligne juste en dessous) par ton pseudo.
 --
--- Donne à ce compte : tous les objets et accessoires, 19 dragons niveau 40,
+-- Donne à ce compte : tous les objets et accessoires, 10 animaux Lockin+ niveau 40,
 -- une île 32×32 avec la mer entièrement construite, et le statut « vedette » :
 -- son animal se promène sur l'île de tout le monde et son île a la boutique du jour.
 -- Généré par scripts/admin/make-admin-sql.ts.
@@ -30,7 +30,7 @@ begin
   on conflict (user_id, item_id) do update set quantity = greatest(public.inventory.quantity, excluded.quantity);
 
   -- Every dragon, maxed, wearing the legendary set. The first one becomes the active pet.
-  foreach sp in array array[3, 12, 14, 16, 20, 31, 33, 37, 50, 54, 58, 67, 69, 71, 75, 84, 86, 88, 92] loop
+  foreach sp in array array[30, 31, 32, 33, 34, 35, 36, 37, 38, 39] loop
     if not exists (select 1 from public.pets where user_id = me and species = sp and xp_seconds >= 7884000) then
       insert into public.pets (user_id, species, xp_seconds, hatched_at, equipped)
       values (me, sp, 7884000, now(), '{"head":"crown","eyes":"shades","neck":"diamonds","back":"jetpack"}'::jsonb)

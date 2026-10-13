@@ -11,9 +11,8 @@ import {
   LEVEL_UNLOCKS,
   levelFor,
   MAX_LEVEL,
-  PLAN_EMOJI,
-  PLAN_NAMES,
-  RARITY_COLORS,
+  elementOf,
+  emojiFor,
   SHOP_ITEMS,
   Slot,
   SLOT_NAMES,
@@ -148,7 +147,7 @@ export default function PetScreen() {
           <View style={{ flex: 1 }}>
             <Text style={type.footnote}>
               {pet?.nickname ? `${displayName(species, level)} · ` : ''}
-              {species && form > 0 ? `${species.element.name} · ${PLAN_NAMES[species.line[form - 1]]}` : 'Il éclot après 5 h 30 de lock in'}
+              {species && form > 0 ? `${elementOf(species).emoji} ${elementOf(species).name} · ${tier.name}` : 'Il éclot après 5 h 30 de lock in'}
             </Text>
             <Pressable onPress={rename} hitSlop={6} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={[type.largeTitle, { flexShrink: 1 }]} numberOfLines={1}>
@@ -230,7 +229,7 @@ export default function PetScreen() {
             return (
               <Pressable key={slot} onPress={() => chooseItem(slot)} style={styles.slot}>
                 <Text style={type.footnote}>{SLOT_NAMES[slot]}</Text>
-                <Text style={[styles.slotItem, item && { color: RARITY_COLORS[item.rarity] }]} numberOfLines={2}>
+                <Text style={[styles.slotItem, item && { color: colors.accent }]} numberOfLines={2}>
                   {item ? item.name : 'Vide'}
                 </Text>
               </Pressable>
@@ -251,7 +250,6 @@ export default function PetScreen() {
               {pets.map((p, i) => {
                 const sp = speciesById(p.species);
                 const lv = levelFor(p.xp_seconds);
-                const f = formFor(lv);
                 return (
                   <Pressable
                     key={p.id}
@@ -259,7 +257,7 @@ export default function PetScreen() {
                     onPress={() => switchPet(p.id)}
                     style={[styles.collectionItem, i === 0 && { borderColor: colors.accent }]}
                   >
-                    <Text style={{ fontSize: 34 }}>{sp && f > 0 ? PLAN_EMOJI[sp.line[f - 1]] : '🥚'}</Text>
+                    <Text style={{ fontSize: 34 }}>{emojiFor(sp, lv)}</Text>
                     <Text style={styles.collectionName} numberOfLines={1}>
                       {displayName(sp, lv)}
                     </Text>

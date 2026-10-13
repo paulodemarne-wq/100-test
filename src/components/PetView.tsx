@@ -5,6 +5,18 @@ import * as THREE from 'three';
 import { createGLRenderer } from '../lib/glRenderer';
 import { addLights, buildCreature, Creature } from '../creatures/build';
 import { Equipped } from '../creatures/species';
+import { setupRenderer, shadowFloor } from '../creatures/real/lights';
+
+/** Frames the whole animal (snakes are wide, birds with spread wings are tall). */
+function frameCamera(camera: THREE.PerspectiveCamera, creature: Creature) {
+  const box = new THREE.Box3().setFromObject(creature.group);
+  const h = Math.max(0.6, box.max.y);
+  const r = Math.max(0.5, -box.min.x, box.max.x, -box.min.z, box.max.z);
+  const size = Math.max(h, r * 1.6);
+  const d = (size / (2 * Math.tan((camera.fov * Math.PI) / 360))) * 1.25;
+  camera.position.set(0, h * 0.55 + d * 0.22, d);
+  camera.lookAt(0, h * 0.45, 0);
+}
 
 type Props = {
   species: number | null;
@@ -26,7 +38,7 @@ export function PetView({ species, level, equipped, style, interactive = true, o
   const yaw = useRef(0.5);
   const velocity = useRef(0);
   const dragging = useRef(false);
-  const sceneRef = useRef<{ scene: THREE.Scene; creature: Creature | null } | null>(null);
+  const sceneRef = useRef<{ scene: THREE.Scene; camera: THREE.PerspectiveCamera; creature: Creature | null } | null>(null);
   const onPressRef = useRef(onPress);
   onPressRef.current = onPress;
   const frame = useRef<number | null>(null);
@@ -65,6 +77,7 @@ export function PetView({ species, level, equipped, style, interactive = true, o
     }
     s.creature = buildCreature({ species, level, equipped: JSON.parse(equippedKey) });
     s.scene.add(s.creature.group);
+    frameCamera(s.camera, s.creature);
   }, [species, level, equippedKey]);
 
   useEffect(
@@ -82,16 +95,17 @@ export function PetView({ species, level, equipped, style, interactive = true, o
     const height = gl.drawingBufferHeight;
     const renderer = createGLRenderer(gl, { alpha: true });
     renderer.setClearColor(0x000000, 0);
+    setupRenderer(renderer);
 
     const scene = new THREE.Scene();
     addLights(scene);
+    scene.add(shadowFloor());
     const camera = new THREE.PerspectiveCamera(32, width / height, 0.1, 50);
-    camera.position.set(0, 1.5, 4.8);
-    camera.lookAt(0, 0.85, 0);
 
     const creature = buildCreature({ species, level, equipped: JSON.parse(equippedKey) });
     scene.add(creature.group);
-    sceneRef.current = { scene, creature };
+    frameCamera(camera, creature);
+    sceneRef.current = { scene, camera, creature };
 
     const start = Date.now();
     const render = () => {

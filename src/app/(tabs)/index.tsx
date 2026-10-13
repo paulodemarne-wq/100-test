@@ -15,7 +15,7 @@ import { TodoItem } from '../../components/TodoItem';
 import { useAuth } from '../../lib/auth';
 import { countdown } from '../../lib/labels';
 import { useSocial } from '../../lib/social';
-import { formFor, levelFor, PLAN_EMOJI, speciesById, tierFor } from '../../creatures/species';
+import { emojiFor, levelFor, speciesById, tierFor } from '../../creatures/species';
 import { focusSeconds, MAX_AWAY_MS, Notice, todoSplitAt, useLockin, useNow } from '../../lib/store';
 import { isFinished, sortTodos } from '../../lib/todos';
 import { countdown as examCountdown, planExam } from '../../lib/exams';
@@ -155,7 +155,7 @@ export default function FocusScreen() {
               <Text style={type.largeTitle}>Focus</Text>
               {pet && (
                 <Pressable onPress={() => router.navigate('/pet')} hitSlop={8} style={styles.locky}>
-                  <Text style={{ fontSize: 22 }}>{petSpecies && formFor(petLevel) > 0 ? PLAN_EMOJI[petSpecies.line[formFor(petLevel) - 1]] : '🥚'}</Text>
+                  <Text style={{ fontSize: 22 }}>{emojiFor(petSpecies, petLevel)}</Text>
                   {petTier && <Text style={[styles.lockyStage, { color: petTier.color }]}>Niv. {petLevel}</Text>}
                 </Pressable>
               )}

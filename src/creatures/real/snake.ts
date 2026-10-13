@@ -4,7 +4,7 @@ import { frameAt, loft, profile } from './loft';
 import { mix, mixHex, rng } from './noise';
 import { arcs, ELEMENT_COLORS, elementWings, Emitter, Element, groundAura, horns, particles, POWER, spikes } from './powers';
 import { eyeTexture, snakeSkin, SnakePattern } from './textures';
-import { STAGES, type Age, type Animal, type Stage } from './types';
+import { headGroup, STAGES, type Age, type Animal, type Anchors, type Stage } from './types';
 
 export type SnakeLook = {
   pattern: SnakePattern;
@@ -228,6 +228,14 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
   }
   if (P.arcs && el === 'lightning') addFx(arcs(Array.from({ length: 12 }, (_, i) => ridge(mix(0.2, hs, i / 11)).p), el, 3, seed));
 
+  // ── Where accessories go.
+  const hc = frameAt(curve, hs + headLen * 0.45);
+  const head = headGroup(hc.p.clone().addScaledVector(hc.n, R * height(hs + headLen * 0.45) * 0.1), hc.t);
+  group.add(head);
+  const nk = ridge(hs - 0.06);
+  const bk = ridge(0.45);
+  const hr = R * width(hs + headLen * 0.45);
+
   // ── Majestic adult: a slow ring of light motes around it.
   const motes: THREE.Points | null = S.motes ? auraMotes(look.glow ?? ELEMENT_COLORS[el].mid, radEnd * 1.3, H) : null;
   if (motes) group.add(motes);
@@ -238,6 +246,16 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
   group.children.forEach((c) => {
     if (c !== motes) c.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
   });
+  const shift = new THREE.Vector3(center.x, box.min.y, center.z);
+  const anchors: Anchors = {
+    head,
+    R: hr,
+    faceZ: headLen * length * 0.45,
+    headTop: R * height(hs + headLen * 0.45) * 0.9,
+    neck: nk.p.clone().sub(shift).toArray() as [number, number, number],
+    neckR: R * width(hs - 0.06),
+    back: bk.p.clone().sub(shift).toArray() as [number, number, number],
+  };
   if (P.ground) {
     const aura = groundAura(el, radEnd * 1.7);
     fx.push(aura);
@@ -247,6 +265,7 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
 
   return {
     group,
+    anchors,
     height: (box.max.y - box.min.y) * S.size,
     update: (t) => {
       // Gentle breathing and a head sway.

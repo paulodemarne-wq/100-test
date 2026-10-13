@@ -7,7 +7,7 @@ import { clamp01, fbm, glowLines, hex, mix, mixHex, noise2, smooth } from './noi
 import { auraMotes } from './snake';
 import { arcs, ELEMENT_COLORS, elementWings, Emitter, Element, groundAura, horns, particles, POWER, spikes } from './powers';
 import { bake, eyeTexture } from './textures';
-import { STAGES, type Age, type Animal, type Stage } from './types';
+import { headGroup, STAGES, type Age, type Animal, type Anchors, type Stage } from './types';
 
 type RGB = [number, number, number];
 const lerp3 = (a: RGB, b: RGB, t: number): RGB => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
@@ -217,6 +217,19 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
       breathing.push(s);
     }
 
+  // ── Mane (lion; the wolf's ruff at alpha): a thick collar of long fur around the neck and head.
+  const hasMane = look.mane === 'adult' ? age >= 2 : look.mane === 'majestic' ? stage >= 3 : false;
+  if (hasMane && age > 0) {
+    const maneCol = look.coat === 'lion' ? lerp3(accent, base, 0.35) : lerp3(base, belly, 0.4);
+    const maneTex = bake(128, 64, (u, v) => ({ c: mul(maneCol, 0.75 + 0.45 * noise2(u * 40, v * 20, seed + 8)), height: 0, rough: 1 }));
+    const collar = new THREE.Mesh(new THREE.SphereGeometry(0.2 * H * G, 28, 20), new THREE.MeshStandardMaterial({ map: maneTex.map, roughness: 1 }));
+    collar.scale.set(look.coat === 'lion' ? 0.95 : 0.7, look.coat === 'lion' ? 1.2 : 0.9, look.coat === 'lion' ? 1.3 : 1.05);
+    collar.position.set(neckX - 0.03, headY - 0.07 * H, 0);
+    collar.castShadow = true;
+    group.add(collar);
+    for (const sh of addFur(collar, { map: maneTex.map, length: (look.coat === 'lion' ? 0.075 : 0.05) * (stage >= 3 ? 1.3 : 1), density: [90, 50], shells: 14, gravity: 0.9 })) group.add(sh);
+  }
+
   // ── Legs: shoulder → elbow → wrist → paw (hind legs bend the other way at the hock).
   const legMat = (u0: number) => {
     const t = bake(64, 128, (u, v) => {
@@ -320,7 +333,7 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
   const earType = look.ears ?? 'pointy';
   if (earType !== 'none') {
     const ek = A.ears * H * (earType === 'big' ? 1.6 : earType === 'round' ? 0.75 : 1);
-    const earMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(col.back).lerp(new THREE.Color(col.base), 0.4), roughness: 0.9, side: THREE.DoubleSide });
+    const earMat = new THREE.MeshStandardMaterial({ color: look.coat === 'panda' ? col.accent : new THREE.Color(col.back).lerp(new THREE.Color(col.base), 0.4), roughness: 0.9, side: THREE.DoubleSide });
     const innerMat = new THREE.MeshStandardMaterial({ color: col.belly, roughness: 1, side: THREE.DoubleSide });
     for (const side of [-1, 1]) {
       const ear = new THREE.Group();
@@ -351,6 +364,13 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
     eye.position.set(ex, spine.getPointAt(0.93).y * 0 + headY + 0.03 * H, side * s.rx * 0.78);
     eye.lookAt(eye.position.clone().add(new THREE.Vector3(0.8, 0.05, side * 0.6)));
     group.add(eye);
+    if (look.coat === 'panda') {
+      const patch = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 2.6, 16, 12), new THREE.MeshStandardMaterial({ color: col.accent, roughness: 0.95 }));
+      patch.scale.set(0.9, 1.2, 0.5);
+      patch.position.copy(eye.position).add(new THREE.Vector3(-0.004, -0.004, -side * eyeR * 0.9));
+      patch.rotation.set(0, side * 0.9, side * 0.4);
+      group.add(patch);
+    }
   }
   const nose = new THREE.Mesh(new THREE.SphereGeometry(0.03 * H, 18, 12), new THREE.MeshPhysicalMaterial({ color: col.nose ?? '#151212', roughness: 0.35, clearcoat: 0.8 }));
   nose.scale.set(0.8, 0.75, 1.05);
@@ -379,7 +399,7 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
     const pts = Array.from({ length: n }, (_, i) => ridgeAt(mix(rumpX + 0.1, neckX, i / (n - 1))));
     group.add(spikes(pts, pts.map(() => new THREE.Vector3(0, 1, 0)), 0.2 * P.spikes * G, el));
   }
-  if (P.horns > 0) group.add(horns(new THREE.Vector3(skullX + 0.0 * H, headY + 0.1 * H, 0), 0.55 * P.horns * H, el, 0.045 * H));
+  if (P.horns > 0 && !look.antlers) group.add(horns(new THREE.Vector3(skullX + 0.0 * H, headY + 0.1 * H, 0), 0.55 * P.horns * H, el, 0.045 * H));
   if (P.tail) {
     if (el === 'ice') {
       const tip = tailTip[tailTip.length - 1];
@@ -411,6 +431,10 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
   const motes = S.motes ? auraMotes(glowColor, 0.9, 1.3) : null;
   if (motes) group.add(motes);
 
+  // ── Where accessories go.
+  const head = headGroup(new THREE.Vector3(skullX + 0.02 * H, headY + 0.01 * H, 0), new THREE.Vector3(1, -0.08, 0));
+  group.add(head);
+
   // Center, face three-quarters toward the camera, scale to age.
   const box = new THREE.Box3().setFromObject(body);
   const cx = (box.min.x + box.max.x) / 2;
@@ -422,12 +446,22 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
     fx.push(aura);
     group.add(aura.points);
   }
+  const anchors: Anchors = {
+    head,
+    R: 0.13 * H,
+    faceZ: 0.075 * H,
+    headTop: 0.12 * H + furLen,
+    neck: [neckX - cx, backY + 0.1, 0],
+    neckR: 0.15 * G + furLen,
+    back: [-0.1 * L - cx, backY + 0.22 * G + furLen, 0],
+  };
   group.rotation.y = -0.85;
   group.scale.setScalar(S.size);
   const top = new THREE.Box3().setFromObject(group).max.y;
 
   return {
     group,
+    anchors,
     height: top,
     update: (t) => {
       // Breathing.

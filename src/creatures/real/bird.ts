@@ -7,7 +7,7 @@ import { glowLines, hex, mix, mixHex, noise2, smooth } from './noise';
 import { auraMotes } from './snake';
 import { arcs, ELEMENT_COLORS, Emitter, Element, groundAura, horns, particles, POWER, spikes } from './powers';
 import { bake, eyeTexture } from './textures';
-import { STAGES, type Age, type Animal, type Stage } from './types';
+import { headGroup, STAGES, type Age, type Animal, type Anchors, type Stage } from './types';
 
 type RGB = [number, number, number];
 const lerp3 = (a: RGB, b: RGB, t: number): RGB => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
@@ -27,6 +27,10 @@ export type BirdLook = {
   /** Hooked (raptor) or straight beak; owls get a flat face. */
   beakShape?: 'hook' | 'straight' | 'parrot';
   owl?: boolean;
+  /** Ear tufts (eagle owl). */
+  tufts?: boolean;
+  /** Long tail feathers (macaws). */
+  longTail?: boolean;
   majestic?: Partial<Pick<BirdLook, 'head' | 'body' | 'wing' | 'tail' | 'chest' | 'iris' | 'beak' | 'legs'>>;
   /** Color of the glowing markings (legend). */
   glow?: string;
@@ -105,8 +109,8 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
     const p = yOf(u);
     // By height: tail base, body, chest, neck, head.
     const y = p.y;
-    const bodyR = mix(0.1, 0.22, smooth(0.38, 0.6, y)) * mix(1, 0.62, smooth(0.78, 0.92, y));
-    const headR = 0.105 * H * (age === 0 ? 1.08 : 1);
+    const bodyR = mix(0.1, 0.22, smooth(0.38, 0.6, y)) * mix(1, look.owl ? 0.9 : 0.62, smooth(0.78, 0.92, y)) * (look.owl ? 1.08 : 1);
+    const headR = 0.105 * H * (age === 0 ? 1.08 : 1) * (look.owl ? 1.4 : 1);
     const toHead = smooth(0.86, headY - 0.03, y);
     let r = mix(bodyR, headR, toHead);
     // Toward the beak base the head narrows.
@@ -165,6 +169,24 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
   jaw.position.copy(beakStart).add(new THREE.Vector3(bk * 0.3, -bk * 0.22, 0));
   group.add(jaw);
 
+  // ── Owls: a flat facial disc around the eyes (and ear tufts on some).
+  if (look.owl) {
+    const fp = spine.getPointAt(0.9);
+    const fr = sec(0.9).rx;
+    const disc = new THREE.Mesh(new THREE.SphereGeometry(fr * 0.95, 28, 18), new THREE.MeshStandardMaterial({ color: age === 0 ? look.chick : look.chest, roughness: 0.95 }));
+    disc.scale.set(0.35, 1.0, 1.15);
+    disc.position.set(fp.x + fr * 0.62, fp.y - fr * 0.05, 0);
+    group.add(disc);
+    if (look.tufts && age >= 1) {
+      for (const side of [-1, 1]) {
+        const tuft = new THREE.Mesh(new THREE.ConeGeometry(fr * 0.18, fr * 0.7, 8), new THREE.MeshStandardMaterial({ color: col.head, roughness: 0.95 }));
+        tuft.position.set(fp.x - fr * 0.1, fp.y + fr * 0.95, side * fr * 0.55);
+        tuft.rotation.set(side * 0.35, 0, -0.25);
+        group.add(tuft);
+      }
+    }
+  }
+
   // ── Eyes with a heavy brow (the raptor stare).
   const eyeTex = eyeTexture(age === 0 ? '#3A2A20' : mixHex(col.iris, ELEMENT_COLORS[el].eye, Math.min(1, stage * 0.3)), false);
   const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.05, clearcoat: 1, emissiveMap: eyeTex, emissive: new THREE.Color(S.eyes ? '#ffffff' : '#000000'), emissiveIntensity: S.eyes });
@@ -173,7 +195,7 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
   const er = sec(0.9).rx;
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 20, 14), eyeMat);
-    eye.position.set(ep.x + 0.02 + downLen * 0.5, ep.y + 0.02 * H, side * (er * (look.owl ? 0.55 : 0.82) + downLen * 0.7));
+    eye.position.set(ep.x + 0.02 + downLen * 0.5 + (look.owl ? er * 0.5 : 0), ep.y + 0.02 * H, side * (er * (look.owl ? 0.38 : 0.82) + downLen * 0.7));
     eye.lookAt(eye.position.clone().add(new THREE.Vector3(look.owl ? 1 : 0.55, 0, side * (look.owl ? 0.25 : 0.8))));
     group.add(eye);
     if (!look.owl && age >= 1) {
@@ -278,7 +300,7 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
   if (age >= 1) {
     for (let i = 0; i < 7; i++) {
       const t = i / 6 - 0.5;
-      const f = new THREE.Mesh(feather(0.32, 0.06, 0), tailMat);
+      const f = new THREE.Mesh(feather(look.longTail ? 0.62 - Math.abs(t) * 0.3 : 0.32, look.longTail ? 0.045 : 0.06, 0), tailMat);
       f.position.set(-0.18, 0.44, t * 0.1);
       f.rotation.set(t * 0.5, 0, -2.05);
       f.castShadow = true;
@@ -364,6 +386,18 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
     addFx(arcs(wingAnchors.concat([spine.getPointAt(0.6)]), el, 4, seed + 6));
   }
 
+  const head = headGroup(spine.getPointAt(0.9), new THREE.Vector3(1, 0, 0));
+  group.add(head);
+  const anchors: Anchors = {
+    head,
+    R: sec(0.9).rx,
+    faceZ: sec(0.9).rx * 0.95,
+    headTop: sec(0.9).ry * 0.95,
+    neck: spine.getPointAt(0.76).toArray() as [number, number, number],
+    neckR: sec(0.76).rx,
+    back: backAt(0.5).p.toArray() as [number, number, number],
+  };
+
   const motes = S.motes ? auraMotes(glowColor, 0.9, 1.4) : null;
   if (motes) group.add(motes);
 
@@ -376,6 +410,7 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
   group.scale.setScalar(S.size * (look.size ?? 1));
   return {
     group,
+    anchors,
     height: 1.2 * S.size,
     update: (t) => {
       bodyMesh.rotation.z = Math.sin(t * 0.7) * 0.01;

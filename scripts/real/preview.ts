@@ -7,6 +7,8 @@ import { buildQuadruped, QuadLook } from '../../src/creatures/real/quadruped';
 import { buildBird, BirdLook } from '../../src/creatures/real/bird';
 import { STAGE_NAMES, type Animal, type Stage } from '../../src/creatures/real/types';
 import { buildNatureIsland } from '../../src/world/real/nature';
+import { buildAnimal } from '../../src/creatures/real/index';
+import { REAL_SPECIES } from '../../src/creatures/real/catalog';
 
 const SIZE = 330;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -56,6 +58,12 @@ const which = (location.hash || '#snake,wolf').slice(1).split(',');
 const shots: Shot[] = [
   ...(which.includes('snake') ? ages.map((age) => ({ label: `Python · ${AGE_NAMES[age]}`, make: () => buildSnake(python, age, 3) })) : []),
   ...(which.includes('wolf') ? ages.map((age) => ({ label: `Loup · ${AGE_NAMES[age]}`, make: () => buildQuadruped(wolf, age, 5) })) : []),
+  ...(which.filter((w) => w.startsWith('cat')).flatMap((w) => {
+    // #cat2:0-19 = every animal from 0 to 19 at stage 2.
+    const [st, range] = w.slice(3).split(':');
+    const [a, b] = (range ?? '0-39').split('-').map(Number);
+    return REAL_SPECIES.filter((sp) => sp.id >= a && sp.id <= b).map((sp) => ({ label: `${sp.id} ${sp.name}`, make: () => buildAnimal(sp.id, Number(st) as Stage) }));
+  })),
   ...(which.includes('eagle') ? ages.map((age) => ({ label: `Aigle · ${AGE_NAMES[age]}`, make: () => buildBird(eagle, age, 8) })) : []),
 ];
 

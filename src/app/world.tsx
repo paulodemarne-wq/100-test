@@ -6,7 +6,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { WorldView } from '../components/WorldView';
-import { displayName, GARDEN_SLOT_NAMES, GardenSlot, levelFor, ownsItem, RARITY_COLORS, SHOP_ITEMS, ShopItem, speciesById, tierFor } from '../creatures/species';
+import { displayName, GARDEN_SLOT_NAMES, GardenSlot, levelFor, ownsItem, SHOP_ITEMS, ShopItem, speciesById, tierFor } from '../creatures/species';
 import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { colors, type } from '../lib/theme';
@@ -642,7 +642,7 @@ export default function WorldScreen() {
                       <Text style={styles.itemName} numberOfLines={1}>
                         {item.name}
                       </Text>
-                      <Text style={[styles.itemPrice, { color: ready ? colors.success : RARITY_COLORS[item.rarity] }]}>{label}</Text>
+                      <Text style={[styles.itemPrice, { color: ready ? colors.success : colors.secondary }]}>{label}</Text>
                     </Pressable>
                   );
                 })}

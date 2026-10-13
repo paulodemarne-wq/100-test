@@ -1,7 +1,7 @@
 // Generates supabase/admin.sql: turns one account into the maxed "featured" account
 // (every item, every dragon at level 40, a fully built 32×32 island with the sea, deals on its shop).
 // Run: npx esbuild scripts/admin/make-admin-sql.ts --bundle --platform=node --outfile=/tmp/a.js && node /tmp/a.js > supabase/admin.sql
-import { LEVEL_HOURS, MAX_LEVEL, SHOP_ITEMS, SPECIES } from '../../src/creatures/species';
+import { LEVEL_HOURS, MAX_LEVEL, PLUS_SPECIES, SHOP_ITEMS } from '../../src/creatures/species';
 import { World } from '../../src/world/world';
 
 const S = 32;
@@ -83,10 +83,8 @@ for (const [id, x, z] of [
 
 const world: World = { v: 2, size: S, sea: true, tiles: tiles.join(''), objects };
 
-// Every species that becomes a dragon (in any form), the ones ending as a dragon first.
-const dragons = SPECIES.filter((s) => s.line.includes('dragon')).sort(
-  (a, b) => Number(b.line[2] === 'dragon') - Number(a.line[2] === 'dragon'),
-);
+// The featured account shows off every Lockin+ animal at the max level.
+const dragons = PLUS_SPECIES;
 const maxXp = LEVEL_HOURS[MAX_LEVEL] * 3600;
 const equipped = { head: 'crown', eyes: 'shades', neck: 'diamonds', back: 'jetpack' };
 const esc = (s: string) => s.replace(/'/g, "''");
@@ -95,7 +93,7 @@ console.log(`-- ═════════════════════�
 -- Compte vedette Lockin : à lancer UNE fois dans Supabase → SQL Editor,
 -- APRÈS schema.sql. Remplace TON_PSEUDO (ligne juste en dessous) par ton pseudo.
 --
--- Donne à ce compte : tous les objets et accessoires, ${dragons.length} dragons niveau ${MAX_LEVEL},
+-- Donne à ce compte : tous les objets et accessoires, ${dragons.length} animaux Lockin+ niveau ${MAX_LEVEL},
 -- une île ${S}×${S} avec la mer entièrement construite, et le statut « vedette » :
 -- son animal se promène sur l'île de tout le monde et son île a la boutique du jour.
 -- Généré par scripts/admin/make-admin-sql.ts.

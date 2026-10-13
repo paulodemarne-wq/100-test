@@ -2,6 +2,7 @@
 // the hairs that reach that height. Cheap, and it really looks like fur.
 import * as THREE from 'three';
 import { rng } from './noise';
+import { QUALITY } from './types';
 
 let strands: THREE.DataTexture | null = null;
 
@@ -49,7 +50,7 @@ export type FurOptions = {
 
 /** Adds the fur shells on top of a body mesh (which keeps its own skin material). */
 export function addFur(body: THREE.Mesh, o: FurOptions): THREE.Mesh[] {
-  const shells = o.shells ?? 14;
+  const shells = QUALITY.lite ? Math.min(5, o.shells ?? 14) : (o.shells ?? 14);
   const tex = strandTexture();
   const out: THREE.Mesh[] = [];
   for (let i = 1; i <= shells; i++) {

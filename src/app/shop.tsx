@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetView } from '../components/PetView';
-import { GARDEN_SLOT_NAMES, GardenSlot, levelFor, monthlyAccessory, ownsItem, RARITY_COLORS, SHOP_ITEMS, ShopItem, Slot, SLOT_NAMES } from '../creatures/species';
+import { GARDEN_SLOT_NAMES, GardenSlot, levelFor, monthlyAccessory, ownsItem, SHOP_ITEMS, ShopItem, Slot, SLOT_NAMES } from '../creatures/species';
 import { useAuth } from '../lib/auth';
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
@@ -245,7 +245,7 @@ export default function Shop() {
             const owned = !perPiece && item.kind !== 'egg' && ownsItem(item, inventory, premium);
             const locked = owned ? null : lockedBy(item);
             const affordable = balance >= price * 3600;
-            const color = item.premium ? '#B7791F' : item.kind === 'egg' ? colors.accent : RARITY_COLORS[item.rarity];
+            const color = item.premium ? '#B7791F' : item.kind === 'egg' ? colors.accent : colors.secondary;
             return (
               <Pressable
                 key={item.id}
@@ -254,7 +254,7 @@ export default function Shop() {
               >
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={[styles.rarity, { backgroundColor: color }]}>
-                    <Text style={styles.rarityText}>{item.premium ? 'Lockin+' : item.kind === 'egg' ? 'Nouvel animal' : item.rarity}</Text>
+                    <Text style={styles.rarityText}>{item.premium ? 'Lockin+' : item.kind === 'egg' ? 'Nouvel animal' : item.kind === 'accessory' ? 'Accessoire' : item.kind === 'upgrade' ? 'Île' : 'Déco'}</Text>
                   </View>
                   {deal && (
                     <View style={[styles.rarity, { backgroundColor: deal.percent === 100 ? colors.success : colors.danger }]}>

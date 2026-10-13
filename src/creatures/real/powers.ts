@@ -3,9 +3,11 @@
 import * as THREE from 'three';
 import { loft } from './loft';
 import { fbm, mix, rng, smooth } from './noise';
-import type { Stage } from './types';
+import { QUALITY, type Stage } from './types';
 
-export type Element = 'fire' | 'ice' | 'lightning';
+export type Element = 'fire' | 'ice' | 'lightning' | 'nature' | 'shadow';
+
+export const ELEMENT_NAMES: Record<Element, string> = { fire: 'Feu', ice: 'Glace', lightning: 'Foudre', nature: 'Nature', shadow: 'Ombre' };
 
 /** What each stage adds. */
 export const POWER: Record<Stage, { spikes: number; horns: number; tail: boolean; mane: boolean; particles: number; ground: boolean; wings: boolean; arcs: boolean }> = {
@@ -20,6 +22,8 @@ export const ELEMENT_COLORS: Record<Element, { core: string; mid: string; edge: 
   fire: { core: '#FFF4C2', mid: '#FF9A2E', edge: '#B3200C', eye: '#FF8A1E', spike: '#1E1512', tip: '#FF6A00' },
   ice: { core: '#FFFFFF', mid: '#A8EEFF', edge: '#3E8FD8', eye: '#7FE2FF', spike: '#CFF4FF', tip: '#8FE6FF' },
   lightning: { core: '#FFFFFF', mid: '#FFF07A', edge: '#7A5CFF', eye: '#FFE54A', spike: '#2B2B3A', tip: '#FFF07A' },
+  nature: { core: '#F4FFD0', mid: '#7BD34A', edge: '#2E7D32', eye: '#8BE04E', spike: '#4A3A26', tip: '#9BE564' },
+  shadow: { core: '#E6D6FF', mid: '#8A4FFF', edge: '#24123F', eye: '#C49BFF', spike: '#15101C', tip: '#A86BFF' },
 };
 
 // ── Materials ────────────────────────────────────────────────────────────────────
@@ -70,7 +74,8 @@ export function spikes(points: THREE.Vector3[], normals: THREE.Vector3[], size: 
 export function horns(pos: THREE.Vector3, size: number, el: Element, spread = 0.07, forward = new THREE.Vector3(1, 0, 0)): THREE.Group {
   const back = new THREE.Vector3(-1, 0, 0);
   const g = new THREE.Group();
-  const mat = el === 'ice' ? spikeMaterial('ice') : new THREE.MeshPhysicalMaterial({ color: el === 'fire' ? '#6A5446' : '#7A7490', roughness: 0.35, clearcoat: 0.7, vertexColors: true });
+  const hornColor = { fire: '#6A5446', lightning: '#7A7490', nature: '#7A6142', shadow: '#2A2233', ice: '#CFF4FF' }[el];
+  const mat = el === 'ice' ? spikeMaterial('ice') : new THREE.MeshPhysicalMaterial({ color: hornColor, roughness: 0.35, clearcoat: 0.7, vertexColors: true });
   for (const side of [-1, 1]) {
     const pts = [
       new THREE.Vector3(0, 0, 0),
@@ -142,6 +147,7 @@ export type Emitter = { points: THREE.Points; update: (t: number) => void };
  * fire: flames licking up; ice: slow swirling frost; lightning: quick sparks jumping out.
  */
 export function particles(el: Element, sources: THREE.Vector3[], count: number, scale = 1, seed = 1): Emitter {
+  if (QUALITY.lite) count = Math.max(8, Math.round(count * 0.35));
   const r = rng(seed);
   const base = new Float32Array(count * 3);
   const extra = new Float32Array(count * 4); // phase, speed, sideways x, sideways z
@@ -163,6 +169,8 @@ export function particles(el: Element, sources: THREE.Vector3[], count: number, 
     fire: { life: 0.9, rise: 0.36, spread: 0.06, size: 70, swirl: 0 },
     ice: { life: 3.2, rise: 0.22, spread: 0.18, size: 26, swirl: 1 },
     lightning: { life: 0.35, rise: 0.08, spread: 0.3, size: 22, swirl: 0 },
+    nature: { life: 3.0, rise: 0.2, spread: 0.2, size: 20, swirl: 1 },
+    shadow: { life: 1.8, rise: 0.28, spread: 0.12, size: 64, swirl: 1 },
   }[el];
   const mat = new THREE.ShaderMaterial({
     transparent: true,
@@ -190,7 +198,7 @@ export function particles(el: Element, sources: THREE.Vector3[], count: number, 
         p.z += extra.w * ${cfg.spread.toFixed(2)} * uScale * age;
         ${cfg.swirl ? 'float a = uTime * 0.6 + extra.x * 6.28; p.x += cos(a) * 0.05 * uScale * age; p.z += sin(a) * 0.05 * uScale * age;' : ''}
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
-        float s = ${el === 'fire' ? '(1.0 - age) * (0.6 + age)' : el === 'ice' ? 'sin(age * 3.1416)' : '(1.0 - age)'};
+        float s = ${el === 'fire' ? '(1.0 - age) * (0.6 + age)' : el === 'shadow' ? '(0.4 + age) * (1.0 - age * 0.5)' : el === 'ice' || el === 'nature' ? 'sin(age * 3.1416)' : '(1.0 - age)'};
         gl_PointSize = ${cfg.size.toFixed(1)} * s * uScale * (3.0 / -mv.z);
         gl_Position = projectionMatrix * mv;
       }`,
@@ -201,9 +209,9 @@ export function particles(el: Element, sources: THREE.Vector3[], count: number, 
         vec2 d = gl_PointCoord - 0.5;
         float r = length(d) * 2.0;
         if (r > 1.0) discard;
-        float soft = pow(1.0 - r, ${el === 'ice' ? '2.5' : '1.6'});
+        float soft = pow(1.0 - r, ${el === 'ice' ? '2.5' : el === 'shadow' ? '2.0' : '1.6'});
         vec3 col = vAge < 0.35 ? mix(uCore, uMid, vAge / 0.35) : mix(uMid, uEdge, (vAge - 0.35) / 0.65);
-        float a = soft * (1.0 - smoothstep(0.6, 1.0, vAge)) * ${el === 'fire' ? '0.85' : '0.9'};
+        float a = soft * (1.0 - smoothstep(0.6, 1.0, vAge)) * ${el === 'fire' ? '0.85' : el === 'shadow' ? '0.55' : '0.9'};
         gl_FragColor = vec4(col, a);
       }`,
   });
@@ -221,7 +229,7 @@ export function arcs(anchors: THREE.Vector3[], el: Element, count = 3, seed = 3)
   const pos = new Float32Array(count * copies * segs * 2 * 3);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const color = el === 'lightning' ? '#7B4DFF' : el === 'ice' ? '#3E9BE0' : '#FF7A1A';
+  const color = { lightning: '#7B4DFF', ice: '#3E9BE0', fire: '#FF7A1A', nature: '#4CAF50', shadow: '#8A4FFF' }[el];
   const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false });
   const lines = new THREE.LineSegments(g, mat);
   lines.frustumCulled = false;
@@ -281,6 +289,13 @@ export function groundAura(el: Element, radius: number): Emitter {
       if (el === 'fire') {
         const n = fbm(u * 10 + 5, v * 10 + 5, 11, 4);
         k = (smooth(0.045, 0, Math.abs(n - 0.5)) * 1.3 + smooth(0.8, 0.1, d) * 0.35) * fade;
+      } else if (el === 'shadow') {
+        const a = Math.atan2(v, u);
+        const n = fbm(Math.cos(a + d * 4) * 2 + 3, Math.sin(a + d * 4) * 2 + 3, 17, 4);
+        k = (smooth(0.4, 0.75, n) * 0.8 + smooth(0.9, 0.2, d) * 0.4) * fade;
+      } else if (el === 'nature') {
+        const n = fbm(u * 14 + 2, v * 14 + 2, 19, 4);
+        k = (smooth(0.55, 0.62, n) * 0.9 + smooth(0.03, 0, Math.abs(d - 0.75)) * 0.8) * smooth(1.02, 0.9, d);
       } else if (el === 'ice') {
         const a = Math.atan2(v, u);
         const n = fbm(Math.cos(a) * 3 + 9, Math.sin(a) * 3 + d * 6, 4, 3);
@@ -288,7 +303,7 @@ export function groundAura(el: Element, radius: number): Emitter {
       } else {
         k = (smooth(0.04, 0, Math.abs(d - 0.8)) + smooth(0.03, 0, Math.abs(d - 0.55)) * 0.6) * smooth(1.02, 0.9, d);
       }
-      const col = el === 'fire' ? new THREE.Color(c.core).lerp(mid, smooth(0, 0.6, d)) : mid.clone().lerp(edge, smooth(0, 1, d));
+      const col = el === 'fire' ? new THREE.Color(c.core).lerp(mid, smooth(0, 0.6, d)) : el === 'shadow' ? edge.clone().lerp(mid, smooth(0.2, 0.9, d)) : mid.clone().lerp(edge, smooth(0, 1, d));
       const i = (y * S + x) * 4;
       data[i] = col.r * 255;
       data[i + 1] = col.g * 255;
