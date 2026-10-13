@@ -7,7 +7,7 @@ import { isPremium, PLUS_NAME, PLUS_PRICE } from '../lib/premium';
 import { supabase } from '../lib/supabase';
 import { colors } from '../lib/theme';
 
-/** One tap to Lockin+ under the week total, for everyone who doesn't pay yet (a trial included). */
+/** One tap to Lockin+ on the profile, above the Lockin+ section, for everyone who doesn't pay yet (a trial included). */
 export function SubscribeBar() {
   const { profile } = useAuth();
   const [paid, setPaid] = useState<boolean | null>(null);

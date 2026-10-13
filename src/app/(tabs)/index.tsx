@@ -23,7 +23,6 @@ import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDuration, formatTimer, startOfWeek } from '../../lib/time';
 import { decorationOf } from '../../lib/premium';
 import { Named } from '../../components/Badge';
-import { SubscribeBar } from '../../components/SubscribeBar';
 
 /** The ring fills up over one focus block, Pomodoro-style. */
 const FOCUS_BLOCK_SEC = 25 * 60;
@@ -177,8 +176,6 @@ export default function FocusScreen() {
           />
           <Stat icon="flame-outline" label="Série" value={`${myStreak} j`} onPress={() => router.push('/profile')} />
         </View>
-
-        {!active && <SubscribeBar />}
 
         {(nextPlan || examInvites.length > 0) && !active && (
           <Pressable

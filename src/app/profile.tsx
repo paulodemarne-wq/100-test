@@ -21,6 +21,7 @@ import { decorationOf, isPremium, titleOf } from '../lib/premium';
 import { PetView } from '../components/PetView';
 import { displayName, levelFor, speciesById } from '../creatures/species';
 import { Named } from '../components/Badge';
+import { SubscribeBar } from '../components/SubscribeBar';
 
 export default function Profile() {
   const { profile, setPhoto, signOut, updateSettings } = useAuth();
@@ -132,6 +133,8 @@ export default function Profile() {
             </View>
           ))}
         </View>
+
+        <SubscribeBar />
 
         <Section title="Lockin+">
           <Row
