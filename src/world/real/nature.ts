@@ -242,6 +242,15 @@ function bark(): THREE.MeshStandardMaterial {
   return barkMat;
 }
 
+let leafMat: THREE.MeshStandardMaterial | null = null;
+/** The shared leaf material (one for every tree, so a merged island keeps few draw calls). */
+export function leafMaterial(): THREE.MeshStandardMaterial {
+  leafMat ??= new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, vertexColors: true, roughness: 0.85 });
+  return leafMat;
+}
+
+let needleMat: THREE.MeshStandardMaterial | null = null;
+
 export function leafCards(center: THREE.Vector3, radius: number, count: number, r: () => number, tint: THREE.Color, mat?: THREE.Material): THREE.Mesh {
   const g = new THREE.BufferGeometry();
   const pos: number[] = [];
@@ -280,9 +289,7 @@ export function leafCards(center: THREE.Vector3, radius: number, count: number, 
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
-  const m =
-    mat ??
-    new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, vertexColors: true, roughness: 0.85 });
+  const m = mat ?? leafMaterial();
   const mesh = new THREE.Mesh(g, m);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -351,7 +358,8 @@ export function buildPine(r: () => number): THREE.Group {
   trunk.position.y = h / 2 - 0.05;
   trunk.castShadow = true;
   g.add(trunk);
-  const mat = new THREE.MeshStandardMaterial({ map: needleTexture(), alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.9 });
+  needleMat ??= new THREE.MeshStandardMaterial({ map: needleTexture(), alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.9 });
+  const mat = needleMat;
   // Tiers of drooping branches covered in needle cards, smaller toward the top.
   const tiers = 7;
   for (let i = 0; i < tiers; i++) {
