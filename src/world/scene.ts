@@ -59,8 +59,8 @@ type Boat = {
 
 /** Sailing speed, in cells per second. */
 const BOAT_SPEED = 0.45;
-/** Boats sit a little into the water. */
-const BOAT_SINK = 0.06;
+/** How deep a boat sits: realistic hulls have their waterline 0.05 above their bottom (before scaling). */
+const boatSink = (id: string) => 0.05 * (DECOR_SCALE[id] ?? 1);
 
 export type IslandScene = ReturnType<typeof buildIsland>;
 
@@ -162,7 +162,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
         group: flat,
         cell: [x, z],
         // On the sea the water is lower than on a pond inside the island.
-        baseY: (sea ? seaLevel(kind) : POND_Y) - BOAT_SINK,
+        baseY: (sea ? seaLevel(kind) : POND_Y) - boatSink(id),
         seed: i * 1.7,
         sea,
         angle,
@@ -186,7 +186,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     for (const [id, x, z, turns] of world.objects) {
       const o = decor(id);
       o.scale.setScalar(DECOR_SCALE[id] ?? 1);
-      o.position.set(x + 0.5, isBoat(id) ? (inside(world, x, z) ? POND_Y : seaLevel(kind)) - BOAT_SINK : footY(x, z), z + 0.5);
+      o.position.set(x + 0.5, isBoat(id) ? (inside(world, x, z) ? POND_Y : seaLevel(kind)) - boatSink(id) : footY(x, z), z + 0.5);
       o.rotation.y = (turns * Math.PI) / 2;
       o.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(o);
@@ -409,7 +409,7 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       }
       for (const b of boats) {
         sail(b, dt);
-        b.group.position.y = b.baseY + Math.sin(t * 1.4 + b.seed) * 0.04;
+        b.group.position.y = b.baseY + Math.sin(t * 1.4 + b.seed) * (b.sea ? 0.025 : 0.008);
         b.group.rotation.z = Math.sin(t * 1.1 + b.seed) * 0.05;
         b.group.rotation.x = Math.sin(t * 0.9 + b.seed * 2) * 0.03;
       }

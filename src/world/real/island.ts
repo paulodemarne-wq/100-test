@@ -157,8 +157,8 @@ const GRASS_B: RGB = [62, 98, 40];
 const GRASS_DRY: RGB = [146, 146, 80];
 const MEADOW_A: RGB = [118, 152, 64];
 const MEADOW_B: RGB = [86, 122, 48];
-const DIRT_A: RGB = [146, 116, 82];
-const DIRT_B: RGB = [116, 90, 62];
+const DIRT_A: RGB = [140, 116, 88];
+const DIRT_B: RGB = [110, 90, 68];
 const PEBBLE: RGB = [160, 152, 140];
 const STONE: RGB = [150, 146, 138];
 const MORTAR: RGB = [92, 86, 76];
@@ -169,7 +169,7 @@ const SNOW: RGB = [238, 243, 249];
 const SNOW_SHADE: RGB = [192, 208, 228];
 const ICE: RGB = [150, 200, 222];
 const CLOUD: RGB = [252, 251, 255];
-const CLOUD_SHADE: RGB = [212, 206, 232];
+const CLOUD_SHADE: RGB = [224, 220, 240];
 const ROCK: RGB = [116, 110, 102];
 const ROCK_DARK: RGB = [78, 74, 70];
 const MUD: RGB = [92, 80, 58];
@@ -230,7 +230,7 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
         const d = dx !== 0 && dz !== 0 ? Math.hypot(qx, qz) : dx !== 0 ? qx : qz;
         if (d < dIn) dIn = d;
       }
-    return 0.34 * smooth(0.14, 0.5, dIn + (noise2(x * 2.2, z * 2.2, 17) - 0.5) * 0.22);
+    return 0.34 * smooth(0.2, 0.55, dIn + (noise2(x * 2.2, z * 2.2, 17) - 0.5) * 0.3);
   };
 
   const heightAt = (x: number, z: number): number => {
@@ -382,7 +382,7 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
     out[0] *= k;
     out[1] *= k;
     out[2] *= k;
-    outH = fine * 0.7 + med * 0.4;
+    outH = fine * 0.35 + med * 0.3;
     if (meadow) {
       // Little flowers in the grass.
       const gx = Math.floor(x / 0.085);
@@ -484,8 +484,8 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
       case 99: {
         // clouds: soft white billows
         // Round puffs (nearest of jittered centers): bright domes, lavender creases between them.
-        const sx = x / 0.32 + (med - 0.5) * 0.8;
-        const sz = z / 0.32 + (patch - 0.5) * 0.8;
+        const sx = x / 0.45 + (med - 0.5) * 1.2;
+        const sz = z / 0.45 + (patch - 0.5) * 1.2;
         const gx = Math.floor(sx);
         const gz = Math.floor(sz);
         let best = 9;
@@ -498,8 +498,8 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
           }
         const dome = 1 - Math.min(1, Math.sqrt(best) / 0.75);
         set(CLOUD_SHADE, 1);
-        blend(CLOUD, smooth(0.0, 0.45, dome) * (0.85 + patch * 0.3));
-        outH = Math.sqrt(dome) * 2.5 + fine * 0.1;
+        blend(CLOUD, Math.min(1, smooth(-0.1, 0.6, dome) * 0.75 + 0.35 + (med - 0.5) * 0.3));
+        outH = Math.sqrt(dome) * 1.1 + med * 0.8;
         return;
       }
       case 119: // pond bank (the dip itself is painted from the depth)
@@ -605,9 +605,33 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
         const wz = z + (fieldWarpZ[k00] * w00 + fieldWarpZ[k00 + 1] * w10 + fieldWarpZ[k00 + L] * w01 + fieldWarpZ[k00 + L + 1] * w11 - 0.5) * 0.5;
         const ix = Math.floor(wx);
         const iz = Math.floor(wz);
-        const onGrid = ix >= 0 && iz >= 0 && ix < size && iz < size;
-        if (onGrid) tileColor(tiles.charCodeAt(iz * size + ix), x, z, patch, med, fine);
+        const codeAt = (cx: number, cz: number) => (cx >= 0 && cz >= 0 && cx < size && cz < size ? tiles.charCodeAt(cz * size + cx) : -1);
+        const code = codeAt(ix, iz);
+        if (code >= 0) tileColor(code, x, z, patch, med, fine);
         else outer(h, slope, x, z, patch, med, fine);
+        // Soft border: near the edge of a cell, fade toward the neighbouring ground when it differs.
+        const fx = wx - ix;
+        const fz = wz - iz;
+        const ex = fx < 0.5 ? fx : 1 - fx;
+        const ez = fz < 0.5 ? fz : 1 - fz;
+        const BAND = 0.07;
+        if (ex < BAND || ez < BAND) {
+          const alongX = ex <= ez;
+          const other = alongX ? codeAt(fx < 0.5 ? ix - 1 : ix + 1, iz) : codeAt(ix, fz < 0.5 ? iz - 1 : iz + 1);
+          if (other !== code) {
+            const w = 0.5 * (1 - (alongX ? ex : ez) / BAND);
+            const r0 = out[0];
+            const g0 = out[1];
+            const b0 = out[2];
+            const h0 = outH;
+            if (other >= 0) tileColor(other, x, z, patch, med, fine);
+            else outer(h, slope, x, z, patch, med, fine);
+            out[0] = mix(r0, out[0], w);
+            out[1] = mix(g0, out[1], w);
+            out[2] = mix(b0, out[2], w);
+            outH = mix(h0, outH, w);
+          }
+        }
         // Pond bottoms: wet bank, pebbles, mud getting darker with depth.
         if (inGrid && h < -0.002) {
           const depth = -h;

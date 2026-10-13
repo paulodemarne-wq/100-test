@@ -552,8 +552,8 @@ function mushroom(r: R): THREE.Group {
   // Gills: thin radial blades.
   const gill = box(0.3, 0.024, 0.004, 4);
   const gm = mat('plaster', '#E7D9BE');
-  for (let i = 0; i < 48; i++) {
-    const a = (i / 48) * PI * 2;
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * PI * 2;
     put(g, gill, gm, [Math.sin(a) * 0.32, 0.55, Math.cos(a) * 0.32], [0, a + PI / 2, 0]);
   }
   // White warts on the cap.
@@ -571,13 +571,13 @@ function mushroom(r: R): THREE.Group {
     const rr = capR(y);
     const n = new THREE.Vector3(Math.sin(a) * rr, (y - 0.6) * 0.9, Math.cos(a) * rr).normalize();
     const s = 0.022 + r() * 0.03;
-    const o = put(g, rockGeo(r, s, 0.45, 1), wart, [Math.sin(a) * rr, y, Math.cos(a) * rr]);
+    const o = put(g, rockGeo(r, s, 0.45, 0), wart, [Math.sin(a) * rr, y, Math.cos(a) * rr]);
     o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
   }
   // Fairy door, round windows, steps, lantern.
   doorAt(g, [0, 0.03, 0.31], 0, { w: 0.15, h: 0.25, m: mat('woodDark', '#6B4428'), arch: true, frame: mat('wood', '#8A603C'), knob: mat('gold'), hinges: true });
-  for (const [x, y, a] of [[0.19, 0.4, 0.55], [-0.13, 0.45, -0.42]] as const) {
-    const w = grp(g, [Math.sin(a) * 0.275, y, Math.cos(a) * 0.275], a);
+  for (const [x, y, a] of [[0.19, 0.33, 0.6], [-0.13, 0.36, -0.55]] as const) {
+    const w = grp(g, [Math.sin(a) * 0.285, y, Math.cos(a) * 0.285], a);
     put(w, new THREE.TorusGeometry(0.045, 0.01, 6, 18), mat('wood', '#8A603C'), [0, 0, 0.004]);
     put(w, planar(new THREE.CircleGeometry(0.045, 16), 4), GLASS_LIT(), [0, 0, 0]);
     put(w, box(0.09, 0.005, 0.006), mat('wood', '#8A603C'), [0, 0, 0.004]);
@@ -586,7 +586,7 @@ function mushroom(r: R): THREE.Group {
   }
   for (let i = 0; i < 3; i++) put(g, rockGeo(r, 0.05, 0.35), mat('rock', '#A39C90'), [(i - 1) * 0.07, 0.008, 0.41 + (i % 2) * 0.03]);
   lantern(g, [0.13, 0.25, 0.3], 0.9);
-  bush(g, [-0.3, 0.06, 0.2], 0.09, 20, r, '#5B7F3A');
+  bush(g, [-0.33, 0.06, -0.05], 0.09, 20, r, '#5B7F3A');
   flowerTuft(g, [0.28, 0.02, 0.24], 0.05, 0.04, 6, r, ['#F2E6A0', '#FFFFFF']);
   return g;
 }
@@ -809,9 +809,9 @@ function igloo(r: R): THREE.Group {
   put(g, cyl(tr - 0.03, tr - 0.03, 0.17, 16, 2, { open: true, t0: -PI / 2, tl: PI }), mat('snow', '#56677A', { side: DS }), [0, 0, 0.44], [PI / 2, 0, 0]);
   for (let k = 0; k < 3; k++) {
     const z = 0.36 + k * 0.08;
-    for (let j = 0; j < 6; j++) {
-      const a = ((j + 0.5 + (k % 2) * 0.5) / 6) * PI - PI / 2;
-      if (a > PI / 2) continue;
+    for (let j = 0; j < 7; j++) {
+      const a = ((j + (k % 2) * 0.5) / 6) * PI - PI / 2;
+      if (a > PI / 2 + 0.01) continue;
       const pos = new THREE.Vector3(Math.sin(a) * tr, Math.cos(a) * tr, z);
       const geo = box(0.085, 0.07, 0.075, 2);
       put(g, geo, snowMats[Math.floor(r() * 3)], [pos.x, pos.y, pos.z], [0, 0, -a]);
@@ -1083,7 +1083,12 @@ function fountain(r: R): THREE.Group {
   put(g, cyl(0.006, 0.01, 0.08, 8, 4, { open: true }), mat('water', '#CFEFF6', { opacity: 0.55 }), [0, 0.76, 0]);
   put(g, new THREE.SphereGeometry(0.03, 12, 8, 0, PI * 2, 0, PI / 2), mat('water', '#DDF3F8', { opacity: 0.4, side: DS }), [0, 0.78, 0], [PI, 0, 0], [1, 1.6, 1]);
   // Water curtain falling from the upper bowl into the basin, ripples.
-  put(g, cyl(0.218, 0.25, 0.43, 32, 3, { open: true }), mat('water', '#D5F0F6', { opacity: 0.16, side: DS }), [0, 0.37, 0]);
+  const fall = mat('water', '#D8F1F6', { opacity: 0.38, side: DS });
+  for (let i = 0; i < 8; i++) {
+    const a0 = (i / 8) * PI * 2 + 0.2;
+    put(g, cyl(0.216, 0.245, 0.43, 4, 3, { open: true, t0: a0, tl: 0.16 }), fall, [0, 0.37, 0]);
+    put(g, new THREE.TorusGeometry(0.012, 0.004, 4, 8), mat('water', '#EAF8FB', { opacity: 0.6 }), [Math.sin(a0 + 0.08) * 0.245, 0.153, Math.cos(a0 + 0.08) * 0.245], [PI / 2, 0, 0], [2.2, 1.2, 1]);
+  }
   put(g, new THREE.TorusGeometry(0.25, 0.008, 4, 40), mat('water', '#E7F7FA', { opacity: 0.6 }), [0, 0.152, 0], [PI / 2, 0, 0]);
   put(g, new THREE.TorusGeometry(0.29, 0.005, 4, 40), mat('water', '#E7F7FA', { opacity: 0.45 }), [0, 0.152, 0], [PI / 2, 0, 0]);
   // Lily pad, moss.

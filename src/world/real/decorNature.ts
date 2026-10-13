@@ -519,6 +519,14 @@ function rockMat(): THREE.MeshStandardMaterial {
     return new THREE.MeshStandardMaterial({ map: base.map, normalMap: base.normalMap, roughness: 0.92, vertexColors: true });
   });
 }
+/** Bark (shared texture) lit a bit brighter than the base material: real bark is a light grey-brown. */
+function barkMat(color: string) {
+  return cached(`bark${color}`, () => {
+    const base = pbr('bark') as THREE.MeshStandardMaterial;
+    const c = new THREE.Color(color).multiplyScalar(1.9);
+    return new THREE.MeshStandardMaterial({ map: base.map, normalMap: base.normalMap, roughness: 0.95, color: c });
+  });
+}
 function grassMat() {
   return solid('grass', { vertexColors: true, roughness: 0.9 });
 }
@@ -903,18 +911,18 @@ function growTree(g: THREE.Group, r: Rng, o: TreeOpts): THREE.Vector3[] {
 }
 
 /** Leaf clumps at the branch tips plus a fill of the whole crown. */
-function foliage(g: THREE.Group, r: Rng, tips: THREE.Vector3[], o: { mat: THREE.Material; c: THREE.Vector3; s: THREE.Vector3; tints: [THREE.Color, THREE.Color]; clump: number; perClump: number; fill: number; size: [number, number]; ao?: number }) {
+function foliage(g: THREE.Group, r: Rng, tips: THREE.Vector3[], o: { mat: THREE.Material; c: THREE.Vector3; s: THREE.Vector3; tints: [THREE.Color, THREE.Color]; clump: number; perClump: number; fill: number; size: [number, number]; ao?: number; up?: number }) {
   const b = new Batch();
   for (const t of tips)
-    crown(b, r, { c: t.clone().add(V(0, 0.04, 0)), s: V(o.clump, o.clump * 0.8, o.clump), count: o.perClump, size: o.size, tints: o.tints, nc: o.c, ns: o.s, shell: 0.2, aoMin: o.ao });
-  crown(b, r, { c: o.c, s: o.s, count: o.fill, size: o.size, tints: o.tints, shell: 0.55, aoMin: o.ao });
+    crown(b, r, { c: t.clone().add(V(0, 0.04, 0)), s: V(o.clump, o.clump * 0.8, o.clump), count: o.perClump, size: o.size, tints: o.tints, nc: o.c, ns: o.s, shell: 0.2, aoMin: o.ao, up: o.up });
+  crown(b, r, { c: o.c, s: o.s, count: o.fill, size: o.size, tints: o.tints, shell: 0.55, aoMin: o.ao, up: o.up });
   b.addTo(g, o.mat);
 }
 
 function pine(r: Rng): THREE.Group {
   const g = new THREE.Group();
   const h = 1.2;
-  g.add(tube([V(0, -0.03, 0), V(0, h * 0.5, 0), V(0, h, 0)], 0.045, 0.006, pbr('bark', { color: '#cdbdb0' }), { rings: 10, radial: 8, flare: 0.6 }));
+  g.add(tube([V(0, -0.03, 0), V(0, h * 0.5, 0), V(0, h, 0)], 0.045, 0.006, barkMat('#cdbdb0'), { rings: 10, radial: 8, flare: 0.6 }));
   const b = new Batch();
   const whorls = 12;
   const c = new THREE.Color();
@@ -949,7 +957,8 @@ function pine(r: Rng): THREE.Group {
   }
   // Dense inner fill hides the trunk between the whorls.
   crown(b, r, { c: V(0, h * 0.94, 0), s: V(0.04, 0.08, 0.04), count: 6, size: [0.1, 0.14], tints: [new THREE.Color(0.8, 0.85, 0.8), new THREE.Color(0.95, 1, 0.9)], shell: 0.2, up: 0.6 });
-  crown(b, r, { c: V(0, h * 0.5, 0), s: V(0.12, h * 0.42, 0.12), count: 36, size: [0.14, 0.2], tints: [new THREE.Color(0.55, 0.55, 0.55), new THREE.Color(0.7, 0.7, 0.68)], shell: 0.2, up: 0.6 });
+  crown(b, r, { c: V(0, h * 0.72, 0), s: V(0.07, h * 0.22, 0.07), count: 24, size: [0.12, 0.16], tints: [new THREE.Color(0.6, 0.62, 0.6), new THREE.Color(0.8, 0.82, 0.78)], shell: 0.2, up: 0.6 });
+  crown(b, r, { c: V(0, h * 0.45, 0), s: V(0.12, h * 0.36, 0.12), count: 30, size: [0.14, 0.2], tints: [new THREE.Color(0.55, 0.55, 0.55), new THREE.Color(0.7, 0.7, 0.68)], shell: 0.2, up: 0.6 });
   b.addTo(g, cardMat('spruce'));
   const gb = new Batch();
   grassTufts(gb, r, [[0.12, 0.1], [-0.1, 0.14], [0.05, -0.14]], 7, 0.06, 0.4);
@@ -959,7 +968,7 @@ function pine(r: Rng): THREE.Group {
 
 function bush(r: Rng): THREE.Group {
   const g = new THREE.Group();
-  const bark = pbr('bark', { color: '#c4b4a4' });
+  const bark = barkMat('#c4b4a4');
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * TAU + r();
     g.add(tube([V(0, -0.01, 0), V(Math.cos(a) * 0.12, 0.12 + r() * 0.06, Math.sin(a) * 0.1)], 0.014, 0.006, bark, { rings: 2, radial: 5 }));
@@ -981,7 +990,7 @@ function bush(r: Rng): THREE.Group {
 let appleGeo: THREE.BufferGeometry | null = null;
 function apple(r: Rng): THREE.Group {
   const g = new THREE.Group();
-  const tips = growTree(g, r, { h: 1.08, r0: 0.05, fork: 0.36, limbs: 4, spread: 0.3, rise: 0.4, twigs: 2, bark: pbr('bark', { color: '#e2d6ca' }), gnarl: 0.8 });
+  const tips = growTree(g, r, { h: 1.08, r0: 0.05, fork: 0.36, limbs: 4, spread: 0.3, rise: 0.4, twigs: 2, bark: barkMat('#e2d6ca'), gnarl: 0.8 });
   const c = V(0, 0.78, 0);
   const s = V(0.44, 0.3, 0.42);
   foliage(g, r, tips, { mat: cardMat('apple'), c, s, tints: [new THREE.Color(0.85, 0.9, 0.82), new THREE.Color(1.05, 1.08, 0.98)], clump: 0.19, perClump: 20, fill: 80, size: [0.12, 0.18] });
@@ -994,7 +1003,7 @@ function apple(r: Rng): THREE.Group {
     for (let i = 0; i < p.count; i++) {
       const ang = Math.atan2(p.getZ(i), p.getX(i));
       const blush = smooth(-0.2, 0.9, Math.cos(ang)) * 0.8 + noise2(ang * 3, p.getY(i) * 80, 9) * 0.2;
-      const col = new THREE.Color(0.55, 0.36, 0.04).lerp(new THREE.Color(0.4, 0.01, 0.012), Math.min(1, blush * 1.1 + 0.55));
+      const col = new THREE.Color(0.5, 0.22, 0.02).lerp(new THREE.Color(0.4, 0.01, 0.012), Math.min(1, blush * 1.1 + 0.55));
       cols.push(col.r, col.g, col.b);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
@@ -1024,7 +1033,7 @@ function apple(r: Rng): THREE.Group {
 
 function autumn(r: Rng): THREE.Group {
   const g = new THREE.Group();
-  const tips = growTree(g, r, { h: 1.25, r0: 0.05, fork: 0.42, limbs: 4, spread: 0.26, rise: 0.48, twigs: 2, bark: pbr('bark', { color: '#d4c8c0' }) });
+  const tips = growTree(g, r, { h: 1.25, r0: 0.05, fork: 0.42, limbs: 4, spread: 0.26, rise: 0.48, twigs: 2, bark: barkMat('#d4c8c0') });
   foliage(g, r, tips, {
     mat: cardMat('autumn'),
     c: V(0, 0.86, 0),
@@ -1047,7 +1056,7 @@ function autumn(r: Rng): THREE.Group {
 
 function sakura(r: Rng): THREE.Group {
   const g = new THREE.Group();
-  const tips = growTree(g, r, { h: 0.98, leader: 0.6, r0: 0.055, fork: 0.3, limbs: 5, spread: 0.4, rise: 0.36, twigs: 2, bark: pbr('bark', { color: '#ab9692' }), gnarl: 1.2, sag: 0.05 });
+  const tips = growTree(g, r, { h: 0.98, leader: 0.6, r0: 0.055, fork: 0.3, limbs: 5, spread: 0.4, rise: 0.36, twigs: 2, bark: barkMat('#ab9692'), gnarl: 1.2, sag: 0.05 });
   foliage(g, r, tips, {
     mat: cardMat('blossom'),
     c: V(0, 0.76, 0),
@@ -1057,7 +1066,8 @@ function sakura(r: Rng): THREE.Group {
     perClump: 24,
     fill: 120,
     size: [0.14, 0.2],
-    ao: 0.72,
+    ao: 0.85,
+    up: 0.9,
   });
   const b = new Batch();
   for (let i = 0; i < 5; i++) {
@@ -1075,17 +1085,17 @@ function palm(r: Rng): THREE.Group {
   g.add(tube([V(0, -0.02, 0), V(0.05, 0.35, 0), V(0.14, 0.7, 0.02), T], 0.058, 0.042, palmBarkMat(), { rings: 16, radial: 10, flare: 0.5 }));
   g.add(tube([T.clone().add(V(0, -0.05, 0)), T.clone().add(V(0.005, 0.04, 0))], 0.05, 0.03, palmBarkMat(), { rings: 2, radial: 10 }));
   const b = new Batch();
-  const nf = 14;
+  const nf = 16;
   const nrm = V();
   const c = new THREE.Color();
   for (let k = 0; k < nf; k++) {
     const a = k * 2.39996 + r() * 0.3;
     const young = k / nf;
     const dead = k < 2;
-    const e = dead ? -1.0 : mix(-0.25, 0.85, young) + (r() - 0.5) * 0.2;
+    const e = dead ? -1.0 : mix(0.0, 1.0, young) + (r() - 0.5) * 0.2;
     const L = (dead ? 0.42 : rr(r, 0.52, 0.66)) * (young > 0.85 ? 0.75 : 1);
     const hor = V(Math.cos(a), 0, Math.sin(a));
-    const grav = dead ? 0.1 : rr(r, 0.65, 1.0);
+    const grav = dead ? 0.1 : rr(r, 0.95, 1.35);
     const seg = 8;
     const ids: number[][] = [];
     for (let i = 0; i <= seg; i++) {
@@ -1096,7 +1106,7 @@ function palm(r: Rng): THREE.Group {
       const tan = pn.sub(p).normalize();
       const side = V().crossVectors(tan, UP).normalize();
       const w = L * 0.27 * smooth(0, 0.15, t);
-      const drop = w * 0.7;
+      const drop = w * 0.9;
       nrm.copy(hor).multiplyScalar(0.35).add(V(0, 1, 0)).normalize();
       const ao = mix(0.6, 1.05, t);
       if (dead) c.setRGB(1.55 * ao, 1.15 * ao, 0.55 * ao);
@@ -1197,7 +1207,7 @@ function cactus(r: Rng): THREE.Group {
   const mat = cactusMat();
   const color = (p: THREE.Vector3) => {
     const c = new THREE.Color(1, 1, 1);
-    c.lerp(new THREE.Color(0.62, 0.55, 0.42), smooth(0.14, 0.02, p.y));
+    c.lerp(new THREE.Color(1.1, 0.95, 0.7), smooth(0.14, 0.02, p.y));
     return c;
   };
   const dome = (u: number, R: number, start = 0.88) => R * Math.sqrt(Math.max(0.0004, 1 - Math.pow(Math.max(0, u - start) / (1 - start), 2)));
@@ -1623,7 +1633,7 @@ function pumpkinGeo(R: number, ribs: number, hk: number, base: THREE.Color, seed
       const rad = R * (0.88 + 0.12 * lobe);
       let y = R * hk * Math.cos(phi);
       y -= R * 0.32 * (1 - smooth(0, 0.55, phi));
-      y += R * 0.2 * (1 - smooth(0, 0.5, Math.PI - phi));
+      y += R * 0.08 * (1 - smooth(0, 0.3, Math.PI - phi));
       const x = rad * Math.sin(phi) * Math.cos(th);
       const z = rad * Math.sin(phi) * Math.sin(th);
       pos.push(x, y, z);
@@ -1632,8 +1642,7 @@ function pumpkinGeo(R: number, ribs: number, hk: number, base: THREE.Color, seed
       c.lerp(new THREE.Color(0.3, 0.12, 0.02), (1 - lobe) * 0.55);
       c.multiplyScalar(0.9 + 0.2 * noise2(th * 4 + seed, phi * 6, 3));
       c.lerp(new THREE.Color(0.2, 0.18, 0.04), smooth(0.35, 0.0, phi) * 0.7);
-      c.lerp(new THREE.Color(0.75, 0.45, 0.1), smooth(2.8, Math.PI, phi) * 0.4);
-      col.push(c.r, c.g, c.b);
+            col.push(c.r, c.g, c.b);
     }
   }
   const w = nLon + 1;
@@ -1662,7 +1671,7 @@ function pumpkin(r: Rng): THREE.Group {
       pumpkinGeo(0.11, 9, 0.8, new THREE.Color(0.95, 0.24, 0.01), 3),
     ];
   const mat = streakMat('pumpkin', 0.5, 'v');
-  const stemMat = pbr('bark', { color: '#c9c49a' });
+  const stemMat = barkMat('#c9c49a');
   const spots: [number, number, number][] = [[-0.14, 0.04, 0], [0.21, -0.12, 1], [0.12, 0.24, 2]];
   for (const [x, z, k] of spots) {
     const geo = pumpkinGeos[k];
@@ -1813,7 +1822,7 @@ function snowman(r: Rng): THREE.Group {
     g.add(tube([V(x - 0.001, 0.432, tz), V(x + (r() - 0.5) * 0.004, 0.405, tz + 0.003)], 0.0025, 0.002, wool, { rings: 1, radial: 4 }));
   }
   // Stick arms with little forks.
-  const bark = pbr('bark', { color: '#c4ac98' });
+  const bark = barkMat('#c4ac98');
   for (const s of [-1, 1]) {
     const pts = [V(s * 0.12, 0.5, 0), V(s * 0.2, 0.55, 0.01), V(s * 0.29, 0.6, 0.0), V(s * 0.37, 0.67, 0.02)];
     g.add(tube(pts, 0.009, 0.004, bark, { rings: 8, radial: 5 }));
