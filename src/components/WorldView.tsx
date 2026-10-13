@@ -3,7 +3,8 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import * as THREE from 'three';
 import { createGLRenderer } from '../lib/glRenderer';
-import { addLights } from '../creatures/build';
+import { addNatureLights, setupRenderer } from '../creatures/real/lights';
+import { fitSun, updateFog } from '../world/real/island';
 import { buildIsland, IslandCamera, IslandScene, PetSpec } from '../world/scene';
 import { World } from '../world/world';
 
@@ -59,6 +60,7 @@ export function WorldView({
 }: Props) {
   const islandRef = useRef<IslandScene | null>(null);
   const camRef = useRef<IslandCamera | null>(null);
+  const sunRef = useRef<THREE.DirectionalLight | null>(null);
   const size = useRef({ width: 1, height: 1 });
   const frame = useRef<number | null>(null);
   const callbacks = useRef({ onTapCell, onTapPet, onDragStart, onDragMove, onDragEnd });
@@ -96,7 +98,11 @@ export function WorldView({
     if (!island) return;
     const grew = island.size !== world.size;
     island.setWorld(world);
-    if (grew) camRef.current?.fit(world.size, size.current.width < size.current.height);
+    if (grew) {
+      camRef.current?.fit(world.size, size.current.width < size.current.height);
+      // The sun's shadow covers the whole (bigger) island.
+      if (sunRef.current) fitSun(sunRef.current, world.size);
+    }
   }, [world]);
 
   useEffect(() => {
@@ -262,12 +268,17 @@ export function WorldView({
     const width = gl.drawingBufferWidth;
     const height = gl.drawingBufferHeight;
     const renderer = createGLRenderer(gl);
+    // Realistic look: sRGB + filmic tone mapping + soft shadows, natural daylight with a sun.
+    setupRenderer(renderer);
 
     const scene = new THREE.Scene();
-    addLights(scene);
+    const sun = addNatureLights(scene);
+    fitSun(sun, latest.current.world.size);
+    sunRef.current = sun;
     const island = buildIsland(latest.current.world, latest.current.pets);
     scene.add(island.group);
-    renderer.setClearColor(island.sky, 1);
+    let sky = island.sky;
+    renderer.setClearColor(sky, 1);
     islandRef.current = island;
     if (selectedRef.current) island.setSelection(selectedRef.current.split(',').map(Number) as [number, number]);
     const cam = new IslandCamera(width / height);
@@ -297,6 +308,12 @@ export function WorldView({
         if (top) selTop.setValue(top);
         if (foot) selFoot.setValue(foot);
       }
+      // Sky and fog follow the kind of island (it can change while painting) and the zoom.
+      if (island.sky !== sky) {
+        sky = island.sky;
+        renderer.setClearColor(sky, 1);
+      }
+      updateFog(scene, sky, cam.distance);
       renderer.render(scene, cam.camera);
       gl.endFrameEXP();
     };

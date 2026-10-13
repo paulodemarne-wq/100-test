@@ -78,8 +78,8 @@ function cloudWorld(): World {
 const pets: PetSpec[] = [
   { id: 'a', species: 3, level: 12 },
   { id: 'b', species: 17, level: 25 },
-  { id: 'c', species: 42, level: 5 },
-  { id: 'd', species: 60, level: 33 },
+  { id: 'c', species: 22, level: 18 },
+  { id: 'd', species: 6, level: 36 },
 ];
 
 function renderIsland(world: World): string {

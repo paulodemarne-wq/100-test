@@ -45,7 +45,7 @@ type Boat = {
   baseY: number;
   seed: number;
   sea: boolean;
-  /** Sea: angle and distance around the island centre, and which way it goes (1 or -1). */
+  /** Sea: angle around the island centre, distance from the shore of the grid, and which way it goes (1 or -1). */
   angle: number;
   radius: number;
   dir: number;
@@ -149,12 +149,14 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
       const c = world.size / 2;
       const sea = !inside(world, x, z);
       // Far enough out to clear the island's corners and its beach.
-      const radius = Math.max(Math.hypot(x + 0.5 - c, z + 0.5 - c), world.size * 0.71 + 4.2);
+      // Far enough out to clear the beach.
+      const radius = Math.max(3.6, Math.max(Math.abs(x + 0.5 - c), Math.abs(z + 0.5 - c)) - c);
       const angle = Math.atan2(z + 0.5 - c, x + 0.5 - c);
+      const reach = course(angle, radius);
       const dir = i % 2 === 0 ? 1 : -1;
       // On the sea, start on its round, already facing the way it sails.
-      const px = sea ? c + Math.cos(angle) * radius : x + 0.5;
-      const pz = sea ? c + Math.sin(angle) * radius : z + 0.5;
+      const px = sea ? c + Math.cos(angle) * reach : x + 0.5;
+      const pz = sea ? c + Math.sin(angle) * reach : z + 0.5;
       if (sea) flat.rotation.y = Math.atan2(-Math.sin(angle) * dir, Math.cos(angle) * dir);
       const old = before.get(`${id},${x},${z}`);
       boats.push({
@@ -204,15 +206,20 @@ export function buildIsland(initial: World, pets: PetSpec[]) {
     return flat;
   };
 
+  /** Distance from the island centre of the boats' course: a rounded square `offset` cells off the grid. */
+  const course = (angle: number, offset: number) =>
+    (world.size / 2 + offset) / Math.pow(Math.pow(Math.abs(Math.cos(angle)), 4) + Math.pow(Math.abs(Math.sin(angle)), 4), 0.25);
+
   /** Moves a boat a little: round the island on the sea, from water cell to water cell on a pond. */
   const sail = (b: Boat, dt: number) => {
     const c = world.size / 2;
     let dx: number;
     let dz: number;
     if (b.sea) {
-      b.angle += (b.dir * BOAT_SPEED * dt) / b.radius;
-      const nx = c + Math.cos(b.angle) * b.radius;
-      const nz = c + Math.sin(b.angle) * b.radius;
+      const reach = course(b.angle, b.radius);
+      b.angle += (b.dir * BOAT_SPEED * dt) / reach;
+      const nx = c + Math.cos(b.angle) * reach;
+      const nz = c + Math.sin(b.angle) * reach;
       dx = nx - b.x;
       dz = nz - b.z;
       b.x = nx;
