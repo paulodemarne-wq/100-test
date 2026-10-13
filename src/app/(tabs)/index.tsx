@@ -20,7 +20,7 @@ import { focusSeconds, MAX_AWAY_MS, Notice, todoSplitAt, useLockin, useNow } fro
 import { isFinished, sortTodos } from '../../lib/todos';
 import { countdown as examCountdown, planExam } from '../../lib/exams';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
-import { formatDuration, formatTimer } from '../../lib/time';
+import { formatDuration, formatTimer, startOfWeek } from '../../lib/time';
 import { decorationOf } from '../../lib/premium';
 import { Named } from '../../components/Badge';
 
@@ -97,6 +97,8 @@ export default function FocusScreen() {
   const banners = [nudges.length > 0, !!notice, !!nextExam && !active, !!liveEvent].filter(Boolean).length >= 2;
 
   const elapsedSec = active ? focusSeconds(active, now) : 0;
+  // The week total moves with the lock-in in progress (it is saved for good at the end).
+  const weekLive = myWeekSeconds + (active && active.startedAt >= startOfWeek(new Date(now)) ? elapsedSec : 0);
   const blocks = Math.floor(elapsedSec / FOCUS_BLOCK_SEC);
   const pause = active?.pause ?? null;
   const pauseLeftSec = pause ? Math.max(0, (pause.until - now) / 1000) : 0;
@@ -168,8 +170,8 @@ export default function FocusScreen() {
           <Stat
             icon="time-outline"
             label={goalSeconds > 0 ? `sur ${formatDuration(goalSeconds)} cette semaine` : 'Cette semaine'}
-            value={formatDuration(myWeekSeconds)}
-            progress={goalSeconds > 0 ? myWeekSeconds / goalSeconds : undefined}
+            value={formatDuration(weekLive)}
+            progress={goalSeconds > 0 ? weekLive / goalSeconds : undefined}
             onPress={() => router.push('/profile')}
           />
           <Stat icon="flame-outline" label="Série" value={`${myStreak} j`} onPress={() => router.push('/profile')} />

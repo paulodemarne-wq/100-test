@@ -91,21 +91,24 @@ async function finishRemote(active: ActiveSession, ending: Ending) {
     return;
   }
   const closed = withPauseClosed(active, ending.endedAt);
+  const fields = {
+    status: ending.status,
+    ended_at: new Date(ending.endedAt).toISOString(),
+    last_seen_at: new Date(ending.endedAt).toISOString(),
+    duration_sec: Math.min(43_200, Math.round(focusSeconds(closed, ending.endedAt))),
+    paused_seconds: Math.min(43_200, Math.round(closed.pausedSeconds)),
+    paused_until: null,
+    leaves: active.leaves,
+    tasks: active.tasks,
+  };
   const { error } = await supabase
     .from('study_sessions')
-    .update({
-      status: ending.status,
-      ended_at: new Date(ending.endedAt).toISOString(),
-      last_seen_at: new Date(ending.endedAt).toISOString(),
-      duration_sec: Math.min(43_200, Math.round(focusSeconds(closed, ending.endedAt))),
-      paused_seconds: Math.min(43_200, Math.round(closed.pausedSeconds)),
-      paused_until: null,
-      leaves: active.leaves,
-      tasks: active.tasks,
-      todo_split: roundSplit(todoSplitAt(closed, ending.endedAt)),
-    })
+    .update({ ...fields, todo_split: roundSplit(todoSplitAt(closed, ending.endedAt)) })
     .eq('id', active.remoteId);
-  if (error) throw error;
+  if (!error) return;
+  // The to-do part must never cost the session itself (e.g. a database not updated yet).
+  const retry = await supabase.from('study_sessions').update(fields).eq('id', active.remoteId);
+  if (retry.error) throw retry.error;
 }
 
 function updateRemote(id: string | null, fields: Record<string, unknown>) {
