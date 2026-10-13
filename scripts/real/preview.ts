@@ -8,6 +8,7 @@ import { buildBird, BirdLook } from '../../src/creatures/real/bird';
 import { STAGE_NAMES, type Animal, type Stage } from '../../src/creatures/real/types';
 import { buildNatureIsland } from '../../src/world/real/nature';
 import { buildAnimal } from '../../src/creatures/real/index';
+import { buildCreature } from '../../src/creatures/build';
 import { REAL_SPECIES } from '../../src/creatures/real/catalog';
 
 const SIZE = 330;
@@ -64,6 +65,18 @@ const shots: Shot[] = [
     const [a, b] = (range ?? '0-39').split('-').map(Number);
     return REAL_SPECIES.filter((sp) => sp.id >= a && sp.id <= b).map((sp) => ({ label: `${sp.id} ${sp.name}`, make: () => buildAnimal(sp.id, Number(st) as Stage) }));
   })),
+  ...(which.includes('acc')
+    ? [
+        [6, 20, { head: 'crown', neck: 'scarf' }],
+        [0, 20, { head: 'cap', eyes: 'shades' }],
+        [22, 20, { head: 'wizard', back: 'backpack' }],
+        [16, 20, { head: 'beanie', eyes: 'glasses', neck: 'bowtie' }],
+        [9, 30, { head: 'viking', back: 'cape' }],
+      ].map(([sp, lv, eq]) => ({ label: `acc ${sp}`, make: () => {
+        const c = buildCreature({ species: sp as number, level: lv as number, equipped: eq as Record<string, string> });
+        return { group: c.group, height: 1, update: c.update, dispose: c.dispose };
+      } }))
+    : []),
   ...(which.includes('eagle') ? ages.map((age) => ({ label: `Aigle · ${AGE_NAMES[age]}`, make: () => buildBird(eagle, age, 8) })) : []),
 ];
 

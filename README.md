@@ -20,15 +20,15 @@ Lockin est une app de révision sociale : tu lances une session « Je bosse », 
 - **To-do** (onglet à part) : chaque to-do a un temps de travail et une date. Pendant le chrono, on touche la to-do sur laquelle on bosse (ex : maths, puis français) : chaque morceau de temps remplit la bonne to-do.
   Triées de la plus proche à la plus lointaine, avec un rappel si elle n'est pas finie (20 % du délai avant la date, 2 jours minimum).
 - **Réactions** 🔥 💪 🫡 💀 😴 sur les sessions des amis, **couronne 👑** pour le n°1 de la semaine.
-- **Mon animal** 🐾 : un œuf qui éclot en un des **100 animaux** (16 corps différents : slime, golem, dragon, pieuvre, escargot…), à faire tourner en 3D.
-  Il gagne l'expérience de tes sessions : **40 niveaux**, un changement visible à chaque niveau, 3 formes d'évolution,
-  et les paliers Bébé → Rare → Super rare → Épique → Mythique → Légendaire. Le niveau max demande ~2 190 h (2 ans à 3 h/jour).
+- **Mon animal** 🐾 : un œuf qui éclot en un des **30 animaux réalistes** (serpents, loups, félins, ours, oiseaux…, + 10 Lockin+), en 3D avec fourrure, écailles et plumes.
+  Il gagne l'expérience de tes sessions : **40 niveaux**, il grandit à chaque niveau et passe 5 paliers : Bébé → Jeune → Adulte → Alpha → Légende.
+  Chaque animal a un élément (feu, glace, foudre, nature, ombre) : piques, cornes, crinière d'élément, ailes et aura apparaissent avec les paliers. Le niveau max demande ~2 190 h (2 ans à 3 h/jour).
 - **Mon île** 🏝️ : une île qui commence vide et qu'on décore comme on veut : peindre le sol (herbe, chemin, pavés, eau, sable, neige, nuages…)
   et poser jusqu'à 200 objets (plus de 50 : maisons, igloo, moulin, phare, arbres, balançoire, trampoline, coffre au trésor…).
   Chaque objet se paie à la pièce (confirmation avant de payer) ; un objet enlevé retourne dans le stock. Comme dans Clash of Clans : touche un objet pour le choisir (carré à flèches, « Supprimer » au-dessus avec confirmation, « Tourner » en dessous), maintiens-le pour le déplacer. Bouton « Magasin » pour poser de nouveaux objets ; tout s'enregistre tout seul.
   On peut **l'agrandir** (16×16 → 32×32), **ajouter la mer** autour et y mettre **des bateaux** (barque, pédalo canard, voilier, yacht, bateau pirate).
   **Les animaux de tous tes amis se promènent sur ton île** : touche-en un, il se tourne vers toi avec son nom et un bouton pour visiter son île.
-- **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis 10 h → légendaire 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 100 animaux.
+- **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis de 10 h à 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 40 animaux, avec un aperçu de chaque palier.
 - **Rappel quotidien** à l'heure choisie et **joker de série** : un jour raté par mois est pardonné.
 
 ### Compte vedette
@@ -79,7 +79,7 @@ src/app/                 écrans (Expo Router : chaque fichier = un écran)
   (tabs)/ranking.tsx     classement
   shop.tsx, bestiary.tsx boutique et bestiaire
   world.tsx              l'île : visite, amis qui s'y promènent, édition à la Clash of Clans + Magasin
-src/creatures/           100 espèces, niveaux, boutique (species.ts) modèles 3D (build.ts)
+src/creatures/           40 animaux réalistes (real/), niveaux, boutique (species.ts), accessoires (build.ts)
 src/world/               l'île : données (world.ts), objets 3D (decor.ts), scène et caméra (scene.ts)
 src/components/          PetView et WorldView (3D), Avatar, anneau, listes, date/heure, pause, tâches, réactions
 src/lib/
@@ -107,7 +107,7 @@ src/lib/
 ## Lockin+ (l'abonnement)
 
 - Badge à côté du prénom (12 symboles, 3 couleurs, style Snap), décoration de photo en 3D (anneau de feu, couronne, ange…),
-  l'œuf Lockin+ (10 animaux exclusifs avec chacun une signature en 3D) et 6 décos d'île gratuites.
+  l'œuf Lockin+ (10 animaux exclusifs : panthère noire, tigre blanc, loup noir, cobra doré…) et 6 décos d'île gratuites.
 - Aussi : titre sous le prénom, renommer son animal (montré en grand sur le profil), 2 jokers de série par mois,
   stats détaillées, thèmes du chrono avec fond animé et l'animal qui réagit, un accessoire offert chaque mois,
   2 îles en plus (neige, volante), lock in de groupe jusqu'à 30 (8 sans Lockin+).
