@@ -108,7 +108,7 @@ export function decorationOf(p: Someone): string | null {
 /** Everything Lockin+ gives, for the Lockin+ screen. */
 export const PLUS_PERKS: { icon: string; title: string; text: string }[] = [
   { icon: 'ribbon', title: 'Badge, titre et décoration de photo', text: '12 badges, 12 titres, 10 décorations en 3D (anneau de feu, couronne…).' },
-  { icon: 'egg', title: '10 animaux exclusifs', text: 'L’œuf Lockin+ : Solari, Kitsu, Chrono… chacun avec sa signature.' },
+  { icon: 'egg', title: '10 animaux exclusifs', text: 'L’œuf Lockin+ : panthère noire, tigre blanc, loup noir, cobra doré, jaguar…' },
   { icon: 'gift', title: 'Un accessoire offert chaque mois', text: 'Diadème, oreilles de lapin, écharpe galaxie, ailes de papillon…' },
   { icon: 'snow', title: '2 îles en plus + 6 décos gratuites', text: 'Une île de neige, une île volante, et des décos exclusives.' },
   { icon: 'timer', title: 'Effets du chrono', text: 'Thèmes de couleurs, fond animé, ton animal qui fait la fête à côté.' },
