@@ -3,10 +3,10 @@
 import * as THREE from 'three';
 import { addFur } from './fur';
 import { loft, Section } from './loft';
-import { clamp01, fbm, hex, mix, noise2, smooth } from './noise';
+import { clamp01, fbm, glowLines, hex, mix, mixHex, noise2, smooth } from './noise';
 import { auraMotes } from './snake';
 import { bake, eyeTexture } from './textures';
-import type { Age, Animal } from './types';
+import { STAGES, type Age, type Animal, type Stage } from './types';
 
 type RGB = [number, number, number];
 const lerp3 = (a: RGB, b: RGB, t: number): RGB => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
@@ -34,6 +34,8 @@ export type QuadLook = {
   tail?: 'bushy' | 'thin' | 'tuft' | 'short';
   /** Fur length (1 = wolf). 0 = short coat (tiger, deer). */
   fur?: number;
+  /** Color of the glowing markings (legend). */
+  glow?: string;
   /** Lion's mane on the majestic adult (or every adult). */
   mane?: 'adult' | 'majestic';
   /** Antlers on the adult (deer). */
@@ -47,10 +49,22 @@ const AGES: Record<Age, { size: number; head: number; snout: number; legs: numbe
   3: { size: 1.1, head: 1.02, snout: 1.0, legs: 1.02, body: 1.04, fur: 1.25, ears: 1.0 },
 };
 
-export function buildQuadruped(look: QuadLook, age: Age, seed: number): Animal {
+export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Animal {
+  const S = STAGES[stage];
+  const age = S.age;
   const A = AGES[age];
-  const majestic = age === 3;
-  const col = majestic ? { ...look, ...look.majestic } : look;
+  // Alpha and legend: the mane / ruff grows (it used to be the majestic adult's).
+  const majestic = stage >= 3;
+  const m = look.majestic ?? {};
+  const col = {
+    ...look,
+    base: mixHex(look.base, m.base, S.rich),
+    back: mixHex(look.back, m.back, S.rich),
+    belly: mixHex(look.belly, m.belly, S.rich),
+    accent: mixHex(look.accent, m.accent, S.rich),
+    iris: mixHex(look.iris, m.iris, S.rich),
+  };
+  const glowColor = look.glow ?? '#9FE3FF';
   const L = (look.length ?? 1) * A.body;
   const Ht = (look.height ?? 1) * A.legs;
   const G = look.girth ?? 1;
@@ -171,7 +185,9 @@ export function buildQuadruped(look: QuadLook, age: Age, seed: number): Animal {
   };
   const skin = bake(512, 256, (u, v) => {
     const c = coat(u, v, xAt(u));
-    return { c, height: noise2(u * 300, v * 60, seed) * 0.4, rough: 0.9 };
+    const top = Math.cos((v - 0.25) * Math.PI * 2);
+    const glow = S.marks ? glowLines(u * 7, v * 4, seed + 50, 4, 0.045) * smooth(-0.3, 0.3, top) : 0;
+    return { c, height: noise2(u * 300, v * 60, seed) * 0.4, rough: 0.9, glow };
   });
   // Longer fur on the neck (ruff/mane), shorter on the face.
   const lenMap = bake(256, 64, (u) => {
@@ -184,14 +200,14 @@ export function buildQuadruped(look: QuadLook, age: Age, seed: number): Animal {
     return { c: [g, g, g], height: 0, rough: 1 };
   });
 
-  const skinMat = new THREE.MeshStandardMaterial({ map: skin.map, normalMap: skin.normalMap, roughness: 0.95 });
+  const skinMat = new THREE.MeshStandardMaterial({ map: skin.map, normalMap: skin.normalMap, roughness: 0.95, emissiveMap: skin.glowMap, emissive: new THREE.Color(skin.glowMap ? glowColor : '#000000'), emissiveIntensity: S.marks });
   const body = new THREE.Mesh(bodyGeo, skinMat);
   body.castShadow = true;
   group.add(body);
   const furLen = 0.045 * furK;
   const breathing: THREE.Mesh[] = [body];
   if (furK > 0.05)
-    for (const s of addFur(body, { map: skin.map, length: furLen * (look.mane && (look.mane === 'adult' ? age >= 2 : majestic) ? 1.8 : 1), lengthMap: lenMap.map, density: [900, 140], shells: 16, gravity: 0.6 })) {
+    for (const s of addFur(body, { map: skin.map, length: furLen * (look.mane && (look.mane === 'adult' ? age >= 2 : majestic) ? 1.8 : 1), lengthMap: lenMap.map, density: [900, 140], shells: 16, gravity: 0.6, glowMap: skin.glowMap, glowColor, glow: S.marks })) {
       group.add(s);
       breathing.push(s);
     }
@@ -318,7 +334,8 @@ export function buildQuadruped(look: QuadLook, age: Age, seed: number): Animal {
   }
 
   // ── Eyes and nose.
-  const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTexture(col.iris, false), roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02 });
+  const eyeTex = eyeTexture(col.iris, false);
+  const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, emissiveMap: eyeTex, emissive: new THREE.Color(S.eyes ? '#ffffff' : '#000000'), emissiveIntensity: S.eyes });
   const eyeR = 0.026 * H * (age === 0 ? 1.25 : 1);
   for (const side of [-1, 1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 20, 14), eyeMat);
@@ -336,7 +353,7 @@ export function buildQuadruped(look: QuadLook, age: Age, seed: number): Animal {
   // ── Lion's mane / antlers.
   if (look.antlers && age >= 2) group.add(antlers(skullX, headY + 0.1 * H, H * (majestic ? 1.25 : 1)));
 
-  const motes = majestic ? auraMotes(col.belly, 0.9, 1.3) : null;
+  const motes = S.motes ? auraMotes(glowColor, 0.9, 1.3) : null;
   if (motes) group.add(motes);
 
   // Center, face three-quarters toward the camera, scale to age.
@@ -346,7 +363,7 @@ export function buildQuadruped(look: QuadLook, age: Age, seed: number): Animal {
     if (c !== motes) c.position.x -= cx;
   });
   group.rotation.y = -0.85;
-  group.scale.setScalar(A.size);
+  group.scale.setScalar(S.size);
   const top = new THREE.Box3().setFromObject(group).max.y;
 
   return {
@@ -357,6 +374,10 @@ export function buildQuadruped(look: QuadLook, age: Age, seed: number): Animal {
       const b = 1 + Math.sin(t * 2.2) * 0.01;
       for (const m of breathing) m.scale.set(1, b, b);
       if (motes) motes.rotation.y = t * 0.25;
+      if (S.marks) {
+        const g = S.marks * (0.65 + 0.35 * Math.sin(t * 2.2));
+        for (const m of breathing) (m.material as THREE.MeshStandardMaterial).emissiveIntensity = g;
+      }
     },
     dispose: () => {
       group.traverse((o) => (o as THREE.Mesh).geometry?.dispose());

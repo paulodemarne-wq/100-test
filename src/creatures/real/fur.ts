@@ -41,6 +41,10 @@ export type FurOptions = {
   roughness?: number;
   /** Hair sheen color (e.g. silver for the majestic adult). */
   sheen?: string;
+  /** Glowing markings showing through the fur. */
+  glowMap?: THREE.Texture | null;
+  glowColor?: string;
+  glow?: number;
 };
 
 /** Adds the fur shells on top of a body mesh (which keeps its own skin material). */
@@ -56,6 +60,9 @@ export function addFur(body: THREE.Mesh, o: FurOptions): THREE.Mesh[] {
       transparent: false,
       alphaTest: 0.5,
       side: THREE.FrontSide,
+      emissiveMap: o.glowMap ?? null,
+      emissive: new THREE.Color(o.glowMap ? (o.glowColor ?? '#9FE3FF') : '#000000'),
+      emissiveIntensity: o.glow ?? 0,
     });
     m.onBeforeCompile = (shader) => {
       shader.uniforms.uLevel = { value: level };

@@ -1,9 +1,9 @@
 // Realistic snake: coiled on the ground, front raised, looking at you. Same snake at every age, it just grows up.
 import * as THREE from 'three';
 import { frameAt, loft, profile } from './loft';
-import { rng } from './noise';
+import { mixHex, rng } from './noise';
 import { eyeTexture, snakeSkin, SnakePattern } from './textures';
-import type { Age, Animal } from './types';
+import { STAGES, type Age, type Animal, type Stage } from './types';
 
 export type SnakeLook = {
   pattern: SnakePattern;
@@ -14,6 +14,8 @@ export type SnakeLook = {
   iris: string;
   /** Colors of the majestic adult (richer). */
   majestic?: Partial<Pick<SnakeLook, 'base' | 'dark' | 'light' | 'belly' | 'iris'>>;
+  /** Color of the glowing markings (legend). */
+  glow?: string;
   /** Cobra hood when raised. */
   hood?: boolean;
   /** Body thickness (1 = python, 0.7 = slender). */
@@ -28,10 +30,18 @@ const AGES: Record<Age, { size: number; loops: number; head: number; girth: numb
   3: { size: 1.12, loops: 2.1, head: 1.0, girth: 1.06, raise: 1.12 },
 };
 
-export function buildSnake(look: SnakeLook, age: Age, seed: number): Animal {
+export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal {
+  const S = STAGES[stage];
+  const age = S.age;
   const A = AGES[age];
-  const majestic = age === 3;
-  const col = majestic ? { ...look, ...look.majestic } : look;
+  const m = look.majestic ?? {};
+  const col = {
+    base: mixHex(look.base, m.base, S.rich),
+    dark: mixHex(look.dark, m.dark, S.rich),
+    light: mixHex(look.light, m.light, S.rich),
+    belly: mixHex(look.belly, m.belly, S.rich),
+    iris: mixHex(look.iris, m.iris, S.rich),
+  };
   const girth = (look.girth ?? 1) * A.girth;
   const R = 0.16 * girth; // max body radius (before the size factor)
   const r = rng(seed);
@@ -114,7 +124,8 @@ export function buildSnake(look: SnakeLook, age: Age, seed: number): Animal {
       rows: Math.round(length / (R * 0.17)),
       around: 40,
       head: hs,
-      shine: majestic ? 1 : age === 2 ? 0.35 : 0.15,
+      shine: age === 0 ? 0.15 : 0.3 + S.rich * 0.7,
+      marks: S.marks > 0,
     },
     age === 0 ? 1024 : 2048,
     160,
@@ -126,9 +137,12 @@ export function buildSnake(look: SnakeLook, age: Age, seed: number): Animal {
     roughnessMap: skin.roughnessMap,
     roughness: 1,
     metalness: 0,
-    clearcoat: majestic ? 0.7 : 0.3,
-    clearcoatRoughness: majestic ? 0.12 : 0.35,
-    iridescence: majestic ? 0.55 : 0,
+    clearcoat: 0.3 + S.rich * 0.4,
+    clearcoatRoughness: mix01(0.35, 0.12, S.rich),
+    iridescence: S.rich * 0.55,
+    emissiveMap: skin.glowMap,
+    emissive: new THREE.Color(skin.glowMap ? (look.glow ?? '#54E6FF') : '#000000'),
+    emissiveIntensity: S.marks,
     iridescenceIOR: 1.35,
     iridescenceThicknessRange: [200, 600],
   });
@@ -139,7 +153,8 @@ export function buildSnake(look: SnakeLook, age: Age, seed: number): Animal {
   group.add(bodyMesh);
 
   // ── Eyes on both sides of the head.
-  const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTexture(col.iris, look.pattern !== 'cobra' && look.pattern !== 'bands' && look.pattern !== 'emerald' ? true : look.pattern === 'emerald'), roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.02 });
+  const eyeTex = eyeTexture(col.iris, look.pattern !== 'cobra' && look.pattern !== 'bands' && look.pattern !== 'emerald' ? true : look.pattern === 'emerald');
+  const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.02, emissiveMap: eyeTex, emissive: new THREE.Color(S.eyes ? '#ffffff' : '#000000'), emissiveIntensity: S.eyes });
   const eyeU = hs + headLen * 0.5;
   const fe = frameAt(curve, eyeU);
   const eyeR = R * 0.115 * A.head * (age === 0 ? 1.2 : 1);
@@ -176,7 +191,7 @@ export function buildSnake(look: SnakeLook, age: Age, seed: number): Animal {
   }
 
   // ── Majestic adult: a slow ring of light motes around it.
-  const motes: THREE.Points | null = majestic ? auraMotes(col.light, radEnd * 1.3, H) : null;
+  const motes: THREE.Points | null = S.motes ? auraMotes(look.glow ?? col.light, radEnd * 1.3, H) : null;
   if (motes) group.add(motes);
 
   // Center on the ground and scale to its age.
@@ -185,11 +200,11 @@ export function buildSnake(look: SnakeLook, age: Age, seed: number): Animal {
   group.children.forEach((c) => {
     if (c !== motes) c.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
   });
-  group.scale.setScalar(A.size);
+  group.scale.setScalar(S.size);
 
   return {
     group,
-    height: (box.max.y - box.min.y) * A.size,
+    height: (box.max.y - box.min.y) * S.size,
     update: (t) => {
       // Gentle breathing and a head sway.
       bodyMesh.scale.set(1, 1 + Math.sin(t * 1.6) * 0.012, 1);
@@ -200,6 +215,7 @@ export function buildSnake(look: SnakeLook, age: Age, seed: number): Animal {
         tongue.scale.setScalar(Math.max(0.001, out));
       }
       if (motes) motes.rotation.y = t * 0.25;
+      if (S.marks) body.emissiveIntensity = S.marks * (0.65 + 0.35 * Math.sin(t * 2.2));
     },
     dispose: () => {
       group.traverse((o) => {
@@ -212,6 +228,8 @@ export function buildSnake(look: SnakeLook, age: Age, seed: number): Animal {
 }
 
 /** Floating golden dust around a majestic adult. */
+const mix01 = (a: number, b: number, t: number) => a + (b - a) * t;
+
 export function auraMotes(color: string, radius: number, height: number): THREE.Points {
   const r = rng(77);
   const n = 70;

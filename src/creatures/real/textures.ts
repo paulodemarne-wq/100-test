@@ -1,8 +1,8 @@
 // Procedural skin textures (color, relief, shine), drawn pixel by pixel so they work on the phone without a canvas.
 import * as THREE from 'three';
-import { clamp01, fbm, hex, mix, noise2, smooth } from './noise';
+import { clamp01, fbm, glowLines, hex, mix, noise2, smooth } from './noise';
 
-export type Skin = { map: THREE.DataTexture; normalMap: THREE.DataTexture; roughnessMap: THREE.DataTexture };
+export type Skin = { map: THREE.DataTexture; normalMap: THREE.DataTexture; roughnessMap: THREE.DataTexture; glowMap: THREE.DataTexture | null };
 
 function texture(data: Uint8Array, w: number, h: number, srgb: boolean): THREE.DataTexture {
   const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat);
@@ -21,13 +21,14 @@ function texture(data: Uint8Array, w: number, h: number, srgb: boolean): THREE.D
 export function bake(
   w: number,
   h: number,
-  pixel: (u: number, v: number) => { c: [number, number, number]; height: number; rough: number },
+  pixel: (u: number, v: number) => { c: [number, number, number]; height: number; rough: number; glow?: number },
   bumpScale = 3,
   wrapU = false,
 ): Skin {
   const color = new Uint8Array(w * h * 4);
   const rough = new Uint8Array(w * h * 4);
   const heights = new Float32Array(w * h);
+  let glow: Uint8Array | null = null;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
@@ -43,6 +44,13 @@ export function bake(
       rough[i * 4 + 2] = r;
       rough[i * 4 + 3] = 255;
       heights[i] = p.height;
+      if (p.glow && p.glow > 0) {
+        glow ??= new Uint8Array(w * h * 4);
+        const g = Math.round(clamp01(p.glow) * 255);
+        glow[i * 4] = g;
+        glow[i * 4 + 1] = g;
+        glow[i * 4 + 2] = g;
+      }
     }
   }
   const normal = new Uint8Array(w * h * 4);
@@ -62,7 +70,13 @@ export function bake(
       normal[i + 3] = 255;
     }
   }
-  return { map: texture(color, w, h, true), normalMap: texture(normal, w, h, false), roughnessMap: texture(rough, w, h, false) };
+  if (glow) for (let i = 3; i < glow.length; i += 4) glow[i] = 255;
+  return {
+    map: texture(color, w, h, true),
+    normalMap: texture(normal, w, h, false),
+    roughnessMap: texture(rough, w, h, false),
+    glowMap: glow ? texture(glow, w, h, false) : null,
+  };
 }
 
 type RGB = [number, number, number];
@@ -85,6 +99,8 @@ export type SnakeSkinOptions = {
   head?: number;
   /** 0..1: glossier, richer scales (the majestic adult). */
   shine?: number;
+  /** Glowing markings (legend). */
+  marks?: boolean;
 };
 
 /** Snake skin: overlapping scales colored scale by scale, wide plates under the belly. u = along the body, v = around. */
@@ -213,7 +229,8 @@ export function snakeSkin(o: SnakeSkinOptions, w = 1024, h = 128): Skin {
       const stripe = 1 - smooth(0.02, 0.05, Math.abs(Math.abs(v - 0.25) - 0.17));
       c = lerpRGB(c, dark, stripe * smooth(headU, headU + 0.02, u) * 0.85);
     }
-    return { c, height: dome * edge, rough: mix(0.62, 0.34, edge * dome) - shine * 0.18 };
+    const glow = o.marks ? glowLines(u * rows * 0.025, v * 5, o.seed + 50, 5, 0.055) * smooth(-0.35, 0.25, top) : 0;
+    return { c, height: dome * edge, rough: mix(0.62, 0.34, edge * dome) - shine * 0.18, glow };
   }, 2.2);
 }
 

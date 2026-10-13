@@ -3,10 +3,10 @@
 import * as THREE from 'three';
 import { addFur } from './fur';
 import { loft } from './loft';
-import { hex, mix, noise2, smooth } from './noise';
+import { glowLines, hex, mix, mixHex, noise2, smooth } from './noise';
 import { auraMotes } from './snake';
 import { bake, eyeTexture } from './textures';
-import type { Age, Animal } from './types';
+import { STAGES, type Age, type Animal, type Stage } from './types';
 
 type RGB = [number, number, number];
 const lerp3 = (a: RGB, b: RGB, t: number): RGB => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
@@ -26,7 +26,9 @@ export type BirdLook = {
   /** Hooked (raptor) or straight beak; owls get a flat face. */
   beakShape?: 'hook' | 'straight' | 'parrot';
   owl?: boolean;
-  majestic?: Partial<Pick<BirdLook, 'head' | 'body' | 'wing' | 'tail' | 'chest' | 'iris'>>;
+  majestic?: Partial<Pick<BirdLook, 'head' | 'body' | 'wing' | 'tail' | 'chest' | 'iris' | 'beak' | 'legs'>>;
+  /** Color of the glowing markings (legend). */
+  glow?: string;
   size?: number;
 };
 
@@ -53,10 +55,24 @@ function featherPixel(u: number, v: number, rows: number, cols: number, seed: nu
   return { edge, shaft, barbs, id, ly };
 }
 
-export function buildBird(look: BirdLook, age: Age, seed: number): Animal {
+export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
+  const S = STAGES[stage];
+  const age = S.age;
   const A = AGES[age];
-  const majestic = age === 3;
-  const col = majestic ? { ...look, ...look.majestic } : look;
+  const m = look.majestic ?? {};
+  const col = {
+    ...look,
+    head: mixHex(look.head, m.head, S.rich),
+    body: mixHex(look.body, m.body, S.rich),
+    wing: mixHex(look.wing, m.wing, S.rich),
+    tail: mixHex(look.tail, m.tail, S.rich),
+    chest: mixHex(look.chest, m.chest, S.rich),
+    iris: mixHex(look.iris, m.iris, S.rich),
+    beak: mixHex(look.beak, m.beak, S.rich),
+    legs: mixHex(look.legs, m.legs, S.rich),
+  };
+  const glowColor = look.glow ?? '#FFC86B';
+  const glowing: THREE.MeshStandardMaterial[] = [];
   const H = A.head;
   const group = new THREE.Group();
   const C = (c: string) => hex(c) as RGB;
@@ -103,9 +119,12 @@ export function buildBird(look: BirdLook, age: Age, seed: number): Animal {
     c = mul(c, (0.82 + 0.18 * f.edge) * f.barbs * (0.92 + f.id * 0.16));
     // Mottled juvenile.
     if (age === 1) c = lerp3(c, C(col.chest), smooth(0.62, 0.7, noise2(u * 30, v * 20, seed + 9)) * 0.6);
-    return { c, height: f.edge * 0.6 + f.shaft * 0.2, rough: 0.85 };
+    const glow = S.marks ? glowLines(u * 6, v * 4, seed + 50, 4, 0.05) * smooth(-0.6, 0.2, front) * (1 - isHead) : 0;
+    return { c, height: f.edge * 0.6 + f.shaft * 0.2, rough: 0.85, glow };
   });
-  const bodyMesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: plumage.map, normalMap: plumage.normalMap, roughness: 0.85 }));
+  const bodyMat = new THREE.MeshStandardMaterial({ map: plumage.map, normalMap: plumage.normalMap, roughness: 0.85, emissiveMap: plumage.glowMap, emissive: new THREE.Color(plumage.glowMap ? glowColor : '#000000'), emissiveIntensity: S.marks });
+  glowing.push(bodyMat);
+  const bodyMesh = new THREE.Mesh(geometry, bodyMat);
   bodyMesh.castShadow = true;
   group.add(bodyMesh);
   // Soft feathers on the head (and fluffy down on chicks).
@@ -130,7 +149,7 @@ export function buildBird(look: BirdLook, age: Age, seed: number): Animal {
       return { rx: r * 0.62, ry: r, flat: 0 };
     },
   });
-  const beakColor = age === 0 ? '#6B6560' : look.beak;
+  const beakColor = age === 0 ? '#6B6560' : col.beak;
   const beak = new THREE.Mesh(beakGeo, new THREE.MeshPhysicalMaterial({ color: beakColor, roughness: 0.35, clearcoat: 0.6 }));
   beak.position.copy(beakStart).add(new THREE.Vector3(downLen * 0.6, 0, 0));
   group.add(beak);
@@ -141,7 +160,8 @@ export function buildBird(look: BirdLook, age: Age, seed: number): Animal {
   group.add(jaw);
 
   // ── Eyes with a heavy brow (the raptor stare).
-  const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTexture(age === 0 ? '#3A2A20' : col.iris, false), roughness: 0.05, clearcoat: 1 });
+  const eyeTex = eyeTexture(age === 0 ? '#3A2A20' : col.iris, false);
+  const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.05, clearcoat: 1, emissiveMap: eyeTex, emissive: new THREE.Color(S.eyes ? '#ffffff' : '#000000'), emissiveIntensity: S.eyes });
   const eyeR = 0.026 * H * (look.owl ? 1.7 : 1);
   const ep = spine.getPointAt(0.9);
   const er = sec(0.9).rx;
@@ -158,6 +178,20 @@ export function buildBird(look: BirdLook, age: Age, seed: number): Animal {
     }
   }
 
+  // ── Alpha and legend: a crest of long feathers at the back of the head.
+  if (stage >= 3) {
+    const crestMat = new THREE.MeshStandardMaterial({ map: plumage.map, roughness: 0.85, side: THREE.DoubleSide, emissiveMap: plumage.glowMap, emissive: new THREE.Color(plumage.glowMap ? glowColor : '#000000'), emissiveIntensity: S.marks });
+    const hp = spine.getPointAt(0.84);
+    for (let i = 0; i < 7; i++) {
+      const t = i / 6 - 0.5;
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.16 + (0.5 - Math.abs(t)) * 0.08, 8), crestMat);
+      c.scale.z = 0.35;
+      c.position.set(hp.x - 0.07, hp.y + 0.05, t * 0.1);
+      c.rotation.set(t * 0.6, 0, 1.15 + Math.abs(t) * 0.3);
+      group.add(c);
+    }
+  }
+
   // ── Wings: a covert surface + long primary feathers. Folded along the body, or spread wide.
   const featherMat = (c: RGB, tipDark = 0.75) => {
     const t = bake(64, 256, (u, v) => {
@@ -165,9 +199,12 @@ export function buildBird(look: BirdLook, age: Age, seed: number): Animal {
       const shaft = smooth(0.06, 0.0, across);
       const barbs = 0.9 + 0.1 * Math.sin(u * 120 + across * 20);
       const cc = mul(c, (0.85 + 0.15 * (1 - across)) * barbs * mix(1, tipDark, smooth(0.6, 1, u)));
-      return { c: lerp3(cc, mul(c, 1.25), shaft * 0.5), height: 1 - across * across + shaft * 0.3, rough: 0.8 };
+      const glow = S.marks ? Math.max(smooth(0.62, 0.9, across), smooth(0.05, 0.0, across) * 0.8) * smooth(0.2, 0.8, u) : 0;
+      return { c: lerp3(cc, mul(c, 1.25), shaft * 0.5), height: 1 - across * across + shaft * 0.3, rough: 0.8, glow };
     });
-    return new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughness: 0.8, side: THREE.DoubleSide });
+    const fm = new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughness: 0.8, side: THREE.DoubleSide, emissiveMap: t.glowMap, emissive: new THREE.Color(t.glowMap ? glowColor : '#000000'), emissiveIntensity: S.marks });
+    glowing.push(fm);
+    return fm;
   };
   const wingMat = featherMat(wingC);
   const tailMat = featherMat(tailC, 0.92);
@@ -242,7 +279,7 @@ export function buildBird(look: BirdLook, age: Age, seed: number): Animal {
   }
 
   // ── Legs and talons on a branch.
-  const legMat = new THREE.MeshStandardMaterial({ color: age === 0 ? '#C9B98F' : look.legs, roughness: 0.55 });
+  const legMat = new THREE.MeshStandardMaterial({ color: age === 0 ? '#C9B98F' : col.legs, roughness: 0.55 });
   const talonMat = new THREE.MeshPhysicalMaterial({ color: '#1A1714', roughness: 0.3, clearcoat: 0.6 });
   const branchY = 0.3;
   for (const side of [-1, 1]) {
@@ -287,17 +324,18 @@ export function buildBird(look: BirdLook, age: Age, seed: number): Animal {
   branch.castShadow = true;
   group.add(branch);
 
-  const motes = majestic ? auraMotes('#FFE7A0', 0.9, 1.4) : null;
+  const motes = S.motes ? auraMotes(glowColor, 0.9, 1.4) : null;
   if (motes) group.add(motes);
 
   group.rotation.y = -0.75;
-  group.scale.setScalar(A.size * (look.size ?? 1));
+  group.scale.setScalar(S.size * (look.size ?? 1));
   return {
     group,
-    height: 1.2 * A.size,
+    height: 1.2 * S.size,
     update: (t) => {
       bodyMesh.rotation.z = Math.sin(t * 0.7) * 0.01;
       if (motes) motes.rotation.y = t * 0.25;
+      if (S.marks) for (const mm of glowing) mm.emissiveIntensity = S.marks * (0.65 + 0.35 * Math.sin(t * 2.2));
     },
     dispose: () => group.traverse((o) => (o as THREE.Mesh).geometry?.dispose()),
   };

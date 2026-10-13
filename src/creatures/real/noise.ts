@@ -60,3 +60,19 @@ export const smooth = (e0: number, e1: number, x: number) => {
   const t = clamp01((x - e0) / (e1 - e0));
   return t * t * (3 - 2 * t);
 };
+
+/** Mixes two hex colors. */
+export function mixHex(a: string, b: string | undefined, t: number): string {
+  if (!b || t <= 0) return a;
+  const x = hex(a);
+  const y = hex(b);
+  return '#' + [0, 1, 2].map((i) => Math.round(mix(x[i], y[i], t)).toString(16).padStart(2, '0')).join('');
+}
+
+/** Flowing lines (contour lines of a noise), for glowing markings. 1 on a line, 0 elsewhere. */
+export function glowLines(x: number, y: number, seed: number, wrapY = 0, width = 0.035): number {
+  const n = fbm(x, y, seed, 3, 0, wrapY);
+  const a = smooth(width, 0, Math.abs(n - 0.5));
+  const b = smooth(width * 0.7, 0, Math.abs(n - 0.62)) * 0.7;
+  return Math.max(a, b);
+}

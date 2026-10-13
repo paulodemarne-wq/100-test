@@ -5,10 +5,10 @@ import { addNatureLights, setupRenderer, shadowFloor } from '../../src/creatures
 import { buildSnake, SnakeLook } from '../../src/creatures/real/snake';
 import { buildQuadruped, QuadLook } from '../../src/creatures/real/quadruped';
 import { buildBird, BirdLook } from '../../src/creatures/real/bird';
-import type { Age, Animal } from '../../src/creatures/real/types';
+import { STAGE_NAMES, type Animal, type Stage } from '../../src/creatures/real/types';
 import { buildNatureIsland } from '../../src/world/real/nature';
 
-const SIZE = 400;
+const SIZE = 330;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setSize(SIZE, SIZE);
 renderer.setPixelRatio(1);
@@ -22,6 +22,7 @@ const python: SnakeLook = {
   belly: '#EDE3C8',
   iris: '#B8862E',
   majestic: { base: '#C99A3A', dark: '#2A1A0E', light: '#F2D58A', iris: '#E8B23A' },
+  glow: '#54E6FF',
 };
 
 type Shot = { label: string; make: () => Animal; yaw?: number };
@@ -33,6 +34,8 @@ const wolf: QuadLook = {
   accent: '#2E2925',
   iris: '#C9902E',
   majestic: { base: '#B9B7B4', back: '#5E6070', belly: '#F6F5F2', iris: '#8FD8FF' },
+  glow: '#7FDBFF',
+  mane: 'majestic',
 };
 const eagle: BirdLook = {
   head: '#F4F1EA',
@@ -44,10 +47,11 @@ const eagle: BirdLook = {
   beak: '#F2B21B',
   legs: '#E8B526',
   iris: '#F0D24A',
-  majestic: { body: '#2E1F14', wing: '#2A1C12', iris: '#FFD84A' },
+  majestic: { body: '#2A1A10', wing: '#24170E', chest: '#3A2416', iris: '#FFD84A', beak: '#FFC21A', head: '#FFFFFF' },
+  glow: '#FFB347',
 };
-const ages = [0, 1, 2, 3] as Age[];
-const AGE_NAMES = ['Bébé', 'Jeune', 'Adulte', 'Adulte majestueux (niveau max)'];
+const ages = [0, 1, 2, 3, 4] as Stage[];
+const AGE_NAMES = STAGE_NAMES.map((n, i) => (i === 4 ? `${n} (niveau max)` : n));
 const which = (location.hash || '#snake,wolf').slice(1).split(',');
 const shots: Shot[] = [
   ...(which.includes('snake') ? ages.map((age) => ({ label: `Python · ${AGE_NAMES[age]}`, make: () => buildSnake(python, age, 3) })) : []),
@@ -73,7 +77,7 @@ function render(s: Shot): string {
 }
 
 function renderIsland(): string {
-  const W = 1618;
+  const W = 1674;
   const H = 1000;
   renderer.setSize(W, H);
   const scene = new THREE.Scene();
@@ -106,13 +110,13 @@ function renderIsland(): string {
 }
 
 const wrap = document.createElement('div');
-wrap.style.cssText = 'display:grid;grid-template-columns:repeat(4,400px);gap:6px;font:600 15px -apple-system,Helvetica,sans-serif;color:#333;padding:6px;background:#fff';
+wrap.style.cssText = 'display:grid;grid-template-columns:repeat(5,330px);gap:6px;font:600 15px -apple-system,Helvetica,sans-serif;color:#333;padding:6px;background:#fff';
 document.body.appendChild(wrap);
 if (which.includes('island')) {
   const img = document.createElement('img');
   img.src = renderIsland();
-  img.style.gridColumn = '1 / span 4';
-  img.style.width = '1618px';
+  img.style.gridColumn = '1 / span 5';
+  img.style.width = '1674px';
   wrap.appendChild(img);
 }
 for (const s of shots) {
