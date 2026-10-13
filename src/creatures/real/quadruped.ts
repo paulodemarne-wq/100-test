@@ -5,6 +5,7 @@ import { addFur } from './fur';
 import { loft, Section } from './loft';
 import { clamp01, fbm, glowLines, hex, mix, mixHex, noise2, smooth } from './noise';
 import { auraMotes } from './snake';
+import { arcs, ELEMENT_COLORS, elementWings, Emitter, Element, groundAura, horns, particles, POWER, spikes } from './powers';
 import { bake, eyeTexture } from './textures';
 import { STAGES, type Age, type Animal, type Stage } from './types';
 
@@ -36,6 +37,8 @@ export type QuadLook = {
   fur?: number;
   /** Color of the glowing markings (legend). */
   glow?: string;
+  /** Its element: powers that grow with the stages. */
+  element?: Element;
   /** Lion's mane on the majestic adult (or every adult). */
   mane?: 'adult' | 'majestic';
   /** Antlers on the adult (deer). */
@@ -64,7 +67,9 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
     accent: mixHex(look.accent, m.accent, S.rich),
     iris: mixHex(look.iris, m.iris, S.rich),
   };
-  const glowColor = look.glow ?? '#9FE3FF';
+  const el: Element = look.element ?? 'ice';
+  const P = POWER[stage];
+  const glowColor = look.glow ?? ELEMENT_COLORS[el].mid;
   const L = (look.length ?? 1) * A.body;
   const Ht = (look.height ?? 1) * A.legs;
   const G = look.girth ?? 1;
@@ -272,6 +277,7 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
 
   // ── Tail.
   const tailType = look.tail ?? 'bushy';
+  let tailTip: THREE.Vector3[] = [new THREE.Vector3(rumpX, backY, 0)];
   if (tailType !== 'short') {
     const tl = tailType === 'thin' || tailType === 'tuft' ? 0.75 : 0.62;
     const tail = new THREE.CatmullRomCurve3([
@@ -280,6 +286,7 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
       new THREE.Vector3(rumpX - 0.28 * tl, backY - 0.3 * tl, 0.03),
       new THREE.Vector3(rumpX - 0.3 * tl, backY - 0.55 * tl, 0.06),
     ]);
+    tailTip = [0.85, 0.9, 0.95, 1].map((u) => tail.getPointAt(u));
     const thick = tailType === 'bushy' ? 1 : 0.45;
     const tailMap = bake(128, 32, (u, v) => {
       let c = lerp3(lerp3(base, back, 0.35), belly, smooth(0.1, -0.6, Math.cos((v - 0.25) * Math.PI * 2)) * 0.5);
@@ -334,7 +341,7 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
   }
 
   // ── Eyes and nose.
-  const eyeTex = eyeTexture(col.iris, false);
+  const eyeTex = eyeTexture(mixHex(col.iris, ELEMENT_COLORS[el].eye, Math.min(1, stage * 0.3)), false);
   const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, emissiveMap: eyeTex, emissive: new THREE.Color(S.eyes ? '#ffffff' : '#000000'), emissiveIntensity: S.eyes });
   const eyeR = 0.026 * H * (age === 0 ? 1.25 : 1);
   for (const side of [-1, 1]) {
@@ -353,6 +360,54 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
   // ── Lion's mane / antlers.
   if (look.antlers && age >= 2) group.add(antlers(skullX, headY + 0.1 * H, H * (majestic ? 1.25 : 1)));
 
+  // ── Powers and extra body parts, growing with the stages.
+  const fx: Emitter[] = [];
+  const addFx = (e: Emitter) => {
+    fx.push(e);
+    group.add(e.points);
+  };
+  const ridgeAt = (x: number) => {
+    const sct = at(x);
+    // Find the spine point at this x.
+    let u = 0;
+    for (let i = 0; i <= 64; i++) if (xAt(i / 64) <= x) u = i / 64;
+    const p = spine.getPointAt(u);
+    return new THREE.Vector3(x, p.y + (sct.dy ?? 0) + sct.ry + furLen * 0.6, 0);
+  };
+  if (P.spikes > 0) {
+    const n = 9 + stage * 2;
+    const pts = Array.from({ length: n }, (_, i) => ridgeAt(mix(rumpX + 0.1, neckX, i / (n - 1))));
+    group.add(spikes(pts, pts.map(() => new THREE.Vector3(0, 1, 0)), 0.2 * P.spikes * G, el));
+  }
+  if (P.horns > 0) group.add(horns(new THREE.Vector3(skullX + 0.0 * H, headY + 0.1 * H, 0), 0.55 * P.horns * H, el, 0.045 * H));
+  if (P.tail) {
+    if (el === 'ice') {
+      const tip = tailTip[tailTip.length - 1];
+      group.add(spikes([tip, tip, tip, tip], [new THREE.Vector3(0.3, -1, 0.4), new THREE.Vector3(-0.4, -1, 0), new THREE.Vector3(0, -1, -0.5), new THREE.Vector3(-0.6, -0.6, 0.3)].map((v) => v.normalize()), 0.09 * (1 + stage * 0.15), el, new THREE.Vector3()));
+    }
+    addFx(particles(el, tailTip, el === 'fire' ? 70 : 40, 0.7, seed + 1));
+  }
+  if (P.mane) {
+    // Crystals / flames / sparks bursting from the shoulders and neck.
+    const nk = Array.from({ length: 8 }, (_, i) => ridgeAt(mix(shoulderX - 0.1, neckX + 0.04, i / 7)));
+    if (el === 'ice') {
+      const crys: THREE.Vector3[] = [];
+      const nrm: THREE.Vector3[] = [];
+      for (const side of [-1, 1])
+        for (let i = 0; i < 5; i++) {
+          const x = mix(shoulderX - 0.08, neckX, i / 4);
+          const p = ridgeAt(x);
+          crys.push(p.clone().add(new THREE.Vector3(0, -0.05, side * 0.13 * G)));
+          nrm.push(new THREE.Vector3(-0.2, 0.7, side * 0.8).normalize());
+        }
+      group.add(spikes(crys, nrm, 0.16 * P.horns, el, new THREE.Vector3(-1, 0, 0)));
+    }
+    addFx(particles(el, nk, Math.round(P.particles * 0.6), 1, seed + 2));
+    addFx(particles(el, Array.from({ length: 16 }, (_, i) => ridgeAt(mix(rumpX + 0.1, shoulderX, i / 15))), Math.round(P.particles * 0.4), 0.8, seed + 3));
+  }
+  if (P.wings) group.add(elementWings(ridgeAt(shoulderX - 0.02).add(new THREE.Vector3(0, -0.03, 0)), 0.75 * G, el));
+  if (P.arcs && el === 'lightning') addFx(arcs(Array.from({ length: 12 }, (_, i) => ridgeAt(mix(rumpX, noseX - 0.1, i / 11))), el, 3, seed));
+
   const motes = S.motes ? auraMotes(glowColor, 0.9, 1.3) : null;
   if (motes) group.add(motes);
 
@@ -362,6 +417,11 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
   group.children.forEach((c) => {
     if (c !== motes) c.position.x -= cx;
   });
+  if (P.ground) {
+    const aura = groundAura(el, 1.1);
+    fx.push(aura);
+    group.add(aura.points);
+  }
   group.rotation.y = -0.85;
   group.scale.setScalar(S.size);
   const top = new THREE.Box3().setFromObject(group).max.y;
@@ -378,6 +438,7 @@ export function buildQuadruped(look: QuadLook, stage: Stage, seed: number): Anim
         const g = S.marks * (0.65 + 0.35 * Math.sin(t * 2.2));
         for (const m of breathing) (m.material as THREE.MeshStandardMaterial).emissiveIntensity = g;
       }
+      for (const e of fx) e.update(t);
     },
     dispose: () => {
       group.traverse((o) => (o as THREE.Mesh).geometry?.dispose());

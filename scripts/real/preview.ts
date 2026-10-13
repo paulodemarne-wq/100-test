@@ -22,7 +22,7 @@ const python: SnakeLook = {
   belly: '#EDE3C8',
   iris: '#B8862E',
   majestic: { base: '#C99A3A', dark: '#2A1A0E', light: '#F2D58A', iris: '#E8B23A' },
-  glow: '#54E6FF',
+  element: 'fire',
 };
 
 type Shot = { label: string; make: () => Animal; yaw?: number };
@@ -34,7 +34,7 @@ const wolf: QuadLook = {
   accent: '#2E2925',
   iris: '#C9902E',
   majestic: { base: '#B9B7B4', back: '#5E6070', belly: '#F6F5F2', iris: '#8FD8FF' },
-  glow: '#7FDBFF',
+  element: 'ice',
   mane: 'majestic',
 };
 const eagle: BirdLook = {
@@ -48,7 +48,7 @@ const eagle: BirdLook = {
   legs: '#E8B526',
   iris: '#F0D24A',
   majestic: { body: '#2A1A10', wing: '#24170E', chest: '#3A2416', iris: '#FFD84A', beak: '#FFC21A', head: '#FFFFFF' },
-  glow: '#FFB347',
+  element: 'lightning',
 };
 const ages = [0, 1, 2, 3, 4] as Stage[];
 const AGE_NAMES = STAGE_NAMES.map((n, i) => (i === 4 ? `${n} (niveau max)` : n));

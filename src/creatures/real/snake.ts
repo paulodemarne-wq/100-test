@@ -1,7 +1,8 @@
 // Realistic snake: coiled on the ground, front raised, looking at you. Same snake at every age, it just grows up.
 import * as THREE from 'three';
 import { frameAt, loft, profile } from './loft';
-import { mixHex, rng } from './noise';
+import { mix, mixHex, rng } from './noise';
+import { arcs, ELEMENT_COLORS, elementWings, Emitter, Element, groundAura, horns, particles, POWER, spikes } from './powers';
 import { eyeTexture, snakeSkin, SnakePattern } from './textures';
 import { STAGES, type Age, type Animal, type Stage } from './types';
 
@@ -16,6 +17,8 @@ export type SnakeLook = {
   majestic?: Partial<Pick<SnakeLook, 'base' | 'dark' | 'light' | 'belly' | 'iris'>>;
   /** Color of the glowing markings (legend). */
   glow?: string;
+  /** Its element: powers that grow with the stages. */
+  element?: Element;
   /** Cobra hood when raised. */
   hood?: boolean;
   /** Body thickness (1 = python, 0.7 = slender). */
@@ -102,7 +105,9 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
     [hs + headLen * 0.95, 0.27 * A.head],
     [1, 0.12],
   ]);
-  const hoodAmt = (u: number) => (look.hood && age >= 2 ? Math.max(0, 1 - Math.abs(u - (hs - 0.09)) / 0.07) : 0);
+  const P = POWER[stage];
+  const el: Element = look.element ?? 'fire';
+  const hoodAmt = (u: number) => ((look.hood && age >= 2) || P.wings ? Math.max(0, 1 - Math.abs(u - (hs - 0.09)) / 0.07) : 0);
   const { geometry } = loft({
     curve,
     rings: Math.round(length * 90),
@@ -141,7 +146,7 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
     clearcoatRoughness: mix01(0.35, 0.12, S.rich),
     iridescence: S.rich * 0.55,
     emissiveMap: skin.glowMap,
-    emissive: new THREE.Color(skin.glowMap ? (look.glow ?? '#54E6FF') : '#000000'),
+    emissive: new THREE.Color(skin.glowMap ? (look.glow ?? ELEMENT_COLORS[look.element ?? 'fire'].mid) : '#000000'),
     emissiveIntensity: S.marks,
     iridescenceIOR: 1.35,
     iridescenceThicknessRange: [200, 600],
@@ -153,7 +158,7 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
   group.add(bodyMesh);
 
   // ── Eyes on both sides of the head.
-  const eyeTex = eyeTexture(col.iris, look.pattern !== 'cobra' && look.pattern !== 'bands' && look.pattern !== 'emerald' ? true : look.pattern === 'emerald');
+  const eyeTex = eyeTexture(mixHex(col.iris, ELEMENT_COLORS[el].eye, Math.min(1, stage * 0.3)), look.pattern !== 'cobra' && look.pattern !== 'bands' && look.pattern !== 'emerald' ? true : look.pattern === 'emerald');
   const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.02, emissiveMap: eyeTex, emissive: new THREE.Color(S.eyes ? '#ffffff' : '#000000'), emissiveIntensity: S.eyes });
   const eyeU = hs + headLen * 0.5;
   const fe = frameAt(curve, eyeU);
@@ -190,8 +195,41 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
     group.add(tongue);
   }
 
+  // ── Powers and extra body parts, growing with the stages.
+  const fx: Emitter[] = [];
+  const ridge = (u: number) => {
+    const f = frameAt(curve, u);
+    return { p: f.p.clone().addScaledVector(f.n, R * height(u) * 0.85), n: f.n, t: f.t };
+  };
+  if (P.spikes > 0) {
+    const n = 14 + stage * 3;
+    const rs = Array.from({ length: n }, (_, i) => ridge(mix(0.12, hs - 0.03, i / (n - 1))));
+    group.add(spikes(rs.map((x) => x.p), rs.map((x) => x.n), R * 1.1 * P.spikes, el, rs.map((x) => x.t.clone().negate())));
+  }
+  if (P.horns > 0) {
+    const hu = hs + headLen * 0.28;
+    const fh = frameAt(curve, hu);
+    group.add(horns(fh.p.clone().addScaledVector(fh.n, R * height(hu) * 0.7), R * 2.2 * P.horns, el, R * 0.35, fh.t));
+  }
+  const addFx = (e: Emitter) => {
+    fx.push(e);
+    group.add(e.points);
+  };
+  if (P.tail) addFx(particles(el, [0, 0.008, 0.016, 0.025].map((u) => frameAt(curve, u).p), el === 'fire' ? 70 : 40, 0.8, seed + 1));
+  if (P.mane) {
+    addFx(particles(el, Array.from({ length: 20 }, (_, i) => ridge(mix(hs - 0.3, hs - 0.01, i / 19)).p), Math.round(P.particles * 0.6), 1, seed + 2));
+    addFx(particles(el, Array.from({ length: 30 }, (_, i) => ridge(mix(0.1, hs - 0.3, i / 29)).p), Math.round(P.particles * 0.4), 0.7, seed + 3));
+  }
+  if (P.wings) {
+    const w = ridge(hs - 0.13);
+    const wings = elementWings(w.p, R * 6, el);
+    wings.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), w.t.clone().setY(0).normalize());
+    group.add(wings);
+  }
+  if (P.arcs && el === 'lightning') addFx(arcs(Array.from({ length: 12 }, (_, i) => ridge(mix(0.2, hs, i / 11)).p), el, 3, seed));
+
   // ── Majestic adult: a slow ring of light motes around it.
-  const motes: THREE.Points | null = S.motes ? auraMotes(look.glow ?? col.light, radEnd * 1.3, H) : null;
+  const motes: THREE.Points | null = S.motes ? auraMotes(look.glow ?? ELEMENT_COLORS[el].mid, radEnd * 1.3, H) : null;
   if (motes) group.add(motes);
 
   // Center on the ground and scale to its age.
@@ -200,6 +238,11 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
   group.children.forEach((c) => {
     if (c !== motes) c.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
   });
+  if (P.ground) {
+    const aura = groundAura(el, radEnd * 1.7);
+    fx.push(aura);
+    group.add(aura.points);
+  }
   group.scale.setScalar(S.size);
 
   return {
@@ -216,6 +259,7 @@ export function buildSnake(look: SnakeLook, stage: Stage, seed: number): Animal 
       }
       if (motes) motes.rotation.y = t * 0.25;
       if (S.marks) body.emissiveIntensity = S.marks * (0.65 + 0.35 * Math.sin(t * 2.2));
+      for (const e of fx) e.update(t);
     },
     dispose: () => {
       group.traverse((o) => {

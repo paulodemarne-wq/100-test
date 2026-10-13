@@ -5,6 +5,7 @@ import { addFur } from './fur';
 import { loft } from './loft';
 import { glowLines, hex, mix, mixHex, noise2, smooth } from './noise';
 import { auraMotes } from './snake';
+import { arcs, ELEMENT_COLORS, Emitter, Element, groundAura, horns, particles, POWER, spikes } from './powers';
 import { bake, eyeTexture } from './textures';
 import { STAGES, type Age, type Animal, type Stage } from './types';
 
@@ -29,6 +30,8 @@ export type BirdLook = {
   majestic?: Partial<Pick<BirdLook, 'head' | 'body' | 'wing' | 'tail' | 'chest' | 'iris' | 'beak' | 'legs'>>;
   /** Color of the glowing markings (legend). */
   glow?: string;
+  /** Its element: powers that grow with the stages. */
+  element?: Element;
   size?: number;
 };
 
@@ -71,7 +74,10 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
     beak: mixHex(look.beak, m.beak, S.rich),
     legs: mixHex(look.legs, m.legs, S.rich),
   };
-  const glowColor = look.glow ?? '#FFC86B';
+  const el: Element = look.element ?? 'lightning';
+  const P = POWER[stage];
+  const glowColor = look.glow ?? ELEMENT_COLORS[el].mid;
+  const wingAnchors: THREE.Vector3[] = [];
   const glowing: THREE.MeshStandardMaterial[] = [];
   const H = A.head;
   const group = new THREE.Group();
@@ -160,7 +166,7 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
   group.add(jaw);
 
   // ── Eyes with a heavy brow (the raptor stare).
-  const eyeTex = eyeTexture(age === 0 ? '#3A2A20' : col.iris, false);
+  const eyeTex = eyeTexture(age === 0 ? '#3A2A20' : mixHex(col.iris, ELEMENT_COLORS[el].eye, Math.min(1, stage * 0.3)), false);
   const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.05, clearcoat: 1, emissiveMap: eyeTex, emissive: new THREE.Color(S.eyes ? '#ffffff' : '#000000'), emissiveIntensity: S.eyes });
   const eyeR = 0.026 * H * (look.owl ? 1.7 : 1);
   const ep = spine.getPointAt(0.9);
@@ -261,6 +267,8 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
         wing.position.set(0.0, 0.9, side * 0.08);
         wing.scale.z = side;
         wing.rotation.set(-side * 0.7, 0, 0.25);
+        wing.updateMatrix();
+        for (const u of [0.35, 0.7, 1]) wingAnchors.push(arm.getPointAt(u).add(new THREE.Vector3(-0.25 * u, 0, 0)).applyMatrix4(wing.matrix));
       }
       group.add(wing);
     }
@@ -324,9 +332,46 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
   branch.castShadow = true;
   group.add(branch);
 
+  // ── Powers and extra body parts, growing with the stages.
+  const fx: Emitter[] = [];
+  const addFx = (e: Emitter) => {
+    fx.push(e);
+    group.add(e.points);
+  };
+  const backAt = (u: number) => {
+    const p = spine.getPointAt(u);
+    const t = spine.getTangentAt(u);
+    const n = up.clone().sub(t.clone().multiplyScalar(up.dot(t))).normalize();
+    return { p: p.addScaledVector(n, sec(u).ry * 0.95), n, t };
+  };
+  if (P.spikes > 0) {
+    const n = 7 + stage * 2;
+    const rs = Array.from({ length: n }, (_, i) => backAt(mix(0.25, 0.8, i / (n - 1))));
+    group.add(spikes(rs.map((r) => r.p), rs.map((r) => r.n), 0.17 * P.spikes, el, rs.map((r) => r.t.clone().negate())));
+  }
+  if (P.horns > 0) {
+    const hp = spine.getPointAt(0.86);
+    group.add(horns(hp.clone().add(new THREE.Vector3(-0.02, sec(0.86).ry * 0.75, 0)), 0.3 * P.horns, el, 0.05));
+  }
+  if (P.tail) addFx(particles(el, [-0.06, -0.02, 0.02, 0.06].map((z) => new THREE.Vector3(-0.33, 0.16, z)), 50, 0.8, seed + 1));
+  if (P.mane) {
+    const neck = Array.from({ length: 10 }, (_, i) => backAt(mix(0.62, 0.9, i / 9)).p);
+    addFx(particles(el, neck, Math.round(P.particles * 0.5), 1, seed + 2));
+    if (P.arcs) addFx(arcs(neck.concat(Array.from({ length: 6 }, (_, i) => backAt(mix(0.3, 0.6, i / 5)).p)), el, 2, seed + 4));
+  }
+  if (wingAnchors.length) {
+    addFx(particles(el, wingAnchors, Math.round(P.particles * 0.5), 1, seed + 5));
+    addFx(arcs(wingAnchors.concat([spine.getPointAt(0.6)]), el, 4, seed + 6));
+  }
+
   const motes = S.motes ? auraMotes(glowColor, 0.9, 1.4) : null;
   if (motes) group.add(motes);
 
+  if (P.ground) {
+    const aura = groundAura(el, 1.0);
+    fx.push(aura);
+    group.add(aura.points);
+  }
   group.rotation.y = -0.75;
   group.scale.setScalar(S.size * (look.size ?? 1));
   return {
@@ -336,6 +381,7 @@ export function buildBird(look: BirdLook, stage: Stage, seed: number): Animal {
       bodyMesh.rotation.z = Math.sin(t * 0.7) * 0.01;
       if (motes) motes.rotation.y = t * 0.25;
       if (S.marks) for (const mm of glowing) mm.emissiveIntensity = S.marks * (0.65 + 0.35 * Math.sin(t * 2.2));
+      for (const e of fx) e.update(t);
     },
     dispose: () => group.traverse((o) => (o as THREE.Mesh).geometry?.dispose()),
   };
