@@ -3,6 +3,7 @@
 // (the boat group is lowered by baseY, then scaled by DECOR_SCALE), so hulls are drawn with a shallow draft.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { loft } from '../../creatures/real/loft';
 import { noise2, rng } from '../../creatures/real/noise';
 import { MaterialName, MatOptions, pbr } from './materials';
@@ -75,8 +76,6 @@ function logX(len: number, r1: number, r2 = r1, seg = 10, seed = 1, around = 0.8
   const off = r() * 3;
   for (let i = 0; i < pos.count; i++) {
     const u0 = uv.getX(i);
-    const isCap = Math.abs(Math.abs(pos.getX(i)) - len / 2) < 1e-6 && uv.getY(i) !== 0 && uv.getY(i) !== 1 ? false : false;
-    void isCap;
     uv.setXY(i, off + pos.getX(i) * 1.3, around < 1 ? (row + 0.08 + u0 * around) / 4 : u0 * around);
   }
   uv.needsUpdate = true;
@@ -184,15 +183,18 @@ function cloth(p00: V3, p10: V3, p01: V3, p11: V3, belly: V3, n = 8, m = 8) {
 }
 
 /** A lumpy rock. */
-function rockGeo(r: number, seed: number, flat = 0.7, detail = 1) {
-  const g = new THREE.IcosahedronGeometry(r, detail);
+function rockGeo(r: number, seed: number, flat = 0.7, detail = 1, smoothNormals = true) {
+  const ico = new THREE.IcosahedronGeometry(r, detail);
+  ico.deleteAttribute('normal');
+  const g = smoothNormals ? mergeVertices(ico, 1e-4) : ico;
   const pos = g.getAttribute('position');
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
     const z = pos.getZ(i);
-    const n = noise2(x * 9 / r * 0.1 + seed * 3.1, z * 9 / r * 0.1 + y * 5 / r * 0.1, seed);
-    const k = 0.78 + n * 0.45;
+    const n = noise2((x / r) * 1.3 + seed * 3.1, (z / r) * 1.3 + (y / r) * 0.9, seed);
+    const n2 = noise2((x / r) * 3.5 + seed, (y / r) * 3.5 - (z / r), seed + 1);
+    const k = 0.74 + n * 0.42 + n2 * 0.1;
     pos.setXYZ(i, x * k, Math.max(y * k * flat, -r * 0.25), z * k);
   }
   g.computeVertexNormals();
@@ -396,8 +398,8 @@ function hull(parent: THREE.Object3D, h: Hull, bands: [number, THREE.Material][]
 
 function fence() {
   const g = new THREE.Group();
-  const post = mat('wood', { color: '#B9A994' });
-  const rail = mat('wood', { color: '#CDBDA6' });
+  const post = mat('wood', { color: '#E2DCD3' });
+  const rail = mat('wood', { color: '#EDE6DC' });
   const iron = mat('iron');
   const xs = [-0.43, 0, 0.43];
   xs.forEach((x, i) => {
@@ -412,15 +414,12 @@ function fence() {
       bolt(g, [x + 0.012, y - 0.015, 0.061], 'z', iron, 0.005);
     }
   });
-  // A few blades of grass at the foot of the posts.
-  const grass = mat('leaves', { color: '#7A9A4A' });
-  for (const x of xs) put(g, new THREE.ConeGeometry(0.05, 0.05, 6, 1, true), grass, [x, 0.02, 0], [0, 0, 0], [1, 1, 1]);
   return g;
 }
 
 function bench() {
   const g = new THREE.Group();
-  const wood = mat('wood', { color: '#C99A6A' });
+  const wood = mat('wood', { color: '#F7DEC4' });
   const iron = mat('metal', { color: '#2A2E2B' });
   const boltM = mat('iron');
   // Seat slats.
@@ -483,15 +482,16 @@ function lamp() {
 
 function campfire() {
   const g = new THREE.Group();
-  const rock = mat('rock', { color: '#A39C92' });
-  const sooty = mat('rock', { color: '#6A625B' });
-  const ash = mat('rock', { color: '#55504C' });
-  const bark = mat('bark', { color: '#8A7360' });
-  const charred = mat('bark', { color: '#2E2622' });
+  const rock = mat('rock', { color: '#E4DED6' });
+  const sooty = mat('rock', { color: '#A39A92' });
+  const ash = mat('rock', { color: '#8A847E' });
+  const bark = mat('bark', { color: '#E2D8CE' });
+  const charred = mat('bark', { color: '#4A403A' });
+  const smoulder = mat('bark', { color: '#7A2A14', glow: 0.55 });
   const ember = mat('rock', { color: '#FF6A1A', glow: 1.8 });
   const emberRed = mat('rock', { color: '#D2361A', glow: 1.1 });
   const coal = mat('rock', { color: '#2A2523' });
-  const flame = mat('glass', { color: '#FFB347', glow: 2.6, opacity: 0.8 });
+  const flame = mat('glass', { color: '#FF7A1A', glow: 1.4, opacity: 0.55 });
   const r = rng(77);
   put(g, new THREE.CylinderGeometry(0.2, 0.23, 0.014, 22), ash, [0, 0.007, 0]);
   // Stone ring.
@@ -511,18 +511,18 @@ function campfire() {
     const q1: V3 = [a[0] * 0.4 + mid[0] * 0.6, a[1] * 0.4 + mid[1] * 0.6, a[2] * 0.4 + mid[2] * 0.6];
     const q2: V3 = [b[0] * 0.4 + mid[0] * 0.6, b[1] * 0.4 + mid[1] * 0.6, b[2] * 0.4 + mid[2] * 0.6];
     poleAB(g, a, q1, rad, bark, 50 + i, 9);
-    poleAB(g, q1, q2, rad * 0.92, charred, 52 + i, 9);
+    poleAB(g, q1, q2, rad * 0.92, smoulder, 52 + i, 9);
     poleAB(g, q2, b, rad, bark, 54 + i, 9);
     for (const [p, q] of [[a, q1], [b, q2]] as [V3, V3][]) {
       const d = v3(p).sub(v3(q)).normalize().multiplyScalar(0.002);
       const disc = new THREE.CylinderGeometry(rad * 0.93, rad * 0.93, 0.004, 9);
       disc.rotateZ(-PI / 2);
-      between(g, disc, mat('wood', { color: '#D8B48A' }), [p[0] + d.x, p[1] + d.y, p[2] + d.z], [p[0] + d.x * 2, p[1] + d.y * 2, p[2] + d.z * 2]);
+      between(g, disc, mat('wood', { color: '#FFF0DD' }), [p[0] + d.x, p[1] + d.y, p[2] + d.z], [p[0] + d.x * 2, p[1] + d.y * 2, p[2] + d.z * 2]);
     }
   });
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * PI * 2 + 0.3;
-    poleAB(g, [Math.cos(a) * 0.12, 0.02, Math.sin(a) * 0.12], [Math.cos(a) * 0.015, 0.17, Math.sin(a) * 0.015], 0.012, i % 2 ? charred : bark, 60 + i, 6);
+    poleAB(g, [Math.cos(a) * 0.12, 0.02, Math.sin(a) * 0.12], [Math.cos(a) * 0.015, 0.17, Math.sin(a) * 0.015], 0.012, i % 2 ? smoulder : charred, 60 + i, 6);
   }
   // Embers and coals.
   for (let i = 0; i < 34; i++) {
@@ -532,18 +532,15 @@ function campfire() {
     const m = d < 0.08 ? (r() < 0.6 ? ember : emberRed) : r() < 0.5 ? emberRed : coal;
     put(g, rockGeo(s, 90 + i, 0.6, 0), m, [Math.cos(a) * d, 0.015 + (0.14 - d) * 0.25 + r() * 0.01, Math.sin(a) * d], [r(), r() * 6, r()]);
   }
-  // Low flames licking the logs.
-  const tongue = (h: number, w: number) =>
-    new THREE.LatheGeometry([0, 0.15, 0.35, 0.55, 0.75, 0.9, 1].map((t) => new THREE.Vector2(w * Math.sin(PI * Math.pow(t, 0.6)) * (1 - t * 0.6), t * h)), 8);
-  const fl: [number, number, number, number][] = [[0, 0, 0.17, 0.05], [0.04, 0.03, 0.11, 0.035], [-0.045, 0.02, 0.12, 0.033], [0.01, -0.05, 0.1, 0.03]];
-  fl.forEach(([x, z, h, w], i) => put(g, tongue(h, w), flame, [x, 0.04, z], [(i - 1.5) * 0.08, i, 0.05 * i]));
+  // A low glow of flame in the heart of the fire.
+  put(g, new THREE.SphereGeometry(0.06, 12, 8), flame, [0, 0.05, 0], [0, 0, 0], [1.2, 0.7, 1.2]);
   return g;
 }
 
 function table() {
   const g = new THREE.Group();
-  const wood = mat('wood', { color: '#C7A07A' });
-  const frame = mat('wood', { color: '#A8835E' });
+  const wood = mat('wood', { color: '#F2E2CC' });
+  const frame = mat('wood', { color: '#DCC6AC' });
   const boltM = mat('iron');
   for (let i = 0; i < 5; i++) put(g, beam(0.84, 0.03, 0.084, 70 + i), wood, [0, 0.415, -0.172 + i * 0.086]);
   for (const s of [-1, 1]) for (let i = 0; i < 2; i++) put(g, beam(0.84, 0.028, 0.07, 80 + i + s), wood, [0, 0.25, s * (0.3 + i * 0.075)]);
@@ -565,7 +562,7 @@ function table() {
 
 function mailbox() {
   const g = new THREE.Group();
-  const post = mat('wood', { color: '#B49B7E' });
+  const post = mat('wood', { color: '#E0D6CA' });
   const metal = mat('metal', { color: '#2F5B86' });
   const dark = mat('metal', { color: '#1F3C5A' });
   const red = mat('metal', { color: '#C2382E' });
@@ -601,9 +598,9 @@ function mailbox() {
 
 function signpost() {
   const g = new THREE.Group();
-  const post = mat('wood', { color: '#A88C6E' });
-  const board = mat('wood', { color: '#D2B48C', repeat: [2, 2] });
-  const board2 = mat('wood', { color: '#BFA07C', repeat: [2, 2] });
+  const post = mat('wood', { color: '#D8CCBE' });
+  const board = mat('wood', { color: '#FFF1DC', repeat: [2, 2] });
+  const board2 = mat('wood', { color: '#F0DCC2', repeat: [2, 2] });
   const carve = mat('woodDark', { color: '#5A4532' });
   const iron = mat('iron');
   put(g, beam(0.8, 0.065, 0.065, 111), post, [0, 0.4, 0], [0, 0, PI / 2]);
@@ -628,8 +625,7 @@ function signpost() {
   signs.forEach(([y, dir, yaw, m], i) => {
     const s = sub(g, [0, y, 0], [0, yaw, (i - 1) * 0.02]);
     const len = 0.42 - i * 0.04;
-    const a = put(s, arrow(len, 0.1), m, [dir > 0 ? -0.06 : 0.06, 0, 0.045], [0, dir > 0 ? 0 : PI, 0]);
-    void a;
+    put(s, arrow(len, 0.1), m, [dir > 0 ? -0.06 : 0.06, 0, 0.045], [0, dir > 0 ? 0 : PI, 0]);
     // Carved lettering: a few dark strokes.
     const rr = rng(120 + i);
     let x = 0.0;
@@ -655,7 +651,7 @@ function umbrella() {
   const g = new THREE.Group();
   const red = mat('fabric', { color: '#C8382F', side: DS });
   const white = mat('fabric', { color: '#F1ECE2', side: DS });
-  const pole = mat('wood', { color: '#D3B48D' });
+  const pole = mat('wood', { color: '#FFF0DA' });
   const metal = mat('metal', { color: '#C9CCCF' });
   const p = sub(g, [0.0, 0, 0], [0, 0, 0.08]);
   put(p, logX(0.95, 0.016, 0.014, 10, 140), pole, [0, 0.475, 0], [0, 0, PI / 2]);
@@ -708,7 +704,7 @@ function umbrella() {
 
 function deckchair() {
   const g = new THREE.Group();
-  const wood = mat('wood', { color: '#D2B08A' });
+  const wood = mat('wood', { color: '#FFEBD2' });
   const blue = mat('fabric', { color: '#2F6EA8', side: DS });
   const white = mat('fabric', { color: '#F2EFE8', side: DS });
   const brass = mat('gold', { color: '#B49A62' });
@@ -753,8 +749,8 @@ function deckchair() {
 
 function swing() {
   const g = new THREE.Group();
-  const wood = mat('wood', { color: '#B88A5E' });
-  const top = mat('wood', { color: '#A67A50' });
+  const wood = mat('wood', { color: '#EAD6BE' });
+  const top = mat('wood', { color: '#DCC4A8' });
   const iron = mat('metal', { color: '#9A9EA2' });
   const seatM = mat('woodPainted', { color: '#3E6E5A' });
   const H = 0.86;
@@ -782,8 +778,8 @@ function swing() {
 
 function slide() {
   const g = new THREE.Group();
-  const wood = mat('wood', { color: '#B8916A' });
-  const deckM = mat('wood', { color: '#C9A47C' });
+  const wood = mat('wood', { color: '#E8D6C0' });
+  const deckM = mat('wood', { color: '#F5E6D2' });
   const chuteM = mat('metal', { color: '#D4D8DB', side: DS });
   const rail = mat('metal', { color: '#2E6B47' });
   const X0 = -0.4;
@@ -838,10 +834,10 @@ function slide() {
 
 function hammock() {
   const g = new THREE.Group();
-  const bark = mat('bark', { color: '#8F7A66' });
-  const endM = mat('wood', { color: '#D8B88E' });
+  const bark = mat('bark', { color: '#FFFFFF' });
+  const endM = mat('wood', { color: '#FFF0DA' });
   const rope = mat('rope');
-  const wood = mat('wood', { color: '#C49A6C' });
+  const wood = mat('wood', { color: '#F2DEC6' });
   const cloths = [mat('fabric', { color: '#D9C7A1', side: DS }), mat('fabric', { color: '#A6452F', side: DS }), mat('fabric', { color: '#3F6D5C', side: DS })];
   const PX = 0.44;
   const PH = 0.78;
@@ -884,7 +880,7 @@ function trampoline() {
   const g = new THREE.Group();
   const steel = mat('metal', { color: '#B9BDC1' });
   const pad = mat('fabric', { color: '#2F69AE' });
-  const matM = mat('rubber', { color: '#1C1D21' });
+  const matM = mat('rubber', { color: '#2C2D33' });
   const H = 0.22;
   const R = 0.39;
   put(g, new THREE.TorusGeometry(R, 0.011, 6, 40), steel, [0, H, 0], [PI / 2, 0, 0]);
@@ -892,7 +888,7 @@ function trampoline() {
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * PI * 2 + PI / 4;
     const at = (da: number, rr: number, y: number): V3 => [Math.cos(a + da) * rr, y, Math.sin(a + da) * rr];
-    put(g, tube([at(-0.24, R, H), at(-0.23, R, 0.12), at(-0.2, R - 0.01, 0.012), at(0, R - 0.03, 0.012), at(0.2, R - 0.01, 0.012), at(0.23, R, 0.12), at(0.24, R, H)], 0.011, 30, 6), steel);
+    put(g, tube([at(-0.24, R, H), at(-0.23, R, 0.12), at(-0.2, R - 0.01, 0.012), at(0, R - 0.03, 0.012), at(0.2, R - 0.01, 0.012), at(0.23, R, 0.12), at(0.24, R, H)], 0.011, 20, 6), steel);
     for (const da of [-0.24, 0.24]) put(g, new THREE.CylinderGeometry(0.014, 0.014, 0.03, 8), steel, at(da, R, H - 0.02));
   }
   // Springs between the frame and the mat.
@@ -902,9 +898,11 @@ function trampoline() {
     rodAB(g, [Math.cos(a) * (R - 0.01), H + 0.002, Math.sin(a) * (R - 0.01)], [Math.cos(a) * 0.31, H - 0.006, Math.sin(a) * 0.31], 0.0045, steel, 5);
   }
   // Jump mat, slightly dipped, with a stitched border.
-  const jm = new THREE.LatheGeometry([0, 0.1, 0.2, 0.28, 0.315].map((r) => new THREE.Vector2(r, H - 0.006 - 0.012 * (1 - (r / 0.315) ** 2))), 40);
-  // Lathe faces outward/down when the profile goes outward; flip it to face up.
-  jm.scale(1, 1, -1);
+  const jm = grid(40, 5, (u, v) => {
+    const r = 0.315 * v;
+    const a = u * PI * 2;
+    return [Math.cos(a) * r, H - 0.006 - 0.014 * (1 - v * v), Math.sin(a) * r];
+  }, [0, 1, 0], (u, v) => [u * 6, v * 2]);
   put(g, jm, matM);
   put(g, new THREE.TorusGeometry(0.312, 0.004, 4, 40), mat('fabric', { color: '#3A3B40' }), [0, H - 0.006, 0], [PI / 2, 0, 0]);
   // Padded spring cover, partly over the springs.
@@ -915,8 +913,8 @@ function trampoline() {
 
 function treasure() {
   const g = new THREE.Group();
-  const wood = mat('woodDark', { color: '#9A6E48' });
-  const woodIn = mat('woodDark', { color: '#7A563A', side: DS });
+  const wood = mat('wood', { color: '#C4AA92' });
+  const woodIn = mat('wood', { color: '#9C8470', side: DS });
   const brass = mat('gold', { color: '#A88648' });
   const iron = mat('iron');
   const gold = mat('gold', { color: '#FFD978', glow: 0.08 });
@@ -942,11 +940,22 @@ function treasure() {
   put(g, new RoundedBoxGeometry(0.07, 0.08, 0.012, 1, 0.004), brass, [0, H - 0.055, Dp / 2 + 0.004]);
   put(g, new THREE.CylinderGeometry(0.008, 0.008, 0.014, 8), mat('iron', { color: '#222222' }), [0, H - 0.06, Dp / 2 + 0.008], [PI / 2, 0, 0]);
   // Heaped gold inside.
-  const heap = new THREE.SphereGeometry(0.2, 16, 8, 0, PI * 2, 0, PI / 2);
+  const heap = new THREE.SphereGeometry(0.2, 20, 8, 0, PI * 2, 0, PI / 2);
+  {
+    const p = heap.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i);
+      const y = p.getY(i);
+      const z = p.getZ(i);
+      const k = 1 + (noise2(x * 40, z * 40, 7) - 0.5) * 0.18 * (y / 0.2);
+      p.setXYZ(i, x, y * k, z);
+    }
+    heap.computeVertexNormals();
+  }
   put(g, heap, gold, [0, H - 0.04, 0], [0, 0, 0], [1.15, 0.5, 0.7]);
-  const coin = new THREE.CylinderGeometry(0.024, 0.024, 0.005, 12);
+  const coin = new THREE.CylinderGeometry(0.024, 0.024, 0.005, 9);
   const r = rng(201);
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < 56; i++) {
     const a = r() * PI * 2;
     const d = Math.sqrt(r());
     const x = Math.cos(a) * d * 0.21;
@@ -987,7 +996,7 @@ function treasure() {
 
 function telescope() {
   const g = new THREE.Group();
-  const wood = mat('wood', { color: '#8E5E3A' });
+  const wood = mat('wood', { color: '#D6B496' });
   const brass = mat('gold', { color: '#C9A15A' });
   const dark = mat('iron', { color: '#3A3A3E' });
   const leather = mat('fabric', { color: '#4A2E1F' });
@@ -1023,7 +1032,7 @@ function telescope() {
 
 function lanterns() {
   const g = new THREE.Group();
-  const pole = mat('wood', { color: '#8C6A4A' });
+  const pole = mat('wood', { color: '#D8C4AE' });
   const rope = mat('rope', { color: '#6E5C48' });
   const cap = mat('iron', { color: '#2A2A2E' });
   const colors = ['#E8432E', '#F28C28', '#F5C542', '#E8432E', '#F28C28'];
@@ -1086,8 +1095,8 @@ function rowboat() {
   const h: Hull = { L: 0.9, B: 0.42, D: 0.2, stern: 0.5, sheer: [0.03, 0.07], rise: [0.15, 0.7], e: 0.75, k: 0.85, thick: 0.012 };
   const paint = mat('woodPainted', { color: '#3E7480', repeat: [1, 2] });
   const bottomM = mat('woodPainted', { color: '#7A3A2C', repeat: [1, 2] });
-  const inner = mat('wood', { color: '#C69866', repeat: [1, 2] });
-  const trim = mat('wood', { color: '#9C6A40' });
+  const inner = mat('wood', { color: '#FFF0DC', repeat: [1, 2] });
+  const trim = mat('wood', { color: '#E0C2A0' });
   const brass = mat('gold', { color: '#B08A4A' });
   hull(g, h, [[0.05, bottomM], [9, paint]], inner, mat('woodPainted', { color: '#3E7480', repeat: [2, 2] }));
   gunwale(g, h, trim, [0.012, 0.009]);
@@ -1113,7 +1122,7 @@ function rowboat() {
     put(g, beam(w, 0.016, 0.12, 236), trim, [0, y, hz(h, 0.1)]);
   }
   // Rowlocks and oars, blades out on the water.
-  const oar = mat('wood', { color: '#D8B88C' });
+  const oar = mat('wood', { color: '#FFF2E0' });
   for (const s of [-1, 1]) {
     const t = 0.5;
     const top = htop(h, t) + 0.012;
@@ -1126,7 +1135,7 @@ function rowboat() {
     const bladeC = v3(b).addScaledVector(dir, 0.06);
     const blade = new RoundedBoxGeometry(0.13, 0.004, 0.034, 1, 0.0018);
     between(g, grainX(blade, 242), oar, [b[0], b[1], b[2]], [bladeC.x + dir.x * 0.07, bladeC.y + dir.y * 0.07, bladeC.z + dir.z * 0.07], [0, 1, 0]);
-    put(g, new THREE.CylinderGeometry(0.01, 0.01, 0.05, 8), mat('wood', { color: '#6E4A2E' }), [a[0], a[1], a[2]], [0, 0, 0]).quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    put(g, new THREE.CylinderGeometry(0.01, 0.01, 0.05, 8), mat('wood', { color: '#B89880' }), [a[0], a[1], a[2]], [0, 0, 0]).quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
   }
   // Bow ring and a coiled painter rope.
   put(g, new THREE.TorusGeometry(0.012, 0.003, 4, 10), brass, [0, htop(h, 1) - 0.03, hz(h, 1) + 0.012]);
@@ -1170,8 +1179,8 @@ function duckboat() {
   put(g, loft({ curve: new THREE.CatmullRomCurve3([v3([0, 0.24, -0.4]), v3([0, 0.3, -0.47]), v3([0, 0.4, -0.5])]), section: (u) => ({ rx: 0.1 * (1 - u * 0.8), ry: 0.04 * (1 - u * 0.7) }), rings: 8, radial: 10 }).geometry, yellow);
   // Neck and head at the bow.
   const neck = loft({
-    curve: new THREE.CatmullRomCurve3([v3([0, 0.22, 0.26]), v3([0, 0.36, 0.3]), v3([0, 0.5, 0.31]), v3([0, 0.6, 0.31])]),
-    section: (u) => ({ rx: 0.1 - u * 0.03, ry: 0.11 - u * 0.04 }),
+    curve: new THREE.CatmullRomCurve3([v3([0, 0.22, 0.25]), v3([0, 0.36, 0.27]), v3([0, 0.48, 0.25]), v3([0, 0.6, 0.29])]),
+    section: (u) => ({ rx: 0.085 - u * 0.025, ry: 0.095 - u * 0.03 }),
     rings: 10,
     radial: 14,
   }).geometry;
@@ -1198,7 +1207,7 @@ function sailboat() {
   const white = mat('plastic', { color: '#F3F2EE' });
   const navy = mat('plastic', { color: '#1F3550' });
   const anti = mat('plastic', { color: '#2C4F78' });
-  const teak = mat('wood', { color: '#B98A5C' });
+  const teak = mat('wood', { color: '#F2D8B8' });
   const alu = mat('metal', { color: '#C8CDD2' });
   const sailM = mat('fabric', { color: '#F5F2EA', side: DS });
   const wire = mat('metal', { color: '#9DA3A8' });
@@ -1250,7 +1259,7 @@ function yacht() {
   const white = mat('plastic', { color: '#F4F4F1' });
   const navy = mat('plastic', { color: '#1B2F4A' });
   const anti = mat('plastic', { color: '#5E2A26' });
-  const teak = mat('wood', { color: '#B98856' });
+  const teak = mat('wood', { color: '#F2D8B8' });
   const steel = mat('metal', { color: '#DADDE0' });
   const tint = mat('glass', { color: '#18232E', opacity: 0.95 });
   hull(g, h, [[0.045, anti], [0.07, navy], [9, white]], white, white, 30, 8);
@@ -1278,10 +1287,10 @@ function yacht() {
   };
   const DY = htop(h, 0.5) - 0.01;
   prof([[-0.44, DY], [0.3, DY], [0.16, DY + 0.16], [-0.44, DY + 0.16]], 0.38, white);
-  prof([[-0.36, DY + 0.06], [0.24, DY + 0.06], [0.16, DY + 0.135], [-0.36, DY + 0.135]], 0.388, tint, 0.004);
+  prof([[-0.36, DY + 0.06], [0.259, DY + 0.06], [0.193, DY + 0.135], [-0.36, DY + 0.135]], 0.388, tint, 0.004);
   // Flybridge.
   prof([[-0.4, DY + 0.16], [0.08, DY + 0.16], [0.02, DY + 0.24], [-0.32, DY + 0.24]], 0.3, white);
-  prof([[-0.3, DY + 0.18], [0.05, DY + 0.18], [0.015, DY + 0.225], [-0.29, DY + 0.225]], 0.306, tint, 0.003);
+  prof([[-0.3, DY + 0.18], [0.075, DY + 0.18], [0.041, DY + 0.225], [-0.29, DY + 0.225]], 0.306, tint, 0.003);
   // Radar arch and dome.
   put(g, tube([[-0.13, DY + 0.24, -0.22], [-0.11, DY + 0.36, -0.25], [0, DY + 0.38, -0.25], [0.11, DY + 0.36, -0.25], [0.13, DY + 0.24, -0.22]], [0.012, 0.03], 20, 6), white);
   put(g, new THREE.CylinderGeometry(0.035, 0.035, 0.02, 14), white, [0, DY + 0.395, -0.25]);
@@ -1307,12 +1316,12 @@ function yacht() {
 function pirateship() {
   const g = new THREE.Group();
   const h: Hull = { L: 0.98, B: 0.36, D: 0.3, stern: 0.68, sheer: [0.13, 0.09], rise: [0.08, 0.55], e: 0.65, k: 0.8, thick: 0.014 };
-  const plank = mat('woodDark', { color: '#7A5638', repeat: [2, 3] });
-  const pitch = mat('woodDark', { color: '#3A2E26', repeat: [2, 3] });
+  const plank = mat('wood', { color: '#B09480', repeat: [2, 3] });
+  const pitch = mat('woodDark', { color: '#8A8078', repeat: [2, 3] });
   const band = mat('woodPainted', { color: '#C59A3A', repeat: [2, 3] });
-  const inner = mat('wood', { color: '#8A6444', repeat: [2, 3] });
-  const deckM = mat('wood', { color: '#B08860' });
-  const spar = mat('woodDark', { color: '#5A4330' });
+  const inner = mat('wood', { color: '#E0CCB8', repeat: [2, 3] });
+  const deckM = mat('wood', { color: '#F0E0CC' });
+  const spar = mat('woodDark', { color: '#D0C0B0' });
   const iron = mat('iron');
   const sail = mat('fabric', { color: '#E8DDC3', side: DS });
   const ropeM = mat('rope', { color: '#5C4A36' });
@@ -1380,7 +1389,7 @@ function pirateship() {
     }
   });
   // Crow's nest on the mainmast.
-  put(g, new THREE.CylinderGeometry(0.045, 0.04, 0.035, 12, 1, true), mat('woodDark', { color: '#5A4330', side: DS }), [0, 1.07, -0.02]);
+  put(g, new THREE.CylinderGeometry(0.045, 0.04, 0.035, 12, 1, true), mat('woodDark', { color: '#D0C0B0', side: DS }), [0, 1.07, -0.02]);
   put(g, new THREE.CylinderGeometry(0.04, 0.04, 0.006, 12), spar, [0, 1.055, -0.02]);
   // Mizzen with a gaff sail (fore-and-aft).
   const MZ = -0.3;

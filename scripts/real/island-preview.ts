@@ -86,7 +86,16 @@ function renderIsland(world: World): string {
   const scene = new THREE.Scene();
   const sun = addNatureLights(scene);
   fitSun(sun, world.size);
+  const t0 = performance.now();
   const island = buildIsland(world, pets);
+  console.log(`build: ${Math.round(performance.now() - t0)} ms`);
+  // Repainting a few tiles (what the editor does on each tap).
+  const t1 = performance.now();
+  const i = 5 * world.size + 12;
+  const painted = { ...world, tiles: world.tiles.slice(0, i) + 'p' + world.tiles.slice(i + 1) };
+  island.setWorld(painted);
+  island.setWorld(world);
+  console.log(`2 repaints: ${Math.round(performance.now() - t1)} ms`);
   scene.add(island.group);
   const cam = new IslandCamera(W / H);
   cam.fit(world.size);

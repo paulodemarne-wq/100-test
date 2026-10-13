@@ -166,8 +166,8 @@ const SAND: RGB = [222, 202, 158];
 const SAND_DARK: RGB = [200, 178, 134];
 const WET_SAND: RGB = [160, 138, 102];
 const SNOW: RGB = [238, 243, 249];
-const SNOW_SHADE: RGB = [204, 218, 234];
-const ICE: RGB = [186, 220, 232];
+const SNOW_SHADE: RGB = [192, 208, 228];
+const ICE: RGB = [150, 200, 222];
 const CLOUD: RGB = [252, 251, 255];
 const CLOUD_SHADE: RGB = [212, 206, 232];
 const ROCK: RGB = [116, 110, 102];
@@ -217,19 +217,20 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
   // Ponds: water cells dip under a muddy bank.
   const isWater = (ix: number, iz: number) => ix >= 0 && iz >= 0 && ix < size && iz < size && tiles.charCodeAt(iz * size + ix) === 119;
   const pondDepth = (x: number, z: number) => {
-    const fx = x - 0.5;
-    const fz = z - 0.5;
-    const ix = Math.floor(fx);
-    const iz = Math.floor(fz);
-    const tx = fx - ix;
-    const tz = fz - iz;
-    const a = isWater(ix, iz) ? 1 : 0;
-    const b = isWater(ix + 1, iz) ? 1 : 0;
-    const c = isWater(ix, iz + 1) ? 1 : 0;
-    const d = isWater(ix + 1, iz + 1) ? 1 : 0;
-    if (a + b + c + d === 0) return 0;
-    const mask = mix(mix(a, b, tx), mix(c, d, tx), tz) + (noise2(x * 3, z * 3, 17) - 0.5) * 0.14;
-    return 0.36 * smooth(0.5, 0.92, mask);
+    const ix = Math.floor(x);
+    const iz = Math.floor(z);
+    if (!isWater(ix, iz)) return 0;
+    // Distance to the nearest ground that is not water (corners come out rounded).
+    let dIn = 1;
+    for (let dz = -1; dz <= 1; dz++)
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((dx === 0 && dz === 0) || isWater(ix + dx, iz + dz)) continue;
+        const qx = dx < 0 ? x - ix : dx > 0 ? ix + 1 - x : 0;
+        const qz = dz < 0 ? z - iz : dz > 0 ? iz + 1 - z : 0;
+        const d = dx !== 0 && dz !== 0 ? Math.hypot(qx, qz) : dx !== 0 ? qx : qz;
+        if (d < dIn) dIn = d;
+      }
+    return 0.34 * smooth(0.14, 0.5, dIn + (noise2(x * 2.2, z * 2.2, 17) - 0.5) * 0.22);
   };
 
   const heightAt = (x: number, z: number): number => {
@@ -241,14 +242,17 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
       return -0.62 * Math.pow(smooth(0.15, 1.6, e), 1.4) + n * 0.1 * smooth(0.2, 0.9, e) - pondDepth(x, z);
     }
     const wob = fbm(x * 0.16 + 3, z * 0.16 + 7, 11, 3) - 0.5;
-    const e = d + wob * 2.4 * smooth(0, 2, d);
+    let e = d + wob * 2.4 * smooth(0, 2, d);
     let h: number;
     if (kind === 'snow') {
-      if (e < 0.18) h = 0;
-      else if (e < 0.95) h = -0.5 * smooth(0.18, 0.95, e);
-      else if (e < 2.1) h = mix(-0.5, seaY + 0.035, smooth(0.95, 1.4, e));
-      else h = mix(seaY + 0.035, -1.9, smooth(2.1, 2.7, e));
-      h += n * (0.22 * smooth(0.25, 0.7, e) * (1 - smooth(0.9, 1.3, e)) + 0.03 * smooth(1.0, 1.4, e));
+      // The cliff edge wanders a little beyond the grid (never into it).
+      e = d - 0.25 + wob * 0.9;
+      // Snowy plateau, a rocky cliff, a narrow icy shore, then deep water.
+      if (e < 0.15) h = 0;
+      else if (e < 0.6) h = mix(0, seaY + 0.05, smooth(0.15, 0.6, e));
+      else if (e < 1.5) h = seaY + 0.05 - (e - 0.6) * 0.02;
+      else h = mix(seaY + 0.032, -2, smooth(1.5, 2.1, e));
+      h += n * (0.18 * smooth(0.15, 0.4, e) * (1 - smooth(0.5, 0.7, e)) + 0.02 * smooth(0.6, 0.8, e));
     } else {
       if (e < 0.22) h = 0;
       else if (e < 1.4) h = -0.3 * smooth(0.22, 1.4, e);
@@ -259,15 +263,28 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
     return h - pondDepth(x, z);
   };
 
-  // ── Mesh: a regular grid (about 3 vertices per cell). The cloud island's grid is pulled onto its outline.
-  const N = Math.min(150, Math.round(W * 3)) + 1;
-  const H = new Float32Array(N * N);
+  // ── Mesh: a grid with 4 vertices per cell on the plateau (pond shapes), coarser farther out.
+  // The cloud island's grid is pulled onto its outline.
+  const axis: number[] = [];
+  {
+    const outside: number[] = [];
+    let d = 0;
+    while (d < M - 1e-6) {
+      d = Math.min(M, d + (d < 1.2 ? 0.25 : d < 3 ? 0.4 : 0.8));
+      outside.push(d);
+    }
+    for (let k = outside.length - 1; k >= 0; k--) axis.push(-outside[k]);
+    const inner = size * 4;
+    for (let k = 0; k <= inner; k++) axis.push((k / inner) * size);
+    for (const o of outside) axis.push(size + o);
+  }
+  const N = axis.length;
   const pos = new Float32Array(N * N * 3);
   const uvs = new Float32Array(N * N * 2);
   for (let j = 0; j < N; j++)
     for (let i = 0; i < N; i++) {
-      let x = x0 + (i / (N - 1)) * W;
-      let z = x0 + (j / (N - 1)) * W;
+      let x = axis[i];
+      let z = axis[j];
       if (kind === 'cloud') {
         const cx = Math.max(0, Math.min(size, x));
         const cz = Math.max(0, Math.min(size, z));
@@ -299,31 +316,11 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   geo.setIndex(index);
   const fillHeights = () => {
-    for (let k = 0; k < N * N; k++) {
-      H[k] = heightAt(pos[k * 3], pos[k * 3 + 2]);
-      pos[k * 3 + 1] = H[k];
-    }
+    for (let k = 0; k < N * N; k++) pos[k * 3 + 1] = heightAt(pos[k * 3], pos[k * 3 + 2]);
     geo.getAttribute('position').needsUpdate = true;
     geo.computeVertexNormals();
   };
   fillHeights();
-  // Height and slope from the mesh (cheap, for the texture).
-  const step = W / (N - 1);
-  let sampleSlope = 0;
-  const sampleH = (x: number, z: number) => {
-    const fx = Math.max(0, Math.min(N - 1.001, (x - x0) / step));
-    const fz = Math.max(0, Math.min(N - 1.001, (z - x0) / step));
-    const i = Math.floor(fx);
-    const j = Math.floor(fz);
-    const tx = fx - i;
-    const tz = fz - j;
-    const a = H[j * N + i];
-    const b = H[j * N + i + 1];
-    const c = H[(j + 1) * N + i];
-    const d = H[(j + 1) * N + i + 1];
-    sampleSlope = Math.hypot(mix(b - a, d - c, tz), mix(c - a, d - b, tx)) / step;
-    return mix(mix(a, b, tx), mix(c, d, tx), tz);
-  };
 
   // ── Ground texture, painted pixel by pixel. Low-resolution noise fields are computed once.
   const R = 1024;
@@ -332,6 +329,9 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
   const fieldWarpX = new Float32Array(L * L);
   const fieldWarpZ = new Float32Array(L * L);
   const fieldMed = new Float32Array(L * L);
+  // Height of the land around the grid (the plateau is flat, ponds are computed per pixel).
+  const fieldH = new Float32Array(L * L);
+  const lStep = W / (L - 1);
   for (let j = 0; j < L; j++)
     for (let i = 0; i < L; i++) {
       const x = x0 + (i / (L - 1)) * W;
@@ -341,6 +341,7 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
       fieldWarpX[k] = fbm(x * 1.7, z * 1.7, 42, 2);
       fieldWarpZ[k] = fbm(x * 1.7 + 9, z * 1.7, 43, 2);
       fieldMed[k] = fbm(x * 3.2, z * 3.2, 44, 2);
+      fieldH[k] = sqDist(x, z) > 0 ? heightAt(x, z) : 0;
     }
   const color = new Uint8Array(R * R * 4);
   const bump = new Float32Array(R * R);
@@ -482,10 +483,23 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
       }
       case 99: {
         // clouds: soft white billows
-        const billow = med * 0.65 + patch * 0.35;
-        set(CLOUD, 1);
-        blend(CLOUD_SHADE, smooth(0.42, 0.72, billow) * 0.85);
-        outH = billow * 2.2 + fine * 0.2;
+        // Round puffs (nearest of jittered centers): bright domes, lavender creases between them.
+        const sx = x / 0.32 + (med - 0.5) * 0.8;
+        const sz = z / 0.32 + (patch - 0.5) * 0.8;
+        const gx = Math.floor(sx);
+        const gz = Math.floor(sz);
+        let best = 9;
+        for (let oz = -1; oz <= 1; oz++)
+          for (let ox = -1; ox <= 1; ox++) {
+            const cx = gx + ox + 0.5 + (hash(gx + ox, gz + oz, 51) - 0.5) * 0.7;
+            const cz = gz + oz + 0.5 + (hash(gx + ox, gz + oz, 52) - 0.5) * 0.7;
+            const dd = (sx - cx) * (sx - cx) + (sz - cz) * (sz - cz);
+            if (dd < best) best = dd;
+          }
+        const dome = 1 - Math.min(1, Math.sqrt(best) / 0.75);
+        set(CLOUD_SHADE, 1);
+        blend(CLOUD, smooth(0.0, 0.45, dome) * (0.85 + patch * 0.3));
+        outH = Math.sqrt(dome) * 2.5 + fine * 0.1;
         return;
       }
       case 119: // pond bank (the dip itself is painted from the depth)
@@ -519,11 +533,12 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
       blend([24, 82, 98], smooth(seaY - 0.02, seaY - 0.9, h));
     } else if (kind === 'snow') {
       tileColor(110, x, z, patch, med, fine);
-      const rock = smooth(0.55, 1.0, slope + (med - 0.5) * 0.4);
-      blend(ROCK_DARK, rock * 0.9, 0.85 + fine * 0.35);
-      if (rock > 0.3) outH = med + fine * 0.5;
-      const shelf = smooth(seaY + 0.12, seaY + 0.06, h) * (1 - smooth(0.5, 0.9, slope));
-      blend(ICE, shelf * (0.55 + patch * 0.4));
+      const rock = smooth(0.35, 0.8, slope + (med - 0.5) * 0.5) * smooth(seaY + 0.08, seaY + 0.15, h);
+      blend(ROCK_DARK, rock * 0.92, 0.8 + fine * 0.5);
+      if (rock > 0.3) outH = med * 1.5 + fine * 0.8;
+      const shelf = smooth(seaY + 0.1, seaY + 0.06, h);
+      blend(ICE, shelf * (0.6 + patch * 0.4));
+      blend(FOAM, smooth(0.02, 0.0, Math.abs(h - seaY - 0.035)) * med * 0.8);
       blend([20, 66, 92], smooth(seaY - 0.02, seaY - 0.9, h));
     } else {
       tileColor(99, x, z, patch, med, fine);
@@ -552,22 +567,49 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
         const w10 = tx * (1 - tz);
         const w01 = (1 - tx) * tz;
         const w11 = tx * tz;
-        const f = (a: Float32Array) => a[k00] * w00 + a[k00 + 1] * w10 + a[k00 + L] * w01 + a[k00 + L + 1] * w11;
-        const patch = f(fieldPatch);
-        const med = f(fieldMed);
+        const i = py * R + px;
+        const onPlateau = x >= -0.3 && z >= -0.3 && x < size + 0.3 && z < size + 0.3;
+        // Away from the grid, half resolution is plenty: copy the pixel computed just before.
+        if (!onPlateau && ((px & 1) | (py & 1))) {
+          const src = (py & ~1) * R + (px & ~1);
+          color[i * 4] = color[src * 4];
+          color[i * 4 + 1] = color[src * 4 + 1];
+          color[i * 4 + 2] = color[src * 4 + 2];
+          color[i * 4 + 3] = 255;
+          bump[i] = bump[src];
+          continue;
+        }
+        const hOut = fieldH[k00] * w00 + fieldH[k00 + 1] * w10 + fieldH[k00 + L] * w01 + fieldH[k00 + L + 1] * w11;
+        if (!onPlateau && hOut < seaY - 0.7 && kind !== 'cloud') {
+          // Deep under the sea: plain deep water color.
+          color[i * 4] = 24;
+          color[i * 4 + 1] = kind === 'snow' ? 66 : 82;
+          color[i * 4 + 2] = kind === 'snow' ? 92 : 98;
+          color[i * 4 + 3] = 255;
+          bump[i] = 0;
+          continue;
+        }
+        const patch = fieldPatch[k00] * w00 + fieldPatch[k00 + 1] * w10 + fieldPatch[k00 + L] * w01 + fieldPatch[k00 + L + 1] * w11;
+        const med = fieldMed[k00] * w00 + fieldMed[k00 + 1] * w10 + fieldMed[k00 + L] * w01 + fieldMed[k00 + L + 1] * w11;
         const fine = noise2(x * 22, z * 22, 9) * 0.7 + hash(px, py, 1) * 0.3;
-        const h = sampleH(x, z);
-        const slope = sampleSlope;
+        const inGrid = x >= 0 && z >= 0 && x < size && z < size;
+        const h = inGrid ? -pondDepth(x, z) : hOut;
+        const slope = inGrid
+          ? 0
+          : Math.hypot(
+              mix(fieldH[k00 + 1] - fieldH[k00], fieldH[k00 + L + 1] - fieldH[k00 + L], tz),
+              mix(fieldH[k00 + L] - fieldH[k00], fieldH[k00 + L + 1] - fieldH[k00 + 1], tx),
+            ) / lStep;
         // Tile under this point, looked up through a wobbly warp so borders are soft and natural.
-        const wx = x + (f(fieldWarpX) - 0.5) * 0.5;
-        const wz = z + (f(fieldWarpZ) - 0.5) * 0.5;
+        const wx = x + (fieldWarpX[k00] * w00 + fieldWarpX[k00 + 1] * w10 + fieldWarpX[k00 + L] * w01 + fieldWarpX[k00 + L + 1] * w11 - 0.5) * 0.5;
+        const wz = z + (fieldWarpZ[k00] * w00 + fieldWarpZ[k00 + 1] * w10 + fieldWarpZ[k00 + L] * w01 + fieldWarpZ[k00 + L + 1] * w11 - 0.5) * 0.5;
         const ix = Math.floor(wx);
         const iz = Math.floor(wz);
         const onGrid = ix >= 0 && iz >= 0 && ix < size && iz < size;
         if (onGrid) tileColor(tiles.charCodeAt(iz * size + ix), x, z, patch, med, fine);
         else outer(h, slope, x, z, patch, med, fine);
         // Pond bottoms: wet bank, pebbles, mud getting darker with depth.
-        if (h < -0.004 && sqDist(x, z) < 0.6) {
+        if (inGrid && h < -0.002) {
           const depth = -h;
           blend(BANK, smooth(0.0, 0.02, depth) * 0.8);
           const gx = Math.floor(x / 0.09);
@@ -582,7 +624,6 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
             blend(MUD_DEEP, smooth(0.08, 0.34, depth));
           }
         }
-        const i = py * R + px;
         color[i * 4] = out[0] > 255 ? 255 : out[0];
         color[i * 4 + 1] = out[1] > 255 ? 255 : out[1];
         color[i * 4 + 2] = out[2] > 255 ? 255 : out[2];
@@ -623,8 +664,8 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
       {
         shallow: kind === 'snow' ? '#3D8FA8' : '#2E9AAA',
         deep: kind === 'snow' ? '#163F5A' : '#0F4A6C',
-        alpha: [0.55, 0.96],
-        ring: [1.8, 9],
+        alpha: [0.5, 1],
+        ring: [1.6, 6],
         half: C,
         center: C,
         amp: 0.035,
@@ -677,8 +718,7 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
     }
     g.rotateY(r() * Math.PI * 2);
     g.translate(x, y + s * 0.15, z);
-    rockGeos.push(g.toNonIndexed());
-    g.dispose();
+    rockGeos.push(g);
   };
   if (kind === 'normal') {
     for (let i = 0; i < 14; i++) {
@@ -841,6 +881,18 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
       const rad = size * 0.72 + 0.5 + r() * 2.5;
       cluster(Math.cos(a) * rad, -1.2 - r() * depth * 0.5, Math.sin(a) * rad, 0.7 + r() * 0.8);
     }
+    // Fluffy clouds hugging the rim.
+    for (let k = 0; k < K; k += 3) {
+      const p = pts[k];
+      const dx = p.x - C;
+      const dz = p.z - C;
+      const len = Math.hypot(dx, dz);
+      const s = 0.35 + r() * 0.3;
+      const g = new THREE.IcosahedronGeometry(s, 2);
+      g.scale(1.2, 0.7, 1.2);
+      g.translate(dx + (dx / len) * s * 0.4, heightAt(p.x, p.z) - 0.12 - r() * 0.2, dz + (dz / len) * s * 0.4);
+      puffGeos.push(g);
+    }
     for (let i = 0; i < 5; i++) cluster((r() - 0.5) * size * 0.6, -depth * (0.65 + r() * 0.35), (r() - 0.5) * size * 0.6, 1 + r());
     const puffGeo = mergeGeometries(puffGeos, false)!;
     puffGeos.forEach((g) => g.dispose());
@@ -852,9 +904,9 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
 
   // ── Things that follow tiles and objects: grass blades, flowers, deck planks, pond water.
   let detail: THREE.Group | null = null;
-  const grassMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide });
+  const grassMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
   const pondMat = waterMaterial(
-    { shallow: '#3C7F78', deep: '#3C7F78', alpha: [0.72, 0.72], ring: [100, 101], half: C, center: C, amp: 0.006, repeat: 3, sky: SKY[kind] },
+    { shallow: '#2C5F5C', deep: '#2C5F5C', alpha: [0.62, 0.62], ring: [100, 101], half: C, center: C, amp: 0.006, repeat: 3, sky: SKY[kind] },
     time,
   );
   disposables.push(grassMat, pondMat);
@@ -876,16 +928,18 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
       const dz = Math.sin(a) * w;
       const bx = (rr() - 0.5) * 0.05;
       const bz = (rr() - 0.5) * 0.05;
+      // Both faces, each lit from above (no dark backsides).
       bpos.push(x - dx, y, z - dz, x + dx, y, z + dz, x + bx, y + hgt, z + bz);
+      bpos.push(x + dx, y, z + dz, x - dx, y, z - dz, x + bx, y + hgt, z + bz);
       const base = [lin(62) * g, lin(92) * g, lin(36) * g];
       const tip = [lin(128) * g, lin(160) * g, lin(70) * g];
-      bcol.push(...base, ...base, ...tip);
+      bcol.push(...base, ...base, ...tip, ...base, ...base, ...tip);
     };
     const flower = (x: number, y: number, z: number) => {
       const c = FLOWERS[Math.floor(rr() * 4)];
       const s = 0.022;
       const col = [lin(c[0]), lin(c[1]), lin(c[2])];
-      bpos.push(x - s, y, z - s, x + s, y, z - s, x + s, y, z + s, x - s, y, z - s, x + s, y, z + s, x - s, y, z + s);
+      bpos.push(x - s, y, z - s, x + s, y, z + s, x + s, y, z - s, x - s, y, z - s, x - s, y, z + s, x + s, y, z + s);
       for (let k = 0; k < 6; k++) bcol.push(...col);
     };
     const cells = size * size;
@@ -901,7 +955,7 @@ export function buildTerrain(world0: World, kind: IslandKind): Terrain {
           g.translate(x + 0.5, DECK_Y - 0.015, z + 0.5);
           deck.push(g);
         } else if (code === 119) {
-          const g = new THREE.PlaneGeometry(1.02, 1.02);
+          const g = new THREE.PlaneGeometry(1, 1);
           g.rotateX(-Math.PI / 2);
           g.translate(x + 0.5, POND_Y, z + 0.5);
           ponds.push(g);

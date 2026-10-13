@@ -233,22 +233,22 @@ export function pbr(name: MaterialName, o: MatOptions = {}): THREE.Material {
   const transparent = o.opacity !== undefined && o.opacity < 1;
   switch (name) {
     case 'glass':
-      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#BFD9E8', roughness: 0.05, metalness: 0, transparent: true, opacity: o.opacity ?? 0.45, clearcoat: 1, emissive: new THREE.Color(o.glow ? (o.color ?? '#FFE2A0') : '#000000'), emissiveIntensity: o.glow ?? 0, side: o.side });
+      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#BFD9E8', roughness: 0.05, metalness: 0, transparent: true, opacity: o.opacity ?? 0.45, clearcoat: 1, emissive: new THREE.Color(o.glow ? (o.color ?? '#FFE2A0') : '#000000'), emissiveIntensity: o.glow ?? 0, side: o.side ?? THREE.FrontSide });
       break;
     case 'water':
-      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#2A7C96', roughness: 0.08, transparent: true, opacity: o.opacity ?? 0.8, clearcoat: 1, side: o.side });
+      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#2A7C96', roughness: 0.08, transparent: true, opacity: o.opacity ?? 0.8, clearcoat: 1, side: o.side ?? THREE.FrontSide });
       break;
     case 'ice':
-      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#CFF4FF', roughness: 0.06, transparent: true, opacity: o.opacity ?? 0.85, clearcoat: 1, emissive: new THREE.Color('#3E8FD8'), emissiveIntensity: o.glow ?? 0.15, side: o.side });
+      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#CFF4FF', roughness: 0.06, transparent: true, opacity: o.opacity ?? 0.85, clearcoat: 1, emissive: new THREE.Color('#3E8FD8'), emissiveIntensity: o.glow ?? 0.15, side: o.side ?? THREE.FrontSide });
       break;
     case 'crystal':
-      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#B98CFF', roughness: 0.08, metalness: 0.1, clearcoat: 1, flatShading: true, transparent: true, opacity: o.opacity ?? 0.9, emissive: new THREE.Color(o.color ?? '#B98CFF'), emissiveIntensity: o.glow ?? 0.5, side: o.side });
+      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#B98CFF', roughness: 0.08, metalness: 0.1, clearcoat: 1, flatShading: true, transparent: true, opacity: o.opacity ?? 0.9, emissive: new THREE.Color(o.color ?? '#B98CFF'), emissiveIntensity: o.glow ?? 0.5, side: o.side ?? THREE.FrontSide });
       break;
     case 'plastic':
-      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#E84B3C', roughness: 0.35, clearcoat: 0.6, side: o.side });
+      m = new THREE.MeshPhysicalMaterial({ color: o.color ?? '#E84B3C', roughness: 0.35, clearcoat: 0.6, side: o.side ?? THREE.FrontSide });
       break;
     case 'rubber':
-      m = new THREE.MeshStandardMaterial({ color: o.color ?? '#222222', roughness: 0.9, side: o.side });
+      m = new THREE.MeshStandardMaterial({ color: o.color ?? '#222222', roughness: 0.9, side: o.side ?? THREE.FrontSide });
       break;
     default: {
       const s = skinFor(name)!;
