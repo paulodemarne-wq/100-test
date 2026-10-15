@@ -1,4 +1,4 @@
-// Lockin+ timer look (theme, pet next to the timer). Only cosmetic, so kept on the phone.
+// Vainc+ timer look (theme, pet next to the timer). Only cosmetic, so kept on the phone.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 
@@ -14,7 +14,7 @@ export const CHRONO_THEMES: ChronoTheme[] = [
 ];
 
 export type ChronoPrefs = { theme: string; pet: boolean };
-const KEY = 'lockin/chrono';
+const KEY = 'vainc/chrono';
 let current: ChronoPrefs = { theme: 'classic', pet: true };
 const listeners = new Set<(p: ChronoPrefs) => void>();
 let loaded = false;

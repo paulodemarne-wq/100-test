@@ -12,7 +12,7 @@ import { card, colors, type } from '../../lib/theme';
 
 type Info = { giver_name: string; giver_avatar: string | null; days: number; claimed: boolean; mine: boolean };
 
-/** A Lockin+ gift link (lockin://gift/CODE): see who offers it, and take it. */
+/** A Vainc+ gift link (vainc://gift/CODE): see who offers it, and take it. */
 export default function Gift() {
   const { code: raw } = useLocalSearchParams<{ code: string }>();
   const code = String(raw ?? '').toUpperCase();
@@ -51,7 +51,7 @@ export default function Gift() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
         {done && info ? (
-          <PlusCelebration title="Tu as Lockin+ 🎉" text={`${info.giver_name} t'a offert ${info.days} jours. Profite !`} />
+          <PlusCelebration title="Tu as Vainc+ 🎉" text={`${info.giver_name} t'a offert ${info.days} jours. Profite !`} />
         ) : info === undefined ? (
           <ActivityIndicator color={colors.accent} />
         ) : (
@@ -59,7 +59,7 @@ export default function Gift() {
             {info ? (
               <>
                 <Avatar name={info.giver_name} photoUri={info.giver_avatar} size={80} />
-                <Text style={styles.title}>{info.giver_name} t'offre {info.days} jours de Lockin+ 🎁</Text>
+                <Text style={styles.title}>{info.giver_name} t'offre {info.days} jours de Vainc+ 🎁</Text>
                 <Text style={styles.text}>Badge, décoration de photo, animaux exclusifs, stats détaillées…</Text>
                 {info.mine ? (
                   <Text style={styles.text}>C'est ton lien : envoie-le à un pote 😉</Text>

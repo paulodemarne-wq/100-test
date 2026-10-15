@@ -3,7 +3,7 @@ import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, ColorValue, View } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useSocial } from '../../lib/social';
-import { useLockin } from '../../lib/store';
+import { useVainc } from '../../lib/store';
 import { useChat } from '../../lib/chat';
 import { colors } from '../../lib/theme';
 
@@ -17,7 +17,7 @@ function tabIcon(active: IconName, inactive: IconName) {
 
 export default function TabsLayout() {
   const { ready, session, profile, profileReady } = useAuth();
-  const { loaded } = useLockin();
+  const { loaded } = useVainc();
   const { incomingRequests } = useSocial();
   const { unreadTotal } = useChat();
   const amisBadge = incomingRequests.length + unreadTotal;

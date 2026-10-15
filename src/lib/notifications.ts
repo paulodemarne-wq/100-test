@@ -5,7 +5,7 @@ import type { TodoRow } from './supabase';
 import { dueAt, formatDay, formatHours, isFinished, reminderAt } from './todos';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
-import type { LockinEvent } from './social';
+import type { VaincEvent } from './social';
 import { supabase } from './supabase';
 
 // Show notifications even while the app is open.
@@ -31,7 +31,7 @@ export async function registerForPushNotifications(): Promise<void> {
   if (!Device.isDevice) return;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name: 'Lockin',
+      name: 'Vainc',
       importance: Notifications.AndroidImportance.HIGH,
     });
   }
@@ -41,14 +41,14 @@ export async function registerForPushNotifications(): Promise<void> {
 
   const id = projectId();
   if (!id) {
-    console.warn('Lockin: pas de projectId EAS dans app.json, les notifications push sont désactivées.');
+    console.warn('Vainc: pas de projectId EAS dans app.json, les notifications push sont désactivées.');
     return;
   }
   try {
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: id });
     await supabase.rpc('register_push_token', { new_token: token });
   } catch (e) {
-    console.warn('Lockin: impossible de récupérer le jeton de notification', e);
+    console.warn('Vainc: impossible de récupérer le jeton de notification', e);
   }
 }
 
@@ -84,8 +84,8 @@ export function openFromNotification(data: Record<string, unknown> | undefined) 
 
 const EVENT_PREFIX = 'event-';
 
-/** Keeps one local reminder per upcoming group lock-in the user is going to. */
-export async function syncEventReminders(events: LockinEvent[]): Promise<void> {
+/** Keeps one local reminder per upcoming group vainc the user is going to. */
+export async function syncEventReminders(events: VaincEvent[]): Promise<void> {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   const wanted = new Map(
     events.filter((e) => e.myRsvp === 'going' && e.startsAt > Date.now() + 5_000).map((e) => [EVENT_PREFIX + e.id, e]),
@@ -105,7 +105,7 @@ export async function syncEventReminders(events: LockinEvent[]): Promise<void> {
     await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
-        title: `C'est l'heure de lock in 🔒`,
+        title: `C'est l'heure de vainc 🔒`,
         body: e.title,
         sound: 'default',
         data: { type: 'event_start', event_id: e.id, startsAt: e.startsAt },
@@ -140,7 +140,7 @@ export async function syncTodoReminders(todos: TodoRow[]): Promise<void> {
       identifier,
       content: {
         title: `📝 ${t.title}`,
-        body: `Il te reste ${formatHours(left)} à faire avant le ${formatDay(dueAt(t))}. On lock in ?`,
+        body: `Il te reste ${formatHours(left)} à faire avant le ${formatDay(dueAt(t))}. On vainc ?`,
         sound: 'default',
         data: { type: 'todo', todo_id: t.id, at: at.getTime(), left },
       },
@@ -160,7 +160,7 @@ export async function schedulePauseNotifications(until: number): Promise<void> {
   if (warnAt > Date.now() + 5_000) {
     await Notifications.scheduleNotificationAsync({
       identifier: PAUSE_WARNING,
-      content: { title: 'Ta pause se termine dans 1 min ⏰', body: 'Prépare-toi à lock in.', sound: 'default', data: { type: 'pause' } },
+      content: { title: 'Ta pause se termine dans 1 min ⏰', body: 'Prépare-toi à vainc.', sound: 'default', data: { type: 'pause' } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(warnAt) },
     });
   }
@@ -168,7 +168,7 @@ export async function schedulePauseNotifications(until: number): Promise<void> {
     identifier: PAUSE_END,
     content: {
       title: 'Fin de la pause 🔒',
-      body: 'Reviens sur Lockin dans la minute, sinon c’est l’abandon.',
+      body: 'Reviens sur Vainc dans la minute, sinon c’est l’abandon.',
       sound: 'default',
       data: { type: 'pause' },
     },
@@ -213,7 +213,7 @@ export async function syncDailyReminders(
           : 'Même 25 min, ça compte.';
     await Notifications.scheduleNotificationAsync({
       identifier: `${DAILY_PREFIX}${day}`,
-      content: { title: "T'as pas encore lock in aujourd'hui 👀", body, sound: 'default', data: { type: 'daily' } },
+      content: { title: "T'as pas encore vainc aujourd'hui 👀", body, sound: 'default', data: { type: 'daily' } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
     });
   }

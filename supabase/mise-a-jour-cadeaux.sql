@@ -1,9 +1,9 @@
--- Mise à jour Lockin+ : offrir Lockin+ avec un lien (comme Snapchat+), et « Tu as reçu Lockin+ » dans l'app.
+-- Mise à jour Vainc+ : offrir Vainc+ avec un lien (comme Snapchat+), et « Tu as reçu Vainc+ » dans l'app.
 -- Supabase → SQL Editor → + → colle tout → Run. On peut le relancer sans risque.
 -- ═════════════════════════════════════════════════════════════════════════════
--- v20: Lockin+ gifts by link (like Snapchat+), and "you received Lockin+" in the app.
+-- v20: Vainc+ gifts by link (like Snapchat+), and "you received Vainc+" in the app.
 -- A subscriber makes a gift link (one of their 5 trials); whoever opens it first and never
--- had Lockin+ gets 7 days. Each received period is shown once in the app (plus_grants.seen_at).
+-- had Vainc+ gets 7 days. Each received period is shown once in the app (plus_grants.seen_at).
 -- ═════════════════════════════════════════════════════════════════════════════
 alter table public.plus_grants add column if not exists seen_at timestamptz;
 
@@ -68,7 +68,7 @@ $$;
 revoke execute on function public.gift_info(text) from public, anon;
 grant execute on function public.gift_info(text) to authenticated;
 
--- Takes a gift: only once, not your own, and only if you never had Lockin+.
+-- Takes a gift: only once, not your own, and only if you never had Vainc+.
 create or replace function public.claim_gift(code text)
 returns text language plpgsql security definer set search_path = public as $$
 declare
@@ -83,20 +83,20 @@ begin
   if g.giver = me.id then raise exception 'C''est ton propre cadeau 😅 Envoie-le à un pote.' using errcode = 'P0001'; end if;
   if g.claimed_by is not null then raise exception 'Ce cadeau a déjà été récupéré' using errcode = 'P0001'; end if;
   if me.featured or me.premium_until is not null or exists (select 1 from public.plus_grants where user_id = me.id) then
-    raise exception 'Le cadeau, c''est pour ceux qui n''ont jamais eu Lockin+' using errcode = 'P0001';
+    raise exception 'Le cadeau, c''est pour ceux qui n''ont jamais eu Vainc+' using errcode = 'P0001';
   end if;
   update public.plus_gifts set claimed_by = me.id, claimed_at = now() where plus_gifts.code = g.code;
   perform public.grant_plus(me.id, g.days, 'trial', g.giver);
   -- Already shown on the gift screen.
   update public.plus_grants set seen_at = now() where user_id = me.id and seen_at is null;
   select display_name into giver_name from public.profiles where id = g.giver;
-  perform public.send_push(array[g.giver], 'Cadeau récupéré 🎁', me.display_name || ' a pris ton essai Lockin+.', '{"type":"plus"}');
+  perform public.send_push(array[g.giver], 'Cadeau récupéré 🎁', me.display_name || ' a pris ton essai Vainc+.', '{"type":"plus"}');
   return giver_name;
 end $$;
 revoke execute on function public.claim_gift(text) from public, anon;
 grant execute on function public.claim_gift(text) to authenticated;
 
--- Lockin+ received and not shown yet (only while it still runs).
+-- Vainc+ received and not shown yet (only while it still runs).
 create or replace function public.unseen_plus()
 returns table (source text, days int, giver_name text)
 language sql stable security definer set search_path = public as $$

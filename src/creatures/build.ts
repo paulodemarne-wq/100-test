@@ -1,4 +1,4 @@
-// Builds a Lockin animal in three.js: the realistic animals (src/creatures/real/), the egg before hatching,
+// Builds a Vainc animal in three.js: the realistic animals (src/creatures/real/), the egg before hatching,
 // and the shop accessories on top. Shared by the app (expo-gl) and the design previews (browser).
 import * as THREE from 'three';
 import { buildAnimal, buildEgg, STAGE_FROM_LEVEL, stageFor } from './real/index';
@@ -187,7 +187,7 @@ function addAccessories(A: Anchors, c: Ctx, eq: Equipped, pivot: THREE.Object3D)
         c.add(hat, new THREE.TorusGeometry(R * 0.6, 0.04, 8, 30), c.mat('#8A5C35'), [0, -R * 0.15, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
         for (const s of [-1, 1]) c.add(hat, c.cone(0.08, R * 0.7), c.mat('#FFF4DC'), [s * R * 0.68, R * 0.15, 0], [1, 1, 1], [0, 0, -s * 0.9]);
         break;
-      // Lockin+ accessories of the month.
+      // Vainc+ accessories of the month.
       case 'tiara': {
         c.add(hat, new THREE.TorusGeometry(R * 0.55, 0.025, 8, 40, Math.PI), c.mat(GOLD, { metal: true }), [0, -R * 0.15, 0], [1, 1, 1], [0, 0, 0]);
         const stars = [-0.6, 0, 0.6];

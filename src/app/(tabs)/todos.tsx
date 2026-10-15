@@ -8,7 +8,7 @@ import { DateField } from '../../components/DateField';
 import { TodoItem } from '../../components/TodoItem';
 import { Button, ErrorText } from '../../components/ui';
 import { useSocial } from '../../lib/social';
-import { todoSplitAt, useLockin, useNow } from '../../lib/store';
+import { todoSplitAt, useVainc, useNow } from '../../lib/store';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
 import { formatDay, formatHours, isFinished, reminderAt, sortTodos } from '../../lib/todos';
 
@@ -19,11 +19,11 @@ const inAWeek = () => {
 };
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-/** My to-dos: hours of work to do before a date. A lock-in fills the one you tap. */
+/** My to-dos: hours of work to do before a date. A vainc fills the one you tap. */
 export default function Todos() {
   const params = useLocalSearchParams<{ new?: string }>();
   const { todos, createTodo, setTodoDone, deleteTodo } = useSocial();
-  const { active, switchTodo } = useLockin();
+  const { active, switchTodo } = useVainc();
   const now = useNow();
   const split = active ? todoSplitAt(active, now) : {};
   const [adding, setAdding] = useState(!!params.new || todos.length === 0);
@@ -73,7 +73,7 @@ export default function Todos() {
     }
   };
 
-  // During a lock-in, tapping a to-do sends the running time to it.
+  // During a vainc, tapping a to-do sends the running time to it.
   const pick = (id: string, name: string) => {
     if (!active) return undefined;
     return () => {
@@ -173,7 +173,7 @@ export default function Todos() {
           )}
           {open.length > 0 && (
             <Text style={type.footnote}>
-              Pendant un lock in, touche la to-do sur laquelle tu bosses : le chrono remplit sa barre. Tu peux changer quand tu
+              Pendant un vainc, touche la to-do sur laquelle tu bosses : le chrono remplit sa barre. Tu peux changer quand tu
               veux (ex : maths puis français). Rappel automatique si elle n'est pas finie (20 % du temps avant la date, 2 jours
               minimum).
             </Text>

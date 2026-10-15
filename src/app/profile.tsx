@@ -14,7 +14,7 @@ import { pickProfilePhoto } from '../lib/photo';
 import { DEFAULT_REMINDER, loadReminder, ReminderSetting, saveReminder } from '../lib/reminder';
 import { useSocial } from '../lib/social';
 import * as stats from '../lib/stats';
-import { useLockin } from '../lib/store';
+import { useVainc } from '../lib/store';
 import { card, colors, type } from '../lib/theme';
 import { dayKey, formatDuration } from '../lib/time';
 import { decorationOf, isPremium, titleOf } from '../lib/premium';
@@ -38,7 +38,7 @@ export default function Profile() {
     const lockedInToday = mySessions.some((s) => s.status === 'done' && dayKey(new Date(s.started_at)) === today);
     syncDailyReminders(next, lockedInToday, myStreak).catch(() => {});
   };
-  const { active, stopSession } = useLockin();
+  const { active, stopSession } = useVainc();
 
   const badges = useMemo(
     () => stats.badges(mySessions, profile?.weekly_goal_minutes ?? 0),
@@ -136,7 +136,7 @@ export default function Profile() {
 
         <SubscribeBar />
 
-        <Section title="Lockin+">
+        <Section title="Vainc+">
           <Row
             left={<Ionicons name="stats-chart" size={24} color={colors.accent} />}
             title="Stats détaillées"
@@ -146,7 +146,7 @@ export default function Profile() {
           />
           <Row
             left={<Ionicons name="sparkles" size={24} color={colors.accent} />}
-            title={isPremium(profile) ? 'Mon badge et ma décoration' : 'Passer à Lockin+'}
+            title={isPremium(profile) ? 'Mon badge et ma décoration' : 'Passer à Vainc+'}
             subtitle={isPremium(profile) ? 'Badge à côté du prénom, décoration de photo en 3D' : 'Badge, décoration de photo, 10 animaux exclusifs…'}
             onPress={() => router.push('/premium')}
             right={<Ionicons name="chevron-forward" size={18} color={colors.tertiary} />}
@@ -155,7 +155,7 @@ export default function Profile() {
 
         <Section
           title="Série"
-          footer="Un jour raté par mois est pardonné automatiquement (2 avec Lockin+), pour ne pas perdre ta série sur une journée de flemme."
+          footer="Un jour raté par mois est pardonné automatiquement (2 avec Vainc+), pour ne pas perdre ta série sur une journée de flemme."
         >
           <Row
             left={<Text style={{ fontSize: 28 }}>🛡️</Text>}
@@ -175,7 +175,7 @@ export default function Profile() {
 
         <Section title="Objectif de la semaine">
           <Row
-            title="Heures de lock in"
+            title="Heures de vainc"
             subtitle={`${formatDuration(myWeekSeconds)} faites sur ${goalHours} h`}
             right={
               <Stepper
@@ -218,7 +218,7 @@ export default function Profile() {
         <Section title="Notifications">
           <Row
             title="Rappel quotidien"
-            subtitle="Si tu n'as pas encore lock in ce jour-là"
+            subtitle="Si tu n'as pas encore vainc ce jour-là"
             right={
               <Switch
                 value={reminder.enabled}
@@ -236,7 +236,7 @@ export default function Profile() {
             />
           ) : null}
           <Row
-            title="Quand un pote lock in"
+            title="Quand un pote vainc"
             subtitle="Reçois une notif quand un ami lance une session"
             right={
               <Switch

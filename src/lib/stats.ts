@@ -14,7 +14,7 @@ export function weekSeconds(sessions: SessionRow[], now = new Date()): number {
 
 export type StreakInfo = {
   days: number;
-  /** Day keys rescued by a joker (1 per calendar month, 2 with Lockin+). */
+  /** Day keys rescued by a joker (1 per calendar month, 2 with Vainc+). */
   jokerDays: string[];
   /** Whether a joker is still available this month. */
   jokerAvailable: boolean;
@@ -25,7 +25,7 @@ export type StreakInfo = {
  * Consecutive days with a completed session, ending today (or yesterday if nothing yet today).
  * One missed day per calendar month is forgiven automatically (the "joker").
  */
-/** `jokers`: days forgiven per month (1, or 2 with Lockin+). */
+/** `jokers`: days forgiven per month (1, or 2 with Vainc+). */
 export function streakInfo(sessions: SessionRow[], now = new Date(), jokers = 1): StreakInfo {
   const days = new Set(done(sessions).map((s) => dayKey(new Date(s.started_at))));
   const monthOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
@@ -70,7 +70,7 @@ export function badges(sessions: SessionRow[], weeklyGoalMinutes: number, now = 
     {
       id: 'first',
       emoji: '🔒',
-      name: 'Premier lock in',
+      name: 'Premier vainc',
       description: 'Terminer une première session',
       unlocked: completed.length > 0,
     },
@@ -113,7 +113,7 @@ export function badges(sessions: SessionRow[], weeklyGoalMinutes: number, now = 
       id: 'team',
       emoji: '🤝',
       name: 'Esprit d’équipe',
-      description: 'Finir un lock in de groupe',
+      description: 'Finir un vainc de groupe',
       unlocked: completed.some((s) => s.event_id !== null),
     },
     {
@@ -127,7 +127,7 @@ export function badges(sessions: SessionRow[], weeklyGoalMinutes: number, now = 
       id: 'fifty',
       emoji: '💯',
       name: 'Machine',
-      description: '50 h de lock in',
+      description: '50 h de vainc',
       unlocked: total >= 50 * 3600,
     },
   ];

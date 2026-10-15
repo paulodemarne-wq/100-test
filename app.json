@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Lockin",
+    "name": "Vainc",
     "slug": "lockin",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,7 +21,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "lockin",
+    "scheme": "vainc",
     "backgroundColor": "#F2F2F7",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -33,8 +33,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Lockin utilise tes photos pour ta photo de profil.",
-          "cameraPermission": "Lockin utilise l’appareil photo pour ta photo de profil."
+          "photosPermission": "Vainc utilise tes photos pour ta photo de profil.",
+          "cameraPermission": "Vainc utilise l’appareil photo pour ta photo de profil."
         }
       ],
       [

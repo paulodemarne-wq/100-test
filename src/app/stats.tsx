@@ -13,7 +13,7 @@ type Done = { subject: string; started_at: string; duration_sec: number };
 const DAY = 86_400_000;
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
-/** Lockin+: hours per subject, best time of day, the month day by day. */
+/** Vainc+: hours per subject, best time of day, the month day by day. */
 export default function Stats() {
   const { profile, userId } = useAuth();
   const premium = isPremium(profile);
@@ -111,7 +111,7 @@ export default function Stats() {
 
             <Text style={styles.sectionTitle}>PAR MATIÈRE</Text>
             <View style={[card, styles.chartCard, { gap: 10 }]}>
-              {s.subjects.length === 0 && <Text style={type.footnote}>Donne un sujet à tes lock in pour voir le détail.</Text>}
+              {s.subjects.length === 0 && <Text style={type.footnote}>Donne un sujet à tes vainc pour voir le détail.</Text>}
               {s.subjects.map(([name, sec]) => (
                 <View key={name} style={{ gap: 4 }}>
                   <View style={styles.subjectTop}>
@@ -132,7 +132,7 @@ export default function Stats() {
             <Text style={styles.sectionTitle}>TON MEILLEUR MOMENT</Text>
             <View style={[card, styles.chartCard]}>
               <Text style={type.headline}>
-                {s.byHour.some((x) => x > 0) ? `Tu bosses le plus entre ${s.best} h et ${(s.best + 2) % 24} h` : 'Pas encore assez de lock in'}
+                {s.byHour.some((x) => x > 0) ? `Tu bosses le plus entre ${s.best} h et ${(s.best + 2) % 24} h` : 'Pas encore assez de vainc'}
               </Text>
               <View style={[styles.bars, { height: 90 }]}>
                 {s.byHour.map((sec, h) => (
@@ -174,10 +174,10 @@ export default function Stats() {
                 <Ionicons name="stats-chart" size={30} color={colors.accent} />
                 <Text style={[type.title, { textAlign: 'center' }]}>Stats détaillées</Text>
                 <Text style={[type.subhead, { textAlign: 'center' }]}>
-                  Heures par matière, ton meilleur moment de la journée, le mois jour par jour. Avec Lockin+.
+                  Heures par matière, ton meilleur moment de la journée, le mois jour par jour. Avec Vainc+.
                 </Text>
                 <Pressable onPress={() => router.replace('/premium')} style={styles.lockButton}>
-                  <Text style={styles.lockButtonText}>Voir Lockin+</Text>
+                  <Text style={styles.lockButtonText}>Voir Vainc+</Text>
                 </Pressable>
               </View>
             </View>

@@ -37,7 +37,7 @@ export function buildAnimal(species: number, stage: Stage, lite = false): Animal
   }
 }
 
-/** A realistic speckled egg (golden for Lockin+), cracking at level 1. */
+/** A realistic speckled egg (golden for Vainc+), cracking at level 1. */
 export function buildEgg(level: number, plus: boolean): Animal {
   const group = new THREE.Group();
   const shell = plus ? '#E8C46A' : '#EFE6D6';

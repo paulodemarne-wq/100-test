@@ -104,13 +104,13 @@ export default function PetScreen() {
 
   const visitors = friends.filter((f) => friendPets[f.profile.id]).length;
 
-  /** Lockin+: give the active pet a name. */
+  /** Vainc+: give the active pet a name. */
   const rename = () => {
     if (!pet) return;
     if (!isPremium(profile)) {
-      Alert.alert('Renommer ton animal', 'Avec Lockin+, tu peux lui donner le nom que tu veux.', [
+      Alert.alert('Renommer ton animal', 'Avec Vainc+, tu peux lui donner le nom que tu veux.', [
         { text: 'Plus tard', style: 'cancel' },
-        { text: 'Voir Lockin+', onPress: () => router.push('/premium') },
+        { text: 'Voir Vainc+', onPress: () => router.push('/premium') },
       ]);
       return;
     }
@@ -147,7 +147,7 @@ export default function PetScreen() {
           <View style={{ flex: 1 }}>
             <Text style={type.footnote}>
               {pet?.nickname ? `${displayName(species, level)} · ` : ''}
-              {species && form > 0 ? `${elementOf(species).emoji} ${elementOf(species).name} · ${tier.name}` : 'Il éclot après 5 h 30 de lock in'}
+              {species && form > 0 ? `${elementOf(species).emoji} ${elementOf(species).name} · ${tier.name}` : 'Il éclot après 5 h 30 de vainc'}
             </Text>
             <Pressable onPress={rename} hitSlop={6} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={[type.largeTitle, { flexShrink: 1 }]} numberOfLines={1}>
@@ -182,7 +182,7 @@ export default function PetScreen() {
 
         <View style={styles.xpCard}>
           <View style={styles.xpTop}>
-            <Text style={type.headline}>{formatDuration(pet.xp_seconds)} de lock in ensemble</Text>
+            <Text style={type.headline}>{formatDuration(pet.xp_seconds)} de vainc ensemble</Text>
             {!maxed && <Text style={[styles.nextStage, { color: tier.color }]}>Niv. {level + 1}</Text>}
           </View>
           <View style={styles.barTrack}>

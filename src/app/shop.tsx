@@ -79,12 +79,12 @@ export default function Shop() {
     const deal = dealFor(item);
     const price = priceOf(item);
     if (balance < price * 3600) {
-      Alert.alert("Pas assez d'heures", `Il te manque ${formatDuration(price * 3600 - balance)} de lock in 💪`);
+      Alert.alert("Pas assez d'heures", `Il te manque ${formatDuration(price * 3600 - balance)} de vainc 💪`);
       return;
     }
     Alert.alert(
       price === 0 ? `Prendre ${item.name} ?` : `Acheter ${item.name} ?`,
-      price === 0 ? 'C’est offert 🎁' : deal ? `Pour ${price} h au lieu de ${item.costHours} h.` : `Pour ${item.costHours} h de lock in.`,
+      price === 0 ? 'C’est offert 🎁' : deal ? `Pour ${price} h au lieu de ${item.costHours} h.` : `Pour ${item.costHours} h de vainc.`,
       [
       { text: 'Annuler', style: 'cancel' },
       {
@@ -163,7 +163,7 @@ export default function Shop() {
         ]
       : [
           {
-            title: 'Accessoire du mois · Lockin+',
+            title: 'Accessoire du mois · Vainc+',
             items: SHOP_ITEMS.filter((i) => i.monthly && (i.id === monthlyAccessory() || inventory.includes(i.id))),
           },
           { title: 'Œuf', items: SHOP_ITEMS.filter((i) => i.kind === 'egg') },
@@ -174,7 +174,7 @@ export default function Shop() {
         ];
   /** Bigger islands are bought in order: 20×20 before 24×24, etc. */
   const lockedBy = (item: ShopItem): string | null => {
-    if (item.premium && !premium) return 'Lockin+';
+    if (item.premium && !premium) return 'Vainc+';
     const m = /^size(\d+)$/.exec(item.id);
     if (!m || m[1] === '20') return null;
     const before = `size${Number(m[1]) - 4}`;
@@ -231,7 +231,7 @@ export default function Shop() {
             ? `Chaque jour, une nouvelle boutique : 6 promos et un cadeau offert. Nouvelle boutique dans ${formatDuration(Math.max(60, Math.floor(msUntilNextShop(now) / 1000)))}.`
             : tab === 'garden'
             ? 'Agrandis ton île, ajoute la mer et des bateaux. Chaque objet acheté = 1 objet à poser ; les sols se débloquent une fois.'
-            : 'Chaque heure de lock in = 1 h à dépenser ici.'}
+            : 'Chaque heure de vainc = 1 h à dépenser ici.'}
         </Text>
         {sections.map((section) => (
         <View key={section.title} style={{ gap: 8 }}>
@@ -254,7 +254,7 @@ export default function Shop() {
               >
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={[styles.rarity, { backgroundColor: color }]}>
-                    <Text style={styles.rarityText}>{item.premium ? 'Lockin+' : item.kind === 'egg' ? 'Nouvel animal' : item.kind === 'accessory' ? 'Accessoire' : item.kind === 'upgrade' ? 'Île' : 'Déco'}</Text>
+                    <Text style={styles.rarityText}>{item.premium ? 'Vainc+' : item.kind === 'egg' ? 'Nouvel animal' : item.kind === 'accessory' ? 'Accessoire' : item.kind === 'upgrade' ? 'Île' : 'Déco'}</Text>
                   </View>
                   {deal && (
                     <View style={[styles.rarity, { backgroundColor: deal.percent === 100 ? colors.success : colors.danger }]}>

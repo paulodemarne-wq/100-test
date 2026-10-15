@@ -34,7 +34,7 @@ export default function Recap() {
     try {
       const uri = await captureRef(cardRef, { format: 'png', quality: 1 });
       if (!(await Sharing.isAvailableAsync())) throw new Error("Le partage n'est pas disponible sur cet appareil.");
-      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Ma semaine sur Lockin' });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Ma semaine sur Vainc' });
     } catch (e) {
       Alert.alert('Oups', (e as Error).message);
     } finally {
@@ -67,12 +67,12 @@ export default function Recap() {
               <Avatar name={profile?.display_name ?? '?'} photoUri={profile?.avatar_url} decoration={decorationOf(profile)} size={44} />
               <View>
                 <Text style={styles.cardName}><Named person={profile} size={18} /></Text>
-                <Text style={styles.cardSmall}>ma semaine sur Lockin 🔒</Text>
+                <Text style={styles.cardSmall}>ma semaine sur Vainc 🔒</Text>
               </View>
             </View>
 
             <Text style={styles.total}>{formatDuration(recap.totalSeconds)}</Text>
-            <Text style={styles.totalLabel}>de lock in cette semaine</Text>
+            <Text style={styles.totalLabel}>de vainc cette semaine</Text>
 
             <View style={styles.lines}>
               {lines.map(([label, value]) => (
@@ -84,7 +84,7 @@ export default function Recap() {
             </View>
 
             {earned.length > 0 && <Text style={styles.badges}>{earned.map((b) => b.emoji).join('  ')}</Text>}
-            <Text style={styles.footer}>lockin · révise avec tes potes</Text>
+            <Text style={styles.footer}>vainc · révise avec tes potes</Text>
           </LinearGradient>
         </View>
 

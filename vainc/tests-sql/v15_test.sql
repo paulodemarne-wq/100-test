@@ -24,7 +24,7 @@ insert into profiles (id, username, display_name) values ('ffffffff-0000-0000-00
 insert into friendships (requester, addressee, status) values ('ffffffff-0000-0000-0000-00000000000f', '99999999-0000-0000-0000-000000000099', 'accepted') on conflict do nothing;
 select referral_code as fcode from profiles where id = 'ffffffff-0000-0000-0000-00000000000f' \gset
 set role authenticated;
--- Clients can't touch grants or Lockin+ directly.
+-- Clients can't touch grants or Vainc+ directly.
 select pg_temp.as_user('99999999-0000-0000-0000-000000000099');
 select pg_temp.expect_fail($$select grant_plus(auth.uid(), 365, 'paid')$$, 'cannot grant myself');
 select pg_temp.expect_fail($$insert into plus_grants (user_id, source, days) values (auth.uid(), 'paid', 365)$$, 'cannot insert grants');
@@ -32,7 +32,7 @@ select pg_temp.expect_fail($$update profiles set referred_by = 'ffffffff-0000-00
 select pg_temp.expect_fail($$select use_referral_code('ZZZZZZ')$$, 'unknown code');
 select use_referral_code(lower(:'fcode'));
 select pg_temp.expect_fail($$select use_referral_code('$$ || :'fcode' || $$')$$, 'only one sponsor');
--- F has no paid Lockin+: cannot give trials.
+-- F has no paid Vainc+: cannot give trials.
 select pg_temp.as_user('ffffffff-0000-0000-0000-00000000000f');
 select pg_temp.expect_rows($$select 1 where trials_left(auth.uid()) = 0$$, 1, 'no trials without paying');
 select pg_temp.expect_fail($$select give_trial('99999999-0000-0000-0000-000000000099')$$, 'cannot give trial without paying');
@@ -46,10 +46,10 @@ reset role;
 select grant_plus('99999999-0000-0000-0000-000000000099', 30, 'paid');
 set role authenticated;
 select pg_temp.expect_rows($$select 1 from plus_grants where source = 'referral'$$, 2, 'referral paid once only');
--- G now pays and can give 5 trials, only to friends who never had Lockin+.
+-- G now pays and can give 5 trials, only to friends who never had Vainc+.
 select pg_temp.as_user('99999999-0000-0000-0000-000000000099');
 select pg_temp.expect_rows($$select 1 where trials_left(auth.uid()) = 5$$, 1, '5 trials to give');
-select pg_temp.expect_fail($$select give_trial('ffffffff-0000-0000-0000-00000000000f')$$, 'friend already had Lockin+');
+select pg_temp.expect_fail($$select give_trial('ffffffff-0000-0000-0000-00000000000f')$$, 'friend already had Vainc+');
 select pg_temp.expect_fail($$select give_trial('aaaaaaaa-0000-0000-0000-000000000001')$$, 'not a friend');
 reset role;
 do $$

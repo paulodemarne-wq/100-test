@@ -20,7 +20,7 @@ set role authenticated;
 \set F '''ffffffff-0000-0000-0000-00000000000f'''
 \set A '''aaaaaaaa-0000-0000-0000-000000000001'''
 select pg_temp.as_user(:G);
-insert into messages (recipient, body) values (:F, 'On lock in à 20 h ?');
+insert into messages (recipient, body) values (:F, 'On vainc à 20 h ?');
 select pg_temp.expect_fail($$insert into messages (recipient, body) values ('aaaaaaaa-0000-0000-0000-000000000001', 'salut')$$, 'only to friends');
 select pg_temp.expect_fail($$insert into messages (sender, recipient, body) values ('ffffffff-0000-0000-0000-00000000000f', '99999999-0000-0000-0000-000000000099', 'fake')$$, 'cannot send as someone else');
 select pg_temp.expect_fail($$insert into messages (recipient, body) values ('ffffffff-0000-0000-0000-00000000000f', '')$$, 'no empty message');

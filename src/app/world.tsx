@@ -56,7 +56,7 @@ export default function WorldScreen() {
   const shopIsland = !!host?.featured;
   const mine = !params.user || params.user === profile?.id;
 
-  // Which island: 1 for everyone, 2 (snow) and 3 (floating) with Lockin+.
+  // Which island: 1 for everyone, 2 (snow) and 3 (floating) with Vainc+.
   const [island, setIsland] = useState(1);
   const islandRef = useRef(1);
   islandRef.current = island;
@@ -233,10 +233,10 @@ export default function WorldScreen() {
     // None left in stock: buy one (each object is paid once, for one placement).
     const item = itemOf(id)!;
     if (balance < item.costHours * 3600) {
-      Alert.alert("Pas assez d'heures", `${item.name} coûte ${item.costHours} h. Il te manque ${formatDuration(item.costHours * 3600 - balance)} de lock in 💪`);
+      Alert.alert("Pas assez d'heures", `${item.name} coûte ${item.costHours} h. Il te manque ${formatDuration(item.costHours * 3600 - balance)} de vainc 💪`);
       return false;
     }
-    Alert.alert(`Acheter ${item.name.toLowerCase()} ?`, `1 ${item.name.toLowerCase()} pour ${item.costHours} h de lock in.`, [
+    Alert.alert(`Acheter ${item.name.toLowerCase()} ?`, `1 ${item.name.toLowerCase()} pour ${item.costHours} h de vainc.`, [
       { text: 'Annuler', style: 'cancel' },
       {
         text: `Payer ${item.costHours} h`,
@@ -261,14 +261,14 @@ export default function WorldScreen() {
     ]);
 
   const premium = isPremium(profile);
-  // My 3 islands (2 and 3 locked without Lockin+), or the ones a friend has built.
+  // My 3 islands (2 and 3 locked without Vainc+), or the ones a friend has built.
   const islands = ISLANDS.filter((it) => mine || it.n === 1 || (it.n === 2 ? !!host?.world2 : !!host?.world3));
   const switchIsland = async (n: number) => {
     if (n === island) return;
     if (mine && n > 1 && !premium) {
-      Alert.alert(`${ISLANDS[n - 1].name} · Lockin+`, 'Deux îles en plus à décorer : une île de neige et une île volante.', [
+      Alert.alert(`${ISLANDS[n - 1].name} · Vainc+`, 'Deux îles en plus à décorer : une île de neige et une île volante.', [
         { text: 'Plus tard', style: 'cancel' },
-        { text: 'Voir Lockin+', onPress: () => router.push('/premium') },
+        { text: 'Voir Vainc+', onPress: () => router.push('/premium') },
       ]);
       return;
     }
@@ -288,11 +288,11 @@ export default function WorldScreen() {
     setIsland(n);
   };
   const choose = (item: ShopItem) => {
-    // Lockin+ decorations: free, but only with Lockin+.
+    // Vainc+ decorations: free, but only with Vainc+.
     if (item.premium && !premium) {
-      Alert.alert(`${item.name} · Lockin+`, 'Cette déco est offerte avec Lockin+.', [
+      Alert.alert(`${item.name} · Vainc+`, 'Cette déco est offerte avec Vainc+.', [
         { text: 'Plus tard', style: 'cancel' },
-        { text: 'Voir Lockin+', onPress: () => router.push('/premium') },
+        { text: 'Voir Vainc+', onPress: () => router.push('/premium') },
       ]);
       return;
     }
@@ -635,7 +635,7 @@ export default function WorldScreen() {
                   const tile = item.slot === 'ground';
                   const left = tile ? 0 : available(item.id);
                   const ready = tile ? ownsItem(item, inventory) || TILE_CHARS[item.id] === ISLANDS[island - 1].ground : left > 0;
-                  const label = item.premium ? (premium ? 'Lockin+ ✓' : '🔒 Lockin+') : item.costHours === 0 ? 'Gratuit' : tile ? (ready ? '✓' : `🔒 ${item.costHours} h`) : ready ? `×${left}` : `${item.costHours} h`;
+                  const label = item.premium ? (premium ? 'Vainc+ ✓' : '🔒 Vainc+') : item.costHours === 0 ? 'Gratuit' : tile ? (ready ? '✓' : `🔒 ${item.costHours} h`) : ready ? `×${left}` : `${item.costHours} h`;
                   return (
                     <Pressable key={item.id} onPress={() => choose(item)} style={[styles.item, selectedId === item.id && styles.itemActive]}>
                       <Text style={[styles.itemEmoji, tile && !ready && { opacity: 0.35 }]}>{item.emoji}</Text>

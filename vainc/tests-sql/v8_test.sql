@@ -19,7 +19,7 @@ set role authenticated;
 -- admin.sql was run as postgres for A ('alice') before this test.
 select pg_temp.as_user(:A);
 select pg_temp.expect_rows($$select 1 from profiles where id = auth.uid() and featured and (world->>'size')::int = 32$$, 1, 'A is featured with a 32x32 island');
-select pg_temp.expect_rows($$select 1 from pets where user_id = auth.uid() and xp_seconds >= 2190*3600$$, 10, 'A has 10 maxed Lockin+ animals');
+select pg_temp.expect_rows($$select 1 from pets where user_id = auth.uid() and xp_seconds >= 2190*3600$$, 10, 'A has 10 maxed Vainc+ animals');
 select pg_temp.expect_fail($$update profiles set featured = true where id = auth.uid()$$, 'cannot self-feature');
 select public.save_world(jsonb_build_object('size', 32, 'sea', true, 'tiles', repeat('g', 1024), 'objects', '[["boutique",5,5,0]]'::jsonb));
 -- E (not friends with A) sees A's pets.

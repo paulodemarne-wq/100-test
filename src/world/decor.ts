@@ -504,7 +504,7 @@ export function buildDecor(id: string, k: Kit): THREE.Group {
       add(g, box(0.12, 0.2, 0.02), mat('#4A2E1B'), [0, 0.1, 0.31]);
       break;
 
-    // ─── Lockin+ decorations (free for subscribers) ──────────────────────────
+    // ─── Vainc+ decorations (free for subscribers) ──────────────────────────
     case 'portal':
       add(g, new THREE.TorusGeometry(0.36, 0.06, 10, 32), mat('#7B3FE4', 0.4), [0, 0.46, 0]);
       add(g, cyl(0.31, 0.31, 0.02, 28), mat('#C77DFF', 0.9, 0.75), [0, 0.46, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);

@@ -10,7 +10,7 @@ import { Stepper } from '../components/Stepper';
 import { Button } from '../components/ui';
 import { countdown, ExamPlan, PACE_TEXT, planExam, weekPlan } from '../lib/exams';
 import { Exam, useSocial } from '../lib/social';
-import { useLockin } from '../lib/store';
+import { useVainc } from '../lib/store';
 import { errorMessage, supabase } from '../lib/supabase';
 import { card, colors, type } from '../lib/theme';
 import { formatDuration } from '../lib/time';
@@ -21,7 +21,7 @@ const examDay = (x: Exam) => new Date(`${x.exam_date}T12:00:00`).toLocaleDateStr
 /** Mode partiels: countdown, hours to do per day, today's goal, week plan, delay alerts, revising with friends. */
 export default function Exams() {
   const { exams, examInvites, mySessions, friends, addExam, deleteExam, inviteToExam, answerExam } = useSocial();
-  const { active, startSession } = useLockin();
+  const { active, startSession } = useVainc();
   const plans = useMemo(() => exams.map((x) => planExam(x, mySessions)), [exams, mySessions]);
   const week = useMemo(() => weekPlan(plans), [plans]);
   const next = plans[0];
@@ -35,8 +35,8 @@ export default function Exams() {
   const [ranking, setRanking] = useState<{ examId: string; rows: { user_id: string; display_name: string; avatar_url: string | null; seconds: number }[] } | null>(null);
   const fail = (e: unknown) => Alert.alert('Oups', errorMessage(e));
 
-  const lockIn = (x: Exam) => {
-    if (active) return Alert.alert('Déjà en lock in', 'Termine ta session en cours d’abord.');
+  const vainc = (x: Exam) => {
+    if (active) return Alert.alert('Déjà en vainc', 'Termine ta session en cours d’abord.');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startSession(x.name);
     router.navigate('/');
@@ -101,7 +101,7 @@ export default function Exams() {
             </View>
           ))}
 
-          {next && <Hero plan={next} onLockIn={() => lockIn(next.exam)} />}
+          {next && <Hero plan={next} onVainc={() => vainc(next.exam)} />}
 
           {plans.length > 0 && (
             <>
@@ -156,9 +156,9 @@ export default function Exams() {
                   {PACE_TEXT[p.pace]}
                 </Text>
                 <View style={styles.actions}>
-                  <Pressable onPress={() => lockIn(x)} style={styles.smallButton}>
+                  <Pressable onPress={() => vainc(x)} style={styles.smallButton}>
                     <Ionicons name="lock-closed" size={13} color={colors.onAccent} />
-                    <Text style={styles.smallButtonText}>Lock in</Text>
+                    <Text style={styles.smallButtonText}>vainc</Text>
                   </Pressable>
                   <Pressable onPress={() => setInviting(inviting === x.id ? null : x.id)} style={styles.ghostButton}>
                     <Ionicons name="person-add" size={13} color={colors.accent} />
@@ -231,7 +231,7 @@ export default function Exams() {
               <Button title="Ajouter le partiel" onPress={submit} loading={adding} disabled={!name.trim()} />
             </View>
           </View>
-          <Text style={type.footnote}>Tes lock in comptent pour un partiel quand leur sujet porte son nom (le bouton « Lock in » le fait pour toi).</Text>
+          <Text style={type.footnote}>Tes vainc comptent pour un partiel quand leur sujet porte son nom (le bouton « vainc » le fait pour toi).</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -239,7 +239,7 @@ export default function Exams() {
 }
 
 /** The next exam, big: countdown, today's goal with its bar, and the alert if behind. */
-function Hero({ plan, onLockIn }: { plan: ExamPlan; onLockIn: () => void }) {
+function Hero({ plan, onVainc }: { plan: ExamPlan; onVainc: () => void }) {
   const x = plan.exam;
   const todayGoal = plan.doneToday + plan.leftToday;
   const pct = todayGoal > 0 ? Math.min(1, plan.doneToday / todayGoal) : 1;
@@ -266,9 +266,9 @@ function Hero({ plan, onLockIn }: { plan: ExamPlan; onLockIn: () => void }) {
           <Text style={styles.alertText}>Tu as {formatDuration(plan.behind)} de retard sur {x.name}</Text>
         </View>
       )}
-      <Pressable onPress={onLockIn} style={styles.heroButton}>
+      <Pressable onPress={onVainc} style={styles.heroButton}>
         <Ionicons name="lock-closed" size={16} color={colors.accent} />
-        <Text style={styles.heroButtonText}>Lock in sur {x.name}</Text>
+        <Text style={styles.heroButtonText}>vainc sur {x.name}</Text>
       </Pressable>
     </View>
   );

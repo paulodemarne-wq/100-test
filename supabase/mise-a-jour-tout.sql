@@ -1,14 +1,14 @@
--- Mise à jour de la base Lockin : to-do, Lockin+ (abonnement, parrainage, essais à offrir),
+-- Mise à jour de la base Vainc : to-do, Vainc+ (abonnement, parrainage, essais à offrir),
 -- photo de profil réparée, partiels en commun, et la suite.
 -- Supabase → SQL Editor → + → colle tout → Run. On peut le relancer sans risque (même si tu as déjà
--- lancé une ancienne mise à jour To-do ou Lockin+).
+-- lancé une ancienne mise à jour To-do ou Vainc+).
 
 drop policy if exists "see own events" on public.lockin_events;
 create policy "see own events" on public.lockin_events
   for select to authenticated using (host = auth.uid() or public.is_event_member(id, auth.uid()));
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v12: to-dos with a time budget and a due date. A lock-in can work on one:
+-- v12: to-dos with a time budget and a due date. A vainc can work on one:
 -- its focus time is added to the to-do (worked_seconds) when the session ends.
 -- ═════════════════════════════════════════════════════════════════════════════
 create table if not exists public.todos (
@@ -49,7 +49,7 @@ drop trigger if exists check_session_todo on public.study_sessions;
 create trigger check_session_todo before insert or update of todo_id on public.study_sessions
   for each row execute function public.check_session_todo();
 
--- v13: one lock-in can switch between to-dos. todo_split = {"<todo id>": seconds, ...}.
+-- v13: one vainc can switch between to-dos. todo_split = {"<todo id>": seconds, ...}.
 alter table public.study_sessions add column if not exists todo_split jsonb;
 do $$
 begin
@@ -95,10 +95,10 @@ create trigger feed_todo after update of status on public.study_sessions
   for each row execute function public.feed_todo();
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v14: Lockin+ (subscription). premium_until is only set by the server (payment,
--- or by hand in the SQL editor for now). Featured accounts count as Lockin+.
--- Lockin+ gives: a badge next to the name, a decoration around the photo (the photo
--- itself is free), the Lockin+ egg (10 exclusive creatures) and free island decorations.
+-- v14: Vainc+ (subscription). premium_until is only set by the server (payment,
+-- or by hand in the SQL editor for now). Featured accounts count as Vainc+.
+-- Vainc+ gives: a badge next to the name, a decoration around the photo (the photo
+-- itself is free), the Vainc+ egg (10 exclusive creatures) and free island decorations.
 -- ═════════════════════════════════════════════════════════════════════════════
 alter table public.profiles
   add column if not exists premium_until timestamptz,
@@ -121,8 +121,8 @@ returns boolean language sql stable security definer set search_path = public as
   select coalesce((select featured or coalesce(premium_until > now(), false) from public.profiles where id = u), false);
 $$;
 
--- Badge and decoration are Lockin+ only (taking them off is always allowed).
--- They stay stored when Lockin+ ends; the app only shows them while it is on.
+-- Badge and decoration are Vainc+ only (taking them off is always allowed).
+-- They stay stored when Vainc+ ends; the app only shows them while it is on.
 create or replace function public.check_profile_premium()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -130,7 +130,7 @@ begin
   if auth.uid() is null or public.is_premium(new.id) then return new; end if;
   if (new.badge is not null and (tg_op = 'INSERT' or new.badge is distinct from old.badge))
      or (new.decoration is not null and (tg_op = 'INSERT' or new.decoration is distinct from old.decoration)) then
-    raise exception 'Réservé à Lockin+' using errcode = 'P0001';
+    raise exception 'Réservé à Vainc+' using errcode = 'P0001';
   end if;
   return new;
 end $$;
@@ -148,7 +148,7 @@ create policy "read own avatar" on storage.objects
   for select to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
--- Lockin+ items: the egg with the 10 exclusive creatures, and free decorations.
+-- Vainc+ items: the egg with the 10 exclusive creatures, and free decorations.
 alter table public.shop_items add column if not exists premium boolean not null default false;
 insert into public.shop_items (id, kind, slot, rarity, cost_seconds, premium) values
   ('egg_plus', 'egg', null, 'légendaire', 50 * 3600, true),
@@ -161,7 +161,7 @@ insert into public.shop_items (id, kind, slot, rarity, cost_seconds, premium) va
 on conflict (id) do update set kind = excluded.kind, slot = excluded.slot, rarity = excluded.rarity,
   cost_seconds = excluded.cost_seconds, premium = excluded.premium;
 
--- Which egg a pet came from; Lockin+ eggs hatch one of the creatures 100..109.
+-- Which egg a pet came from; Vainc+ eggs hatch one of the creatures 100..109.
 alter table public.pets add column if not exists egg text not null default 'normal';
 do $$
 begin
@@ -213,7 +213,7 @@ begin
   if objects is null or jsonb_typeof(objects) <> 'array' or jsonb_array_length(objects) > 200 then
     raise exception 'Trop d''objets (200 max)';
   end if;
-  -- Without Lockin+ (it ended), its decorations are taken off the island instead of blocking the save.
+  -- Without Vainc+ (it ended), its decorations are taken off the island instead of blocking the save.
   if not public.is_premium(auth.uid()) then
     select coalesce(jsonb_agg(e), '[]'::jsonb) into objects
     from jsonb_array_elements(objects) e
@@ -266,7 +266,7 @@ begin
   if it.id is null then raise exception 'Objet inconnu'; end if;
   if it.cost_seconds = 0 then raise exception 'Déjà acheté' using errcode = 'P0001'; end if;
   if it.kind = 'special' then raise exception 'Pas à vendre' using errcode = 'P0001'; end if;
-  if it.premium and not public.is_premium(auth.uid()) then raise exception 'Réservé à Lockin+' using errcode = 'P0001'; end if;
+  if it.premium and not public.is_premium(auth.uid()) then raise exception 'Réservé à Vainc+' using errcode = 'P0001'; end if;
   -- Lock the profile row so two purchases can't spend the same hours.
   select * into me from public.profiles where id = auth.uid() for update;
   -- Featured accounts (the app's creator) have unlimited hours.
@@ -325,12 +325,12 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v15: Lockin+ referrals and gifted trials.
--- Every Lockin+ period is a row in plus_grants; grant_plus() is the only way to give one
+-- v15: Vainc+ referrals and gifted trials.
+-- Every Vainc+ period is a row in plus_grants; grant_plus() is the only way to give one
 -- (a payment, a trial, a referral reward, or by hand). It is never callable from the app.
--- - Referral: a new user enters a friend's code; when they PAY for Lockin+ the first time,
+-- - Referral: a new user enters a friend's code; when they PAY for Vainc+ the first time,
 --   both get one month free.
--- - Trials: a paying subscriber can give up to 5 trials of 7 days to friends who never had Lockin+.
+-- - Trials: a paying subscriber can give up to 5 trials of 7 days to friends who never had Vainc+.
 -- ═════════════════════════════════════════════════════════════════════════════
 alter table public.profiles
   add column if not exists referral_code text,
@@ -355,7 +355,7 @@ create policy "see own grants" on public.plus_grants
   for select to authenticated using (user_id = auth.uid() or granted_by = auth.uid());
 revoke insert, update, delete on public.plus_grants from anon, authenticated;
 
--- Gives Lockin+ for some days (after what is left), and pays the referral reward on a first payment.
+-- Gives Vainc+ for some days (after what is left), and pays the referral reward on a first payment.
 create or replace function public.grant_plus(u uuid, days int, source text, giver uuid default null)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -372,13 +372,13 @@ begin
     if sponsor is not null then
       perform public.grant_plus(u, 30, 'referral', sponsor);
       perform public.grant_plus(sponsor, 30, 'referral', u);
-      perform public.send_push(array[sponsor], 'Parrainage réussi 🎉', 'Ton pote a pris Lockin+ : 1 mois offert pour vous deux.', '{"type":"plus"}');
+      perform public.send_push(array[sponsor], 'Parrainage réussi 🎉', 'Ton pote a pris Vainc+ : 1 mois offert pour vous deux.', '{"type":"plus"}');
     end if;
   end if;
 end $$;
 revoke execute on function public.grant_plus(uuid, int, text, uuid) from public, anon, authenticated;
 
--- A new user enters a friend's code (once, and only before ever having Lockin+).
+-- A new user enters a friend's code (once, and only before ever having Vainc+).
 create or replace function public.use_referral_code(code text)
 returns text language plpgsql security definer set search_path = public as $$
 declare
@@ -389,7 +389,7 @@ begin
   if me.id is null then raise exception 'Non connecté'; end if;
   if me.referred_by is not null then raise exception 'Tu as déjà un parrain' using errcode = 'P0001'; end if;
   if exists (select 1 from public.plus_grants where user_id = me.id) then
-    raise exception 'Le parrainage, c''est avant ton premier Lockin+' using errcode = 'P0001';
+    raise exception 'Le parrainage, c''est avant ton premier Vainc+' using errcode = 'P0001';
   end if;
   select * into sponsor from public.profiles where referral_code = upper(trim(code));
   if sponsor.id is null then raise exception 'Code inconnu' using errcode = 'P0001'; end if;
@@ -411,7 +411,7 @@ returns int language sql stable security definer set search_path = public as $$
   end;
 $$;
 
--- My friends who can still get a trial (they never had Lockin+).
+-- My friends who can still get a trial (they never had Vainc+).
 create or replace function public.trial_candidates()
 returns table (id uuid) language sql stable security definer set search_path = public as $$
   select p.id from public.profiles p
@@ -433,10 +433,10 @@ begin
   if me.id is null then raise exception 'Non connecté'; end if;
   if public.trials_left(me.id) <= 0 then raise exception 'Plus d''essai à offrir' using errcode = 'P0001'; end if;
   if not exists (select 1 from public.trial_candidates() c where c.id = friend) then
-    raise exception 'Ce pote a déjà eu Lockin+ (ou n''est pas ton ami)' using errcode = 'P0001';
+    raise exception 'Ce pote a déjà eu Vainc+ (ou n''est pas ton ami)' using errcode = 'P0001';
   end if;
   perform public.grant_plus(friend, 7, 'trial', me.id);
-  perform public.send_push(array[friend], me.display_name || ' t''offre Lockin+ 🎁', '7 jours d''essai : badge, décoration de photo, animaux exclusifs…', '{"type":"plus"}');
+  perform public.send_push(array[friend], me.display_name || ' t''offre Vainc+ 🎁', '7 jours d''essai : badge, décoration de photo, animaux exclusifs…', '{"type":"plus"}');
 end $$;
 revoke execute on function public.give_trial(uuid) from public, anon;
 grant execute on function public.give_trial(uuid) to authenticated;
@@ -576,7 +576,7 @@ begin
 end $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v18: Lockin+ extras: a title under the name, and a name for your pet.
+-- v18: Vainc+ extras: a title under the name, and a name for your pet.
 -- ═════════════════════════════════════════════════════════════════════════════
 alter table public.profiles add column if not exists title text;
 alter table public.profiles drop constraint if exists profiles_title_check;
@@ -593,7 +593,7 @@ begin
   if (new.badge is not null and (tg_op = 'INSERT' or new.badge is distinct from old.badge))
      or (new.decoration is not null and (tg_op = 'INSERT' or new.decoration is distinct from old.decoration))
      or (new.title is not null and (tg_op = 'INSERT' or new.title is distinct from old.title)) then
-    raise exception 'Réservé à Lockin+' using errcode = 'P0001';
+    raise exception 'Réservé à Vainc+' using errcode = 'P0001';
   end if;
   return new;
 end $$;
@@ -608,7 +608,7 @@ alter table public.pets add constraint pets_nickname_check check (nickname is nu
 create or replace function public.rename_pet(pet uuid, name text)
 returns void language plpgsql security definer set search_path = public as $$
 begin
-  if not public.is_premium(auth.uid()) then raise exception 'Réservé à Lockin+' using errcode = 'P0001'; end if;
+  if not public.is_premium(auth.uid()) then raise exception 'Réservé à Vainc+' using errcode = 'P0001'; end if;
   update public.pets set nickname = nullif(trim(name), '') where id = pet and user_id = auth.uid();
   if not found then raise exception 'Animal introuvable' using errcode = 'P0001'; end if;
 end $$;
@@ -616,8 +616,8 @@ revoke execute on function public.rename_pet(uuid, text) from public, anon;
 grant execute on function public.rename_pet(uuid, text) to authenticated;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v19: more Lockin+: the accessory of the month, two more islands (snow, floating),
--- and bigger group lock-ins (30 people instead of 8).
+-- v19: more Vainc+: the accessory of the month, two more islands (snow, floating),
+-- and bigger group vaincs (30 people instead of 8).
 -- ═════════════════════════════════════════════════════════════════════════════
 insert into public.shop_items (id, kind, slot, rarity, cost_seconds, premium) values
   ('tiara', 'accessory', 'head', 'légendaire', 0, true),
@@ -638,14 +638,14 @@ create or replace function public.claim_monthly_accessory()
 returns text language plpgsql security definer set search_path = public as $$
 declare item text := public.monthly_accessory();
 begin
-  if not public.is_premium(auth.uid()) then raise exception 'Réservé à Lockin+' using errcode = 'P0001'; end if;
+  if not public.is_premium(auth.uid()) then raise exception 'Réservé à Vainc+' using errcode = 'P0001'; end if;
   insert into public.inventory (user_id, item_id) values (auth.uid(), item) on conflict do nothing;
   return item;
 end $$;
 revoke execute on function public.claim_monthly_accessory() from public, anon;
 grant execute on function public.claim_monthly_accessory() to authenticated;
 
--- Islands 2 (snow) and 3 (floating, on clouds): Lockin+ only, same stock of objects as the first one.
+-- Islands 2 (snow) and 3 (floating, on clouds): Vainc+ only, same stock of objects as the first one.
 alter table public.profiles add column if not exists world2 jsonb, add column if not exists world3 jsonb;
 
 create or replace function public.save_world(world jsonb, island int)
@@ -667,7 +667,7 @@ declare
 begin
   if auth.uid() is null then raise exception 'Non connecté'; end if;
   if island not in (1, 2, 3) then raise exception 'Île invalide'; end if;
-  if island > 1 and not public.is_premium(auth.uid()) then raise exception 'Réservé à Lockin+' using errcode = 'P0001'; end if;
+  if island > 1 and not public.is_premium(auth.uid()) then raise exception 'Réservé à Vainc+' using errcode = 'P0001'; end if;
   select case when island = 1 then '[]'::jsonb else coalesce(p.world->'objects', '[]'::jsonb) end
     || case when island = 2 then '[]'::jsonb else coalesce(p.world2->'objects', '[]'::jsonb) end
     || case when island = 3 then '[]'::jsonb else coalesce(p.world3->'objects', '[]'::jsonb) end
@@ -684,7 +684,7 @@ begin
   if objects is null or jsonb_typeof(objects) <> 'array' or jsonb_array_length(objects) > 200 then
     raise exception 'Trop d''objets (200 max)';
   end if;
-  -- Without Lockin+ (it ended), its decorations are taken off the island instead of blocking the save.
+  -- Without Vainc+ (it ended), its decorations are taken off the island instead of blocking the save.
   if not public.is_premium(auth.uid()) then
     select coalesce(jsonb_agg(e), '[]'::jsonb) into objects
     from jsonb_array_elements(objects) e
@@ -739,7 +739,7 @@ returns void language sql security definer set search_path = public as $$
   select public.save_world(world, 1);
 $$;
 
--- Group lock-ins: 8 people, or 30 when the host has Lockin+.
+-- Group vaincs: 8 people, or 30 when the host has Vainc+.
 create or replace function public.check_event_size()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -747,7 +747,7 @@ declare
   cap int := case when public.is_premium(host) then 30 else 8 end;
 begin
   if (select count(*) from public.event_members where event_id = new.event_id) >= cap then
-    raise exception 'Lock in de groupe plein (% personnes max%)', cap, case when cap = 8 then ', 30 avec Lockin+' else '' end using errcode = 'P0001';
+    raise exception 'vainc de groupe plein (% personnes max%)', cap, case when cap = 8 then ', 30 avec Vainc+' else '' end using errcode = 'P0001';
   end if;
   return new;
 end $$;
@@ -756,9 +756,9 @@ create trigger check_event_size before insert on public.event_members
   for each row execute function public.check_event_size();
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v20: Lockin+ gifts by link (like Snapchat+), and "you received Lockin+" in the app.
+-- v20: Vainc+ gifts by link (like Snapchat+), and "you received Vainc+" in the app.
 -- A subscriber makes a gift link (one of their 5 trials); whoever opens it first and never
--- had Lockin+ gets 7 days. Each received period is shown once in the app (plus_grants.seen_at).
+-- had Vainc+ gets 7 days. Each received period is shown once in the app (plus_grants.seen_at).
 -- ═════════════════════════════════════════════════════════════════════════════
 alter table public.plus_grants add column if not exists seen_at timestamptz;
 
@@ -823,7 +823,7 @@ $$;
 revoke execute on function public.gift_info(text) from public, anon;
 grant execute on function public.gift_info(text) to authenticated;
 
--- Takes a gift: only once, not your own, and only if you never had Lockin+.
+-- Takes a gift: only once, not your own, and only if you never had Vainc+.
 create or replace function public.claim_gift(code text)
 returns text language plpgsql security definer set search_path = public as $$
 declare
@@ -838,20 +838,20 @@ begin
   if g.giver = me.id then raise exception 'C''est ton propre cadeau 😅 Envoie-le à un pote.' using errcode = 'P0001'; end if;
   if g.claimed_by is not null then raise exception 'Ce cadeau a déjà été récupéré' using errcode = 'P0001'; end if;
   if me.featured or me.premium_until is not null or exists (select 1 from public.plus_grants where user_id = me.id) then
-    raise exception 'Le cadeau, c''est pour ceux qui n''ont jamais eu Lockin+' using errcode = 'P0001';
+    raise exception 'Le cadeau, c''est pour ceux qui n''ont jamais eu Vainc+' using errcode = 'P0001';
   end if;
   update public.plus_gifts set claimed_by = me.id, claimed_at = now() where plus_gifts.code = g.code;
   perform public.grant_plus(me.id, g.days, 'trial', g.giver);
   -- Already shown on the gift screen.
   update public.plus_grants set seen_at = now() where user_id = me.id and seen_at is null;
   select display_name into giver_name from public.profiles where id = g.giver;
-  perform public.send_push(array[g.giver], 'Cadeau récupéré 🎁', me.display_name || ' a pris ton essai Lockin+.', '{"type":"plus"}');
+  perform public.send_push(array[g.giver], 'Cadeau récupéré 🎁', me.display_name || ' a pris ton essai Vainc+.', '{"type":"plus"}');
   return giver_name;
 end $$;
 revoke execute on function public.claim_gift(text) from public, anon;
 grant execute on function public.claim_gift(text) to authenticated;
 
--- Lockin+ received and not shown yet (only while it still runs).
+-- Vainc+ received and not shown yet (only while it still runs).
 create or replace function public.unseen_plus()
 returns table (source text, days int, giver_name text)
 language sql stable security definer set search_path = public as $$
@@ -872,8 +872,8 @@ revoke execute on function public.mark_plus_seen() from public, anon;
 grant execute on function public.mark_plus_seen() to authenticated;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v21: realistic animals. 30 animals for everyone (0..29) + 10 Lockin+ (30..39), no more rarities.
--- Already hatched pets keep a matching animal: old species n → n mod 30, old Lockin+ 100+k → 30+k.
+-- v21: realistic animals. 30 animals for everyone (0..29) + 10 Vainc+ (30..39), no more rarities.
+-- Already hatched pets keep a matching animal: old species n → n mod 30, old Vainc+ 100+k → 30+k.
 -- species_v marks pets already converted, so this block can be run again safely.
 -- ═════════════════════════════════════════════════════════════════════════════
 alter table public.pets add column if not exists species_v smallint default 1;

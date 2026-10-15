@@ -9,7 +9,7 @@ import { Button } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { countdown, formatEventTime } from '../../lib/labels';
 import { effectiveStatus, EventParticipant, useSocial } from '../../lib/social';
-import { useLockin, useNow } from '../../lib/store';
+import { useVainc, useNow } from '../../lib/store';
 import { card, colors, type } from '../../lib/theme';
 import { formatDuration, formatTimer } from '../../lib/time';
 import { decorationOf } from '../../lib/premium';
@@ -28,7 +28,7 @@ export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { userId } = useAuth();
   const { events, answerEvent, cancelEvent, loading } = useSocial();
-  const { active, startSession } = useLockin();
+  const { active, startSession } = useVainc();
   const now = useNow();
   const event = events.find((e) => e.id === id);
 
@@ -37,7 +37,7 @@ export default function EventScreen() {
       <SafeAreaView style={styles.safe}>
         <BackButton />
         <Text style={[type.subhead, { textAlign: 'center', marginTop: 40 }]}>
-          {loading ? 'Chargement…' : 'Ce lock in a été annulé ou est terminé.'}
+          {loading ? 'Chargement…' : 'Ce vainc a été annulé ou est terminé.'}
         </Text>
       </SafeAreaView>
     );
@@ -74,10 +74,10 @@ export default function EventScreen() {
   };
 
   const confirmCancel = () =>
-    Alert.alert('Annuler ce lock in ?', 'Les invités ne le verront plus.', [
+    Alert.alert('Annuler ce vainc ?', 'Les invités ne le verront plus.', [
       { text: 'Non', style: 'cancel' },
       {
-        text: 'Annuler le lock in',
+        text: 'Annuler le vainc',
         style: 'destructive',
         onPress: () =>
           cancelEvent(event.id)
@@ -125,10 +125,10 @@ export default function EventScreen() {
               <Button title="Je viens" onPress={() => answerEvent(event.id, 'going').catch(fail)} style={{ flex: 1 }} />
             </View>
           )}
-          {inThisEvent && <Button title="Tu es en lock in → voir le chrono" onPress={() => router.navigate('/')} />}
+          {inThisEvent && <Button title="Tu es en vainc → voir le chrono" onPress={() => router.navigate('/')} />}
           {canJoin && (
             <Button
-              title="Lock in maintenant"
+              title="vainc maintenant"
               onPress={join}
               icon={<Ionicons name="lock-closed" size={18} color={colors.onAccent} />}
             />
@@ -149,7 +149,7 @@ export default function EventScreen() {
             let color: string | undefined;
             let right = null;
             if (st === 'working' && s) {
-              subtitle = 'En lock in';
+              subtitle = 'En vainc';
               color = colors.success;
               right = <Text style={styles.timer}>{formatTimer((now - Date.parse(s.started_at)) / 1000)}</Text>;
             } else if (st === 'done' && s) {
@@ -175,7 +175,7 @@ export default function EventScreen() {
         </Section>
 
         {isHost && (
-          <Button title="Annuler le lock in" variant="destructive" onPress={confirmCancel} style={{ marginTop: 24 }} />
+          <Button title="Annuler le vainc" variant="destructive" onPress={confirmCancel} style={{ marginTop: 24 }} />
         )}
       </ScrollView>
     </SafeAreaView>

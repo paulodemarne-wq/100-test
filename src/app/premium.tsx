@@ -13,7 +13,7 @@ import { errorMessage, supabase } from '../lib/supabase';
 import { BADGE_COLORS, BADGES, DECORATIONS, isPremium, PLUS_NAME, PLUS_PERKS, PLUS_PRICE, PLUS_PRICE_YEAR, TITLES } from '../lib/premium';
 import { card, colors, type } from '../lib/theme';
 
-/** Lockin+: what it gives, how to get it, and (once you have it) your badge and photo decoration. */
+/** Vainc+: what it gives, how to get it, and (once you have it) your badge and photo decoration. */
 export default function Premium() {
   const { profile, updateSettings, reloadProfile } = useAuth();
   const chrono = useChronoPrefs();
@@ -46,11 +46,11 @@ export default function Premium() {
   const subscribe = () =>
     Alert.alert(
       'Bientôt 🔜',
-      "Le paiement arrive avec la sortie de Lockin sur l'App Store. D'ici là, un ami Lockin+ peut t'offrir un essai de 7 jours.",
+      "Le paiement arrive avec la sortie de Vainc sur l'App Store. D'ici là, un ami Vainc+ peut t'offrir un essai de 7 jours.",
     );
   const locked = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(`Réservé à ${PLUS_NAME}`, 'Prends Lockin+ pour choisir ton badge et ta décoration.');
+    Alert.alert(`Réservé à ${PLUS_NAME}`, 'Prends Vainc+ pour choisir ton badge et ta décoration.');
   };
   // Like Snapchat+: a link to send to anyone; the first who opens it gets 7 days.
   const shareGift = async () => {
@@ -62,13 +62,13 @@ export default function Premium() {
   };
   const shareCode = () =>
     Share.share({
-      message: `Rejoins-moi sur Lockin 🔒 Mon code de parrainage : ${profile.referral_code}. Quand tu prends Lockin+, on gagne 1 mois gratuit chacun.`,
+      message: `Rejoins-moi sur Vainc 🔒 Mon code de parrainage : ${profile.referral_code}. Quand tu prends Vainc+, on gagne 1 mois gratuit chacun.`,
     }).catch(() => {});
   const submitCode = async () => {
     const { data, error } = await supabase.rpc('use_referral_code', { code });
     if (error) return Alert.alert('Oups', errorMessage(error));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Parrain ajouté ✓', `${data} est ton parrain. Vous gagnerez 1 mois chacun quand tu prendras Lockin+.`);
+    Alert.alert('Parrain ajouté ✓', `${data} est ton parrain. Vous gagnerez 1 mois chacun quand tu prendras Vainc+.`);
     setCode('');
     reloadProfile().catch(() => {});
   };
@@ -95,7 +95,7 @@ export default function Premium() {
           <Text style={styles.heroText}>
             {premium
               ? profile.featured
-                ? 'Compte créateur : Lockin+ à vie.'
+                ? 'Compte créateur : Vainc+ à vie.'
                 : onTrial
                   ? `Essai gratuit jusqu'au ${until}. Tu peux t'abonner quand tu veux.`
                   : `Jusqu'au ${until}.`
@@ -235,10 +235,10 @@ export default function Premium() {
         </View>
         {trialsLeft > 0 && (
           <>
-            <Text style={styles.sectionTitle}>OFFRIR LOCKIN+ · {trialsLeft} ESSAI{trialsLeft > 1 ? 'S' : ''} DE 7 JOURS À DONNER</Text>
+            <Text style={styles.sectionTitle}>OFFRIR VAINC+ · {trialsLeft} ESSAI{trialsLeft > 1 ? 'S' : ''} DE 7 JOURS À DONNER</Text>
             <View style={[card, styles.pickerCard]}>
               <Text style={type.body}>
-                Envoie un lien à un pote (Snap, Insta, SMS…). Le premier qui l'ouvre a <Text style={{ fontWeight: '800' }}>7 jours de Lockin+</Text> gratuits.
+                Envoie un lien à un pote (Snap, Insta, SMS…). Le premier qui l'ouvre a <Text style={{ fontWeight: '800' }}>7 jours de Vainc+</Text> gratuits.
               </Text>
               <Pressable onPress={shareGift} style={[styles.buy, styles.buyMain]}>
                 <Text style={styles.buyMainText}>Envoyer un lien cadeau 🎁</Text>
@@ -250,7 +250,7 @@ export default function Premium() {
         <Text style={styles.sectionTitle}>PARRAINAGE</Text>
         <View style={[card, styles.pickerCard]}>
           <Text style={type.body}>
-            Quand un pote prend Lockin+ avec ton code, vous gagnez <Text style={{ fontWeight: '800' }}>1 mois gratuit chacun</Text>.
+            Quand un pote prend Vainc+ avec ton code, vous gagnez <Text style={{ fontWeight: '800' }}>1 mois gratuit chacun</Text>.
           </Text>
           <View style={styles.codeRow}>
             <Text style={styles.code}>{profile.referral_code}</Text>
@@ -275,11 +275,11 @@ export default function Premium() {
               </Pressable>
             </View>
           )}
-          {!!profile.referred_by && <Text style={type.footnote}>Tu as un parrain ✓ Le mois offert arrive quand tu prends Lockin+.</Text>}
+          {!!profile.referred_by && <Text style={type.footnote}>Tu as un parrain ✓ Le mois offert arrive quand tu prends Vainc+.</Text>}
         </View>
 
         <Text style={type.footnote}>
-          Ta photo de profil reste gratuite. Si Lockin+ s'arrête, ton badge et ta décoration sont gardés de côté et reviennent quand tu reprends.
+          Ta photo de profil reste gratuite. Si Vainc+ s'arrête, ton badge et ta décoration sont gardés de côté et reviennent quand tu reprends.
         </Text>
       </ScrollView>
     </SafeAreaView>

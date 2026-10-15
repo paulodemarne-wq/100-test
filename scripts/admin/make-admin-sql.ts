@@ -83,17 +83,17 @@ for (const [id, x, z] of [
 
 const world: World = { v: 2, size: S, sea: true, tiles: tiles.join(''), objects };
 
-// The featured account shows off every Lockin+ animal at the max level.
+// The featured account shows off every Vainc+ animal at the max level.
 const dragons = PLUS_SPECIES;
 const maxXp = LEVEL_HOURS[MAX_LEVEL] * 3600;
 const equipped = { head: 'crown', eyes: 'shades', neck: 'diamonds', back: 'jetpack' };
 const esc = (s: string) => s.replace(/'/g, "''");
 
 console.log(`-- ═════════════════════════════════════════════════════════════════════════
--- Compte vedette Lockin : à lancer UNE fois dans Supabase → SQL Editor,
+-- Compte vedette Vainc : à lancer UNE fois dans Supabase → SQL Editor,
 -- APRÈS schema.sql. Remplace TON_PSEUDO (ligne juste en dessous) par ton pseudo.
 --
--- Donne à ce compte : tous les objets et accessoires, ${dragons.length} animaux Lockin+ niveau ${MAX_LEVEL},
+-- Donne à ce compte : tous les objets et accessoires, ${dragons.length} animaux Vainc+ niveau ${MAX_LEVEL},
 -- une île ${S}×${S} avec la mer entièrement construite, et le statut « vedette » :
 -- son animal se promène sur l'île de tout le monde et son île a la boutique du jour.
 -- Généré par scripts/admin/make-admin-sql.ts.

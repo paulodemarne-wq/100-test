@@ -17,7 +17,7 @@ type Props = {
   size?: number;
   /** Green dot in the corner: the person is studying right now. */
   live?: boolean;
-  /** Lockin+ decoration around the photo (see DECORATIONS). */
+  /** Vainc+ decoration around the photo (see DECORATIONS). */
   decoration?: string | null;
 };
 

@@ -1,4 +1,4 @@
--- Vérifie que la mise à jour Lockin+ est bien dans la base, et rafraîchit l'API.
+-- Vérifie que la mise à jour Vainc+ est bien dans la base, et rafraîchit l'API.
 -- Supabase → SQL Editor → + → colle tout → Run.
 -- Résultat attendu : une ligne avec  badge_color = oui  et  title = oui.
 -- Si c'est « non », la mise à jour (mise-a-jour-tout.sql) ne s'est pas faite : relance-la et regarde le message en rouge.

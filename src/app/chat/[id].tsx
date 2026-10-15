@@ -68,7 +68,7 @@ export default function ChatScreen() {
           <Text style={type.headline} numberOfLines={1}>
             <Named person={friend.profile} />
           </Text>
-          <Text style={type.footnote}>{friend.status.kind === 'working' ? 'En lock in 🔒' : (titleOf(friend.profile) ?? `@${friend.profile.username}`)}</Text>
+          <Text style={type.footnote}>{friend.status.kind === 'working' ? 'En vainc 🔒' : (titleOf(friend.profile) ?? `@${friend.profile.username}`)}</Text>
         </View>
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -77,7 +77,7 @@ export default function ChatScreen() {
           inverted
           keyExtractor={(m) => m.id}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={[type.footnote, styles.empty]}>Dis-lui de lock in avec toi 🔒</Text>}
+          ListEmptyComponent={<Text style={[type.footnote, styles.empty]}>Dis-lui de vainc avec toi 🔒</Text>}
           renderItem={({ item: m }) => {
             const mine = m.sender === userId;
             return (

@@ -1,14 +1,14 @@
 #!/bin/bash
 # Runs every SQL test on a local Postgres 16 (port 5499), on a fresh database built from supabase/schema.sql
 # (loaded twice to check it can be rerun), then checks supabase/mise-a-jour-tout.sql on an old schema (old0.sql).
-# Usage (as root in the cloud container):  bash lockin/tests-sql/lancer-tests.sh
+# Usage (as root in the cloud container):  bash vainc/tests-sql/lancer-tests.sh
 # pg_net is replaced by a stub; mock_supabase.sql fakes auth.uid(), roles and storage.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
 BIN=$(ls -d /usr/lib/postgresql/*/bin | tail -1)
-D=/var/lib/postgresql/lockin-data
-W=/var/lib/postgresql/lockin-work
+D=/var/lib/postgresql/vainc-data
+W=/var/lib/postgresql/vainc-work
 mkdir -p $W
 if [ ! -d $D ]; then su postgres -c "$BIN/initdb -D $D" >/dev/null; fi
 su postgres -c "$BIN/pg_ctl -D $D status" >/dev/null 2>&1 || { su postgres -c "$BIN/pg_ctl -D $D -o '-p 5499 -k /var/run/postgresql' -l $D.log start" >/dev/null; sleep 2; }

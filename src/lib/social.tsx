@@ -25,7 +25,7 @@ import {
 const LIVE_WINDOW_MS = 150_000;
 /** History loaded for streaks, badges and rankings. */
 const HISTORY_DAYS = 60;
-/** Group lock-ins stay listed this long after they start. */
+/** Group vaincs stay listed this long after they start. */
 const EVENT_VISIBLE_AFTER_START_MS = 6 * 3_600_000;
 
 type SessionInfo = { sessionId: string; label: string; tasks: SessionTask[] };
@@ -56,7 +56,7 @@ export type EventParticipant = {
   session: SessionRow | null;
 };
 
-export type LockinEvent = EventRow & {
+export type VaincEvent = EventRow & {
   hostProfile: ProfileRow;
   startsAt: number;
   participants: EventParticipant[];
@@ -81,7 +81,7 @@ type Social = {
   incomingRequests: ProfileRow[];
   outgoingRequests: ProfileRow[];
   groups: Group[];
-  events: LockinEvent[];
+  events: VaincEvent[];
   exams: Exam[];
   shameWall: Shame[];
   mySessions: SessionRow[];
@@ -104,7 +104,7 @@ type Social = {
   /** Place an owned garden item (null removes it). Reload the profile afterwards. */
   setGarden: (slot: string, itemId: string | null) => Promise<void>;
   /** Saves my island. Reload the profile afterwards. */
-  /** Saves one of my islands (1, or 2 and 3 with Lockin+). */
+  /** Saves one of my islands (1, or 2 and 3 with Vainc+). */
   saveWorld: (world: unknown, island?: number) => Promise<void>;
   /** How many of each island object I bought (one purchase = one object to place). */
   stock: Record<string, number>;
@@ -308,7 +308,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId || !profile) return;
     refresh();
-    const channel = supabase.channel(`lockin-${userId}`);
+    const channel = supabase.channel(`vainc-${userId}`);
     for (const table of ['study_sessions', 'friendships', 'group_members', 'lockin_events', 'event_members', 'session_reactions', 'pets']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh);
     }
@@ -364,7 +364,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
         .filter((p): p is Person => p !== null),
     }));
 
-    const events: LockinEvent[] = eventRows
+    const events: VaincEvent[] = eventRows
       .map((e) => {
         const members = eventMembers.filter((m) => m.event_id === e.id);
         const participants: EventParticipant[] = members
@@ -509,7 +509,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
         const username = rawUsername.trim().replace(/^@/, '').toLowerCase();
         if (!userId || !username) throw new Error('Entre un pseudo.');
         const { data: target } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle();
-        if (!target) throw new Error(`Personne ne s'appelle @${username} sur Lockin.`);
+        if (!target) throw new Error(`Personne ne s'appelle @${username} sur Vainc.`);
         if (target.id === userId) throw new Error("C'est toi ! 😄");
         const existing = friendships.find((f) => f.requester === target.id || f.addressee === target.id);
         if (existing?.status === 'accepted') throw new Error(`Tu es déjà ami avec ${target.display_name}.`);

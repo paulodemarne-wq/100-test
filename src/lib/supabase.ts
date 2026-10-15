@@ -40,20 +40,20 @@ export type ProfileRow = {
   garden: Partial<Record<'house' | 'tree' | 'deco' | 'ground', string>>;
   /** The island (see src/world/world.ts). Null until first saved. */
   world: unknown;
-  /** Lockin+ islands: snow (2) and floating (3). */
+  /** Vainc+ islands: snow (2) and floating (3). */
   world2: unknown;
   world3: unknown;
   /** The app's creator: their pet visits every island and their island has a shop. */
   featured: boolean;
-  /** Lockin+ (subscription) end date, set by the server only. See src/lib/premium.ts. */
+  /** Vainc+ (subscription) end date, set by the server only. See src/lib/premium.ts. */
   premium_until: string | null;
-  /** Lockin+: badge next to the name (see BADGES) and its color, decoration around the photo. */
+  /** Vainc+: badge next to the name (see BADGES) and its color, decoration around the photo. */
   badge: string | null;
   badge_color: string;
   decoration: string | null;
-  /** Code to share: a friend who takes Lockin+ with it gives both one month. */
+  /** Code to share: a friend who takes Vainc+ with it gives both one month. */
   referral_code: string;
-  /** Lockin+: title shown under the name (see TITLES). */
+  /** Vainc+: title shown under the name (see TITLES). */
   title: string | null;
   referred_by: string | null;
 };
@@ -80,7 +80,7 @@ export type PetRow = {
   equipped: Partial<Record<'head' | 'eyes' | 'neck' | 'back', string>>;
   created_at: string;
   hatched_at: string | null;
-  /** Lockin+: a name given by the owner. */
+  /** Vainc+: a name given by the owner. */
   nickname: string | null;
 };
 
@@ -145,7 +145,7 @@ export function errorMessage(error: unknown): string {
   if (/email not confirmed/i.test(message)) return 'Confirme ton e-mail (regarde ta boîte mail), puis reconnecte-toi.';
   if (/unable to validate email|invalid format|email address .* is invalid/i.test(message)) return 'Adresse e-mail invalide.';
   if (/profiles_username_key/i.test(message)) return 'Ce pseudo est déjà pris.';
-  if (/pas assez d'heures/i.test(message)) return "Pas assez d'heures. Lock in pour en gagner 💪";
+  if (/pas assez d'heures/i.test(message)) return "Pas assez d'heures. vainc pour en gagner 💪";
   if (/déjà acheté/i.test(message)) return 'Tu l’as déjà.';
   if (/code invalide/i.test(message)) return 'Code invalide. Vérifie-le avec la personne qui a créé le groupe.';
   if (/network request failed|fetch failed/i.test(message)) return 'Pas de connexion internet.';

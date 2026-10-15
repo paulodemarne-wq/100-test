@@ -20,7 +20,7 @@ const PODIUM = ['#F5B400', '#A1A1AA', '#C77B30'];
 type Entry = {
   id: string;
   name: string;
-  /** For the Lockin+ badge and decoration. */
+  /** For the Vainc+ badge and decoration. */
   person: ProfileRow | null;
   photoUri: string | null;
   seconds: number;
@@ -104,7 +104,7 @@ export default function RankingScreen() {
                 ? `Encore ${formatDuration(ahead.seconds - myWeekSeconds + 60)} pour passer devant ${ahead.name} 🔥`
                 : myWeekSeconds > 0
                   ? 'T’es devant tout le monde. Lâche rien 👑'
-                  : 'Lock in pour entrer dans le classement.'}
+                  : 'vainc pour entrer dans le classement.'}
           </Text>
         </View>
 

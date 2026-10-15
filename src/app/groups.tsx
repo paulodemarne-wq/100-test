@@ -16,7 +16,7 @@ export default function Groups() {
   const [error, setError] = useState('');
 
   const share = (g: Pick<Group, 'name' | 'code'>) =>
-    Share.share({ message: `Rejoins « ${g.name} » sur Lockin 🔒 Code : ${g.code}` });
+    Share.share({ message: `Rejoins « ${g.name} » sur Vainc 🔒 Code : ${g.code}` });
 
   const create = async () => {
     setError('');

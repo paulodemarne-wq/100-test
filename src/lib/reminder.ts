@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ReminderSetting = { enabled: boolean; hour: number; minute: number };
 
-const KEY = 'lockin/daily-reminder';
+const KEY = 'vainc/daily-reminder';
 export const DEFAULT_REMINDER: ReminderSetting = { enabled: true, hour: 18, minute: 0 };
 
 export async function loadReminder(): Promise<ReminderSetting> {

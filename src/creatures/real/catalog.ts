@@ -1,4 +1,4 @@
-// The 40 realistic animals: 30 for everyone (ids 0..29) and 10 Lockin+ (ids 30..39).
+// The 40 realistic animals: 30 for everyone (ids 0..29) and 10 Vainc+ (ids 30..39).
 // Each one stays the same animal from baby to legend; its element gives it its powers.
 import type { BirdLook } from './bird';
 import type { Element } from './powers';
@@ -24,7 +24,7 @@ const bird = (name: string, about: string, element: Element, look: Omit<BirdLook
 const BASE = [
   // ── Snakes
   snake('Python royal', 'Calme et puissant, il s’enroule pour réviser.', 'fire', { pattern: 'python', base: '#9A7A4A', dark: '#3B2A1A', light: '#D8C28E', belly: '#EDE3C8', iris: '#B8862E', majestic: { base: '#C99A3A', dark: '#2A1A0E', light: '#F2D58A', iris: '#E8B23A' } }),
-  snake('Cobra royal', 'Il se dresse quand tu lock in.', 'shadow', { pattern: 'cobra', base: '#5C5A3A', dark: '#2A2A1C', light: '#D9CF9A', belly: '#E8DDB0', iris: '#C9A23A', hood: true, girth: 0.8, majestic: { base: '#3A3348', dark: '#16121E', light: '#C9B2FF', iris: '#C49BFF' } }),
+  snake('Cobra royal', 'Il se dresse quand tu vainc.', 'shadow', { pattern: 'cobra', base: '#5C5A3A', dark: '#2A2A1C', light: '#D9CF9A', belly: '#E8DDB0', iris: '#C9A23A', hood: true, girth: 0.8, majestic: { base: '#3A3348', dark: '#16121E', light: '#C9B2FF', iris: '#C49BFF' } }),
   snake('Boa émeraude', 'Vert vif, il dort en boule dans les arbres.', 'nature', { pattern: 'emerald', base: '#1E9E4A', dark: '#0E5A2A', light: '#F4F8E8', belly: '#F2E38A', iris: '#C9C060', girth: 0.85, majestic: { base: '#2BCB5E', dark: '#0B4A22', light: '#FFFFFF', iris: '#E8F070' } }),
   snake('Serpent-roi', 'Rouge, noir, jaune : il ne passe pas inaperçu.', 'lightning', { pattern: 'bands', base: '#C8322A', dark: '#151212', light: '#F2D24A', belly: '#F3E6C8', iris: '#3A2A20', girth: 0.7, majestic: { base: '#E8402F', light: '#FFE45A' } }),
   snake('Crotale', 'Sa queue fait du bruit quand on le dérange.', 'fire', { pattern: 'diamond', base: '#A8906A', dark: '#4A3826', light: '#EDE0C0', belly: '#EDE3CC', iris: '#C9A23A', girth: 0.9, majestic: { base: '#C49A5A', dark: '#3A2410' } }),
@@ -58,16 +58,16 @@ const BASE = [
 ];
 
 const PLUS = [
-  quad('Panthère noire', 'Lockin+ · Invisible dans la nuit, imbattable au lock in.', 'shadow', { coat: 'plain', base: '#1A1820', back: '#121016', belly: '#24222A', accent: '#0A0A0E', iris: '#F2C21A', length: 1.05, height: 0.85, snout: 0.72, ears: 'round', tail: 'thin', fur: 0.3, majestic: { base: '#221E2E', iris: '#C49BFF' } }),
-  quad('Tigre blanc', 'Lockin+ · Le plus rare des tigres.', 'ice', { coat: 'tiger', base: '#F4F2EE', back: '#E8E4DC', belly: '#FFFFFF', accent: '#2A2830', iris: '#6FA8D8', length: 1.15, height: 0.9, girth: 1.15, snout: 0.75, ears: 'round', tail: 'thin', fur: 0.35 }),
-  quad('Lion à crinière noire', 'Lockin+ · Une crinière qui impose le respect.', 'fire', { coat: 'lion', base: '#C9A06A', back: '#B88A52', belly: '#E8D6B4', accent: '#1E140C', iris: '#E8902E', length: 1.12, height: 0.94, girth: 1.2, snout: 0.8, ears: 'round', tail: 'tuft', fur: 0.35, mane: 'adult' }),
-  quad('Loup noir', 'Lockin+ · Le chef de meute.', 'lightning', { coat: 'wolf', base: '#2A2A30', back: '#16161A', belly: '#4A4A52', accent: '#0A0A0E', iris: '#F2D24A', mane: 'majestic' }),
-  snake('Cobra doré', 'Lockin+ · Des écailles comme de l’or.', 'fire', { pattern: 'cobra', base: '#D8A83A', dark: '#7A5A1E', light: '#FFF2B8', belly: '#FFF4D0', iris: '#E84A1A', hood: true, girth: 0.82 }),
-  snake('Anaconda', 'Lockin+ · Le plus grand serpent du monde.', 'nature', { pattern: 'python', base: '#5A6A3A', dark: '#1E2214', light: '#C8B86A', belly: '#D8D0A0', iris: '#C9A23A', girth: 1.25 }),
-  bird('Ara hyacinthe', 'Lockin+ · Le perroquet bleu le plus rare.', 'lightning', { head: '#2A3EA8', body: '#2A40B0', wing: '#2238A0', tail: '#2A40B0', chest: '#2E46B8', chick: '#8A8AA0', beak: '#1A1A1E', legs: '#3A3A40', iris: '#F2D24A', beakShape: 'parrot', longTail: true }),
-  bird('Harpie féroce', 'Lockin+ · L’aigle à la couronne de plumes.', 'shadow', { head: '#B8B8BC', body: '#2E2E34', wing: '#26262C', tail: '#3A3A40', chest: '#F2F0EA', chick: '#F2F0EA', beak: '#1A1A1E', legs: '#E8C23A', iris: '#C98A2A' }),
-  quad('Renard argenté', 'Lockin+ · Noir et argent, il brille dans la neige.', 'ice', { coat: 'fox', base: '#3A3A40', back: '#1E1E24', belly: '#C8C8CC', accent: '#F2F2F6', iris: '#D8A23A', length: 0.85, height: 0.75, snout: 1.15, ears: 'big', fur: 1.3 }),
-  quad('Jaguar', 'Lockin+ · Le roi de la jungle, le vrai.', 'nature', { coat: 'leopard', base: '#D29A42', back: '#BE8430', belly: '#F2E6D2', accent: '#1A120E', iris: '#C9C23A', length: 1.05, height: 0.82, girth: 1.2, snout: 0.75, head: 1.1, ears: 'round', tail: 'thin', fur: 0.3 }),
+  quad('Panthère noire', 'Vainc+ · Invisible dans la nuit, imbattable au vainc.', 'shadow', { coat: 'plain', base: '#1A1820', back: '#121016', belly: '#24222A', accent: '#0A0A0E', iris: '#F2C21A', length: 1.05, height: 0.85, snout: 0.72, ears: 'round', tail: 'thin', fur: 0.3, majestic: { base: '#221E2E', iris: '#C49BFF' } }),
+  quad('Tigre blanc', 'Vainc+ · Le plus rare des tigres.', 'ice', { coat: 'tiger', base: '#F4F2EE', back: '#E8E4DC', belly: '#FFFFFF', accent: '#2A2830', iris: '#6FA8D8', length: 1.15, height: 0.9, girth: 1.15, snout: 0.75, ears: 'round', tail: 'thin', fur: 0.35 }),
+  quad('Lion à crinière noire', 'Vainc+ · Une crinière qui impose le respect.', 'fire', { coat: 'lion', base: '#C9A06A', back: '#B88A52', belly: '#E8D6B4', accent: '#1E140C', iris: '#E8902E', length: 1.12, height: 0.94, girth: 1.2, snout: 0.8, ears: 'round', tail: 'tuft', fur: 0.35, mane: 'adult' }),
+  quad('Loup noir', 'Vainc+ · Le chef de meute.', 'lightning', { coat: 'wolf', base: '#2A2A30', back: '#16161A', belly: '#4A4A52', accent: '#0A0A0E', iris: '#F2D24A', mane: 'majestic' }),
+  snake('Cobra doré', 'Vainc+ · Des écailles comme de l’or.', 'fire', { pattern: 'cobra', base: '#D8A83A', dark: '#7A5A1E', light: '#FFF2B8', belly: '#FFF4D0', iris: '#E84A1A', hood: true, girth: 0.82 }),
+  snake('Anaconda', 'Vainc+ · Le plus grand serpent du monde.', 'nature', { pattern: 'python', base: '#5A6A3A', dark: '#1E2214', light: '#C8B86A', belly: '#D8D0A0', iris: '#C9A23A', girth: 1.25 }),
+  bird('Ara hyacinthe', 'Vainc+ · Le perroquet bleu le plus rare.', 'lightning', { head: '#2A3EA8', body: '#2A40B0', wing: '#2238A0', tail: '#2A40B0', chest: '#2E46B8', chick: '#8A8AA0', beak: '#1A1A1E', legs: '#3A3A40', iris: '#F2D24A', beakShape: 'parrot', longTail: true }),
+  bird('Harpie féroce', 'Vainc+ · L’aigle à la couronne de plumes.', 'shadow', { head: '#B8B8BC', body: '#2E2E34', wing: '#26262C', tail: '#3A3A40', chest: '#F2F0EA', chick: '#F2F0EA', beak: '#1A1A1E', legs: '#E8C23A', iris: '#C98A2A' }),
+  quad('Renard argenté', 'Vainc+ · Noir et argent, il brille dans la neige.', 'ice', { coat: 'fox', base: '#3A3A40', back: '#1E1E24', belly: '#C8C8CC', accent: '#F2F2F6', iris: '#D8A23A', length: 0.85, height: 0.75, snout: 1.15, ears: 'big', fur: 1.3 }),
+  quad('Jaguar', 'Vainc+ · Le roi de la jungle, le vrai.', 'nature', { coat: 'leopard', base: '#D29A42', back: '#BE8430', belly: '#F2E6D2', accent: '#1A120E', iris: '#C9C23A', length: 1.05, height: 0.82, girth: 1.2, snout: 0.75, head: 1.1, ears: 'round', tail: 'thin', fur: 0.3 }),
 ];
 
 export const REAL_SPECIES: RealSpecies[] = [

@@ -20,15 +20,15 @@ export function labelSuffix(label: string): string {
 export function describeStatus(s: PersonStatus, now: number): string {
   switch (s.kind) {
     case 'working':
-      return labelOr(s.label, 'En lock in') + tasksSuffix(s.tasks);
+      return labelOr(s.label, 'En vainc') + tasksSuffix(s.tasks);
     case 'paused':
       return `En pause ☕ encore ${Math.max(1, Math.ceil((s.until - now) / 60_000))} min`;
     case 'abandoned':
       return `A craqué après ${formatDuration(s.durationSec)}${labelSuffix(s.label)} 💀`;
     case 'done':
-      return `${formatDuration(s.durationSec)} de lock in${labelSuffix(s.label)}${tasksSuffix(s.tasks)} · ${timeAgo(s.at, now)}`;
+      return `${formatDuration(s.durationSec)} de vainc${labelSuffix(s.label)}${tasksSuffix(s.tasks)} · ${timeAgo(s.at, now)}`;
     case 'idle':
-      return 'Pas encore lock in';
+      return 'Pas encore vainc';
   }
 }
 

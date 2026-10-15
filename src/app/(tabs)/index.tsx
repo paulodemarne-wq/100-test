@@ -16,7 +16,7 @@ import { useAuth } from '../../lib/auth';
 import { countdown } from '../../lib/labels';
 import { useSocial } from '../../lib/social';
 import { emojiFor, levelFor, speciesById, tierFor } from '../../creatures/species';
-import { focusSeconds, MAX_AWAY_MS, Notice, todoSplitAt, useLockin, useNow } from '../../lib/store';
+import { focusSeconds, MAX_AWAY_MS, Notice, todoSplitAt, useVainc, useNow } from '../../lib/store';
 import { isFinished, sortTodos } from '../../lib/todos';
 import { countdown as examCountdown, planExam } from '../../lib/exams';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
@@ -39,7 +39,7 @@ const NOTICE_STYLE: Record<Notice['kind'], { bg: string; fg: string; icon: keyof
 export default function FocusScreen() {
   const { profile } = useAuth();
   const { myWeekSeconds, myStreak, nudges, markNudgesSeen, mySessions, exams, examInvites, events, pets, todos } = useSocial();
-  const { active, notice, clearNotice, startSession, stopSession, startPause, endPause, switchTodo } = useLockin();
+  const { active, notice, clearNotice, startSession, stopSession, startPause, endPause, switchTodo } = useVainc();
   const [label, setLabel] = useState('');
   const [todoId, setTodoId] = useState<string | null>(null);
   // The 4 nearest unfinished to-dos, to pick one before locking in.
@@ -47,7 +47,7 @@ export default function FocusScreen() {
   const chosenTodo = nextTodos.find((t) => t.id === todoId) ?? null;
   const [pauseSheet, setPauseSheet] = useState(false);
   const pet = pets[0];
-  // Lockin+: timer theme, animated background, the pet next to the timer and how it reacts.
+  // Vainc+: timer theme, animated background, the pet next to the timer and how it reacts.
   const plus = hasPlus(profile);
   const chrono = useChronoPrefs();
   const theme = themeOf(plus ? chrono.theme : 'classic');
@@ -89,7 +89,7 @@ export default function FocusScreen() {
   const goalSeconds = (profile?.weekly_goal_minutes ?? 0) * 60;
   const nextExam = exams[0];
   const nextPlan = useMemo(() => (nextExam ? planExam(nextExam, mySessions) : null), [nextExam, mySessions]);
-  // A group lock-in I'm going to that starts within 10 minutes or is running.
+  // A group vainc I'm going to that starts within 10 minutes or is running.
   const liveEvent = events.find(
     (e) => e.myRsvp === 'going' && now >= e.startsAt - 10 * 60_000 && now < e.startsAt + 3 * 3_600_000,
   );
@@ -97,7 +97,7 @@ export default function FocusScreen() {
   const banners = [nudges.length > 0, !!notice, !!nextExam && !active, !!liveEvent].filter(Boolean).length >= 2;
 
   const elapsedSec = active ? focusSeconds(active, now) : 0;
-  // The week total moves with the lock-in in progress (it is saved for good at the end).
+  // The week total moves with the vainc in progress (it is saved for good at the end).
   const weekLive = myWeekSeconds + (active && active.startedAt >= startOfWeek(new Date(now)) ? elapsedSec : 0);
   const blocks = Math.floor(elapsedSec / FOCUS_BLOCK_SEC);
   const pause = active?.pause ?? null;
@@ -108,7 +108,7 @@ export default function FocusScreen() {
       ? (elapsedSec % FOCUS_BLOCK_SEC) / FOCUS_BLOCK_SEC
       : 0;
 
-  // During the lock-in: every unfinished to-do (and any already worked on), tap one to send the time to it.
+  // During the vainc: every unfinished to-do (and any already worked on), tap one to send the time to it.
   const split = active ? todoSplitAt(active, now) : {};
   const liveTodos = active ? sortTodos(todos).filter((t) => !isFinished(t) || t.id in split) : [];
   const pickLive = (id: string, title: string) => {
@@ -149,7 +149,7 @@ export default function FocusScreen() {
         <View style={styles.header}>
           <View>
             <Text style={type.footnote}>
-              {active ? 'Téléphone posé. Tes potes te regardent 👀' : `Prêt à lock in, ${profile?.display_name} ?`}
+              {active ? 'Téléphone posé. Tes potes te regardent 👀' : `Prêt à vainc, ${profile?.display_name} ?`}
             </Text>
             <View style={styles.titleRow}>
               <Text style={type.largeTitle}>Focus</Text>
@@ -209,7 +209,7 @@ export default function FocusScreen() {
           >
             <Ionicons name="people" size={20} color={colors.onAccent} />
             <Text style={[styles.noticeText, { color: colors.onAccent }]}>
-              Lock in de groupe « {liveEvent.title} » {now < liveEvent.startsAt ? countdown(liveEvent.startsAt, now) : 'en cours'} →
+              vainc de groupe « {liveEvent.title} » {now < liveEvent.startsAt ? countdown(liveEvent.startsAt, now) : 'en cours'} →
             </Text>
           </Pressable>
         )}
@@ -220,7 +220,7 @@ export default function FocusScreen() {
             <Text style={styles.noticeText}>
               <Text style={{ fontWeight: '600' }}><Named person={nudges[0].from} /></Text>
               {nudges.length > 1 ? ` et ${nudges.length - 1} autre${nudges.length > 2 ? 's' : ''}` : ''}{' '}
-              {nudges.length > 1 ? "t'attendent" : "t'attend"}. Lock in. 📣
+              {nudges.length > 1 ? "t'attendent" : "t'attend"}. vainc. 📣
             </Text>
           </Pressable>
         )}
@@ -235,12 +235,12 @@ export default function FocusScreen() {
         <View style={styles.center}>
           <ProgressRing size={banners ? 220 : 260} stroke={12} progress={ringProgress} colors={plus ? theme.ring : undefined}>
             <Text style={styles.ringLabel} numberOfLines={1}>
-              {pause ? 'En pause ☕' : active ? (active.subject === DEFAULT_LABEL ? 'En lock in' : active.subject) : 'Prêt ?'}
+              {pause ? 'En pause ☕' : active ? (active.subject === DEFAULT_LABEL ? 'En vainc' : active.subject) : 'Prêt ?'}
             </Text>
             <Text style={[styles.timer, pause && { color: colors.accent }]}>
               {formatTimer(pause ? pauseLeftSec : elapsedSec)}
             </Text>
-            {pause && <Text style={styles.ringLabel}>{formatTimer(elapsedSec)} de lock in</Text>}
+            {pause && <Text style={styles.ringLabel}>{formatTimer(elapsedSec)} de vainc</Text>}
             {active && !pause && blocks > 0 && (
               <Text style={styles.ringLabel}>
                 {blocks} bloc{blocks > 1 ? 's' : ''} de 25 min
@@ -260,7 +260,7 @@ export default function FocusScreen() {
               <Text style={styles.hint}>
                 {pause
                   ? "Tu peux quitter l'app. Reviens avant la fin de la pause, on te prévient 1 min avant ⏰"
-                  : `Reste sur Lockin. Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon 💀`}
+                  : `Reste sur Vainc. Plus de ${MAX_AWAY_MS / 1000} s dehors et c'est l'abandon 💀`}
               </Text>
               <View style={styles.todoBox}>
                 <View style={styles.todoHeader}>
@@ -333,7 +333,7 @@ export default function FocusScreen() {
                 </View>
                 {nextTodos.length > 0 ? (
                   <>
-                    <Text style={type.footnote}>Choisis sur quoi tu lock in : ton temps s'ajoutera à sa barre.</Text>
+                    <Text style={type.footnote}>Choisis sur quoi tu vainc : ton temps s'ajoutera à sa barre.</Text>
                     {nextTodos.map((t) => (
                       <TodoItem
                         key={t.id}
@@ -347,7 +347,7 @@ export default function FocusScreen() {
                     ))}
                   </>
                 ) : (
-                  <Text style={type.footnote}>Crée une to-do avec le temps de travail et la date : tu la choisis ici avant de lock in.</Text>
+                  <Text style={type.footnote}>Crée une to-do avec le temps de travail et la date : tu la choisis ici avant de vainc.</Text>
                 )}
                 <Pressable onPress={() => router.navigate({ pathname: '/todos', params: { new: '1' } })} style={styles.todoAdd}>
                   <Ionicons name="add" size={20} color={colors.accent} />
@@ -359,7 +359,7 @@ export default function FocusScreen() {
         </View>
 
       </ScrollView>
-      {/* Always on screen: no need to scroll to lock in. */}
+      {/* Always on screen: no need to scroll to vainc. */}
       <View style={styles.footer}>
         {active ? (
           <View style={styles.buttonRow}>
@@ -380,7 +380,7 @@ export default function FocusScreen() {
         ) : (
           <Pressable onPress={start} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
             <Ionicons name="lock-closed" size={18} color={colors.onAccent} />
-            <Text style={styles.buttonText}>Lock in</Text>
+            <Text style={styles.buttonText}>vainc</Text>
           </Pressable>
         )}
       </View>
@@ -397,7 +397,7 @@ export default function FocusScreen() {
   );
 }
 
-/** Lockin+: soft colored circles drifting slowly behind the timer. */
+/** Vainc+: soft colored circles drifting slowly behind the timer. */
 function Blobs({ colors: tint }: { colors: [string, string, string] }) {
   const t = useRef(new Animated.Value(0)).current;
   useEffect(() => {

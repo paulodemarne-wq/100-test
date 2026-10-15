@@ -1,12 +1,12 @@
-// Lockin+ : the subscription. The server decides who has it (profiles.premium_until,
-// or a featured account) and refuses Lockin+ things to others; this file only mirrors it.
+// Vainc+ : the subscription. The server decides who has it (profiles.premium_until,
+// or a featured account) and refuses Vainc+ things to others; this file only mirrors it.
 import type { ImageSourcePropType } from 'react-native';
 import type { ProfileRow } from './supabase';
 
 type Someone = Pick<ProfileRow, 'featured' | 'premium_until' | 'badge' | 'badge_color' | 'decoration'> & Partial<Pick<ProfileRow, 'title'>> | null | undefined;
 
-export const PLUS_NAME = 'Lockin+';
-/** Shown on the Lockin+ screen (the real price comes from the App Store once payments are on). */
+export const PLUS_NAME = 'Vainc+';
+/** Shown on the Vainc+ screen (the real price comes from the App Store once payments are on). */
 export const PLUS_PRICE = '2,99 € / mois';
 export const PLUS_PRICE_YEAR = '19,99 € / an';
 
@@ -88,31 +88,31 @@ export const TITLES = [
   'Légende de la BU',
 ] as const;
 
-/** This person's title (only while they have Lockin+). */
+/** This person's title (only while they have Vainc+). */
 export function titleOf(p: Someone): string | null {
   return isPremium(p) ? (p?.title ?? null) : null;
 }
 
-/** This person's badge (only while they have Lockin+). */
+/** This person's badge (only while they have Vainc+). */
 export function badgeOf(p: Someone): { d: string; color: string } | null {
   if (!isPremium(p) || !p?.badge) return null;
   const b = BADGES.find((x) => x.id === p.badge);
   return b ? { d: b.d, color: p.badge_color ?? 'noir' } : null;
 }
 
-/** This person's decoration (only while they have Lockin+). */
+/** This person's decoration (only while they have Vainc+). */
 export function decorationOf(p: Someone): string | null {
   return isPremium(p) ? (p?.decoration ?? null) : null;
 }
 
-/** Everything Lockin+ gives, for the Lockin+ screen. */
+/** Everything Vainc+ gives, for the Vainc+ screen. */
 export const PLUS_PERKS: { icon: string; title: string; text: string }[] = [
   { icon: 'ribbon', title: 'Badge, titre et décoration de photo', text: '12 badges, 12 titres, 10 décorations en 3D (anneau de feu, couronne…).' },
-  { icon: 'egg', title: '10 animaux exclusifs', text: 'L’œuf Lockin+ : panthère noire, tigre blanc, loup noir, cobra doré, jaguar…' },
+  { icon: 'egg', title: '10 animaux exclusifs', text: 'L’œuf Vainc+ : panthère noire, tigre blanc, loup noir, cobra doré, jaguar…' },
   { icon: 'gift', title: 'Un accessoire offert chaque mois', text: 'Diadème, oreilles de lapin, écharpe galaxie, ailes de papillon…' },
   { icon: 'snow', title: '2 îles en plus + 6 décos gratuites', text: 'Une île de neige, une île volante, et des décos exclusives.' },
   { icon: 'timer', title: 'Effets du chrono', text: 'Thèmes de couleurs, fond animé, ton animal qui fait la fête à côté.' },
   { icon: 'stats-chart', title: 'Stats détaillées', text: 'Par matière, ton meilleur moment, le mois jour par jour.' },
   { icon: 'shield-checkmark', title: '2 jokers de série par mois', text: 'Et tu peux renommer ton animal.' },
-  { icon: 'people', title: 'Lock in de groupe à 30', text: 'Au lieu de 8. Et 5 essais de 7 jours à offrir à tes potes.' },
+  { icon: 'people', title: 'vainc de groupe à 30', text: 'Au lieu de 8. Et 5 essais de 7 jours à offrir à tes potes.' },
 ];

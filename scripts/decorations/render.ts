@@ -1,4 +1,4 @@
-// Renders the Lockin+ profile-photo decorations in 3D (PBR) to transparent PNGs (assets/decorations).
+// Renders the Vainc+ profile-photo decorations in 3D (PBR) to transparent PNGs (assets/decorations).
 // Build: npx esbuild scripts/decorations/render.ts --bundle --format=iife --outfile=<dir>/deco.js, open it in a
 // browser page and save what window.renderAll() returns (one PNG data URL per decoration), resized to 360 px.
 import * as THREE from 'three';

@@ -49,7 +49,7 @@ export default function Login() {
             <View style={styles.logo}>
               <Ionicons name="lock-closed" size={30} color={colors.onAccent} />
             </View>
-            <Text style={styles.title}>Lockin</Text>
+            <Text style={styles.title}>Vainc</Text>
             <Text style={styles.subtitle}>Révise avec tes amis.{'\n'}Restez concentrés, ensemble.</Text>
           </View>
 

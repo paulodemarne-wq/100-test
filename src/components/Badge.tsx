@@ -4,7 +4,7 @@ import Svg, { Circle, G, Path } from 'react-native-svg';
 import { BADGE_COLORS, badgeOf } from '../lib/premium';
 import type { ProfileRow } from '../lib/supabase';
 
-/** A Lockin+ badge: a small round pill with a solid glyph, like the ones next to names on Snap. */
+/** A Vainc+ badge: a small round pill with a solid glyph, like the ones next to names on Snap. */
 export function Badge({ d, color = 'noir', size = 16 }: { d: string; color?: string; size?: number }) {
   const c = BADGE_COLORS[color] ?? BADGE_COLORS.noir;
   return (
@@ -21,7 +21,7 @@ export function Badge({ d, color = 'noir', size = 16 }: { d: string; color?: str
 
 type Person = Pick<ProfileRow, 'display_name' | 'featured' | 'premium_until' | 'badge' | 'badge_color' | 'decoration'>;
 
-/** A name followed by its Lockin+ badge, to put inside a <Text>. */
+/** A name followed by its Vainc+ badge, to put inside a <Text>. */
 export function Named({ person, name, suffix = '', size = 15 }: { person: Person | null | undefined; name?: ReactNode; suffix?: string; size?: number }) {
   const badge = badgeOf(person);
   return (

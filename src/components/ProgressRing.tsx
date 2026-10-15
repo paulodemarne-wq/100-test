@@ -8,7 +8,7 @@ type Props = {
   stroke: number;
   progress: number;
   children?: ReactNode;
-  /** Lockin+ timer theme: the ring goes from the first color to the second. */
+  /** Vainc+ timer theme: the ring goes from the first color to the second. */
   colors?: [string, string];
 };
 

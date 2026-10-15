@@ -125,7 +125,7 @@ export function defaultWorld(ground = 'g'): World {
   return { v: 2, size: MIN_SIZE, sea: false, tiles: ground.repeat(MIN_SIZE * MIN_SIZE), objects: [] };
 }
 
-/** The 3 islands: the first one for everyone, the other two with Lockin+. Must match save_world(world, island). */
+/** The 3 islands: the first one for everyone, the other two with Vainc+. Must match save_world(world, island). */
 export const ISLANDS = [
   { n: 1, name: 'Mon île', short: 'Île', icon: '🏝️', ground: 'g' },
   { n: 2, name: 'Île de neige', short: 'Neige', icon: '❄️', ground: 'n' },

@@ -20,15 +20,15 @@ set role authenticated;
 \set P1 '''00000001-0000-0000-0000-000000000000'''
 -- Accessory of the month
 select pg_temp.as_user(:P1);
-select pg_temp.expect_fail($$select claim_monthly_accessory()$$, 'monthly accessory needs Lockin+');
+select pg_temp.expect_fail($$select claim_monthly_accessory()$$, 'monthly accessory needs Vainc+');
 select pg_temp.as_user(:G);
 select claim_monthly_accessory() as acc \gset
 select pg_temp.expect_rows($$select 1 from inventory where user_id = auth.uid() and item_id = '$$ || :'acc' || $$'$$, 1, 'monthly accessory claimed');
 select claim_monthly_accessory();
 select pg_temp.expect_fail($$select buy_item('tiara')$$, 'cannot buy monthly accessories');
--- Extra islands: Lockin+ only, free snow on island 2, one stock for all islands.
+-- Extra islands: Vainc+ only, free snow on island 2, one stock for all islands.
 select pg_temp.as_user(:P1);
-select pg_temp.expect_fail($$select save_world('{"size":16,"sea":false,"tiles":"' || repeat('n', 256) || '","objects":[]}'::jsonb, 2)$$, 'island 2 needs Lockin+');
+select pg_temp.expect_fail($$select save_world('{"size":16,"sea":false,"tiles":"' || repeat('n', 256) || '","objects":[]}'::jsonb, 2)$$, 'island 2 needs Vainc+');
 select pg_temp.as_user(:G);
 select save_world(('{"size":16,"sea":false,"tiles":"' || repeat('n', 256) || '","objects":[]}')::jsonb, 2);
 select pg_temp.expect_rows($$select 1 from profiles where id = auth.uid() and world2->>'tiles' like 'nnn%'$$, 1, 'snow island saved');
@@ -41,12 +41,12 @@ select pg_temp.as_user(:G);
 select save_world(('{"size":16,"sea":false,"tiles":"' || repeat('g', 256) || '","objects":[["tent",2,2,0]]}')::jsonb);
 select pg_temp.expect_fail($$select save_world('{"size":16,"sea":false,"tiles":"' || repeat('n', 256) || '","objects":[["tent",3,3,0]]}'::jsonb, 2)$$, 'same tent on two islands');
 select pg_temp.expect_fail($$select save_world('{"size":16,"sea":false,"tiles":"' || repeat('g', 256) || '","objects":[]}'::jsonb, 4)$$, 'only 3 islands');
--- Group lock-ins: 8 people without Lockin+, 30 with it.
+-- Group vaincs: 8 people without Vainc+, 30 with it.
 reset role;
 insert into lockin_events (id, host, title, starts_at) values ('77777777-0000-0000-0000-000000000001', '00000001-0000-0000-0000-000000000000', 'Révisions', now() + interval '1 hour');
 insert into event_members (event_id, user_id) select '77777777-0000-0000-0000-000000000001', id from profiles order by id limit 8;
-select pg_temp.expect_fail($$insert into event_members (event_id, user_id) select '77777777-0000-0000-0000-000000000001', id from profiles order by id offset 8 limit 1$$, 'ninth person refused without Lockin+');
+select pg_temp.expect_fail($$insert into event_members (event_id, user_id) select '77777777-0000-0000-0000-000000000001', id from profiles order by id offset 8 limit 1$$, 'ninth person refused without Vainc+');
 update profiles set premium_until = now() + interval '1 day' where id = '00000001-0000-0000-0000-000000000000';
 insert into event_members (event_id, user_id) select '77777777-0000-0000-0000-000000000001', id from profiles order by id offset 8 limit 1;
-select pg_temp.expect_rows($$select 1 from event_members where event_id = '77777777-0000-0000-0000-000000000001'$$, 9, 'more with Lockin+');
+select pg_temp.expect_rows($$select 1 from event_members where event_id = '77777777-0000-0000-0000-000000000001'$$, 9, 'more with Vainc+');
 select 'V19 TESTS PASSED';

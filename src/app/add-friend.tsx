@@ -33,7 +33,7 @@ export default function AddFriend() {
   const invite = () => {
     if (!profile) return;
     Share.share({
-      message: `On révise ensemble sur Lockin ? 🔒 Ajoute-moi : @${profile.username}`,
+      message: `On révise ensemble sur Vainc ? 🔒 Ajoute-moi : @${profile.username}`,
     });
   };
 

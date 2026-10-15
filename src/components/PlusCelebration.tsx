@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth';
 import { card, colors, type } from '../lib/theme';
 import { Avatar } from './Avatar';
 
-/** "You've got Lockin+": shown once after receiving it (gift, referral, or by hand). */
+/** "You've got Vainc+": shown once after receiving it (gift, referral, or by hand). */
 export function PlusCelebration({ title, text }: { title: string; text: string }) {
   const { profile } = useAuth();
   return (

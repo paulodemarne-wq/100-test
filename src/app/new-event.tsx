@@ -29,14 +29,14 @@ export default function NewEvent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 8 people per group lock-in (you included), 30 with Lockin+. The database checks it too.
+  // 8 people per group vainc (you included), 30 with Vainc+. The database checks it too.
   const maxInvites = isPremium(profile) ? 29 : 7;
   const toggle = (id: string) => {
     if (!selected.has(id) && selected.size >= maxInvites) {
       Alert.alert(
         'Groupe plein',
-        isPremium(profile) ? '30 personnes max, toi compris.' : '8 personnes max, toi compris. Avec Lockin+, jusqu’à 30.',
-        isPremium(profile) ? undefined : [{ text: 'OK', style: 'cancel' }, { text: 'Voir Lockin+', onPress: () => router.push('/premium') }],
+        isPremium(profile) ? '30 personnes max, toi compris.' : '8 personnes max, toi compris. Avec Vainc+, jusqu’à 30.',
+        isPremium(profile) ? undefined : [{ text: 'OK', style: 'cancel' }, { text: 'Voir Vainc+', onPress: () => router.push('/premium') }],
       );
       return;
     }
@@ -66,7 +66,7 @@ export default function NewEvent() {
     if (startsAt.getTime() < Date.now() - 60_000) return setError('Choisis une heure dans le futur.');
     setLoading(true);
     try {
-      const id = await createEvent({ title: title.trim() || 'Lock in', startsAt, friendIds: [...selected] });
+      const id = await createEvent({ title: title.trim() || 'vainc', startsAt, friendIds: [...selected] });
       router.replace({ pathname: '/event/[id]', params: { id } });
     } catch (e) {
       setError((e as Error).message);
@@ -77,7 +77,7 @@ export default function NewEvent() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={type.title}>Lock in de groupe</Text>
+        <Text style={type.title}>vainc de groupe</Text>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.close}>
           <Ionicons name="close" size={20} color={colors.secondary} />
         </Pressable>

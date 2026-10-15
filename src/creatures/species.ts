@@ -1,4 +1,4 @@
-// The 40 realistic Lockin animals (30 + 10 Lockin+). Each stays the same animal from baby to legend:
+// The 40 realistic Vainc animals (30 + 10 Vainc+). Each stays the same animal from baby to legend:
 // it grows, gets extra body parts and elemental powers at each stage (see src/creatures/real/).
 // Pure data (no React, no three.js): shared by the app and the design previews.
 import { PLUS_FIRST_ID, REAL_SPECIES, type RealSpecies } from './real/catalog';
@@ -22,11 +22,11 @@ export function emojiFor(species: Species | null, level: number): string {
   return species && level >= 2 ? (EMOJI[species.id] ?? '🐾') : '🥚';
 }
 
-/** The 30 animals for everyone, then the 10 Lockin+ ones. */
+/** The 30 animals for everyone, then the 10 Vainc+ ones. */
 export const SPECIES: Species[] = REAL_SPECIES.filter((s) => !s.plus);
 export const PLUS_SPECIES: Species[] = REAL_SPECIES.filter((s) => s.plus);
 
-/** Whether an animal is one of the Lockin+ ones. Must match supabase/schema.sql (30..39). */
+/** Whether an animal is one of the Vainc+ ones. Must match supabase/schema.sql (30..39). */
 export const isPlusSpecies = (id: number | null | undefined) => id !== null && id !== undefined && id >= PLUS_FIRST_ID;
 
 export function speciesById(id: number | null | undefined): Species | null {
@@ -44,7 +44,7 @@ export const LEVEL_HOURS: number[] = Array.from({ length: MAX_LEVEL + 1 }, (_, L
   return h < 20 ? Math.round(h * 2) / 2 : h < 100 ? Math.round(h) : Math.round(h / 5) * 5;
 });
 
-/** Seconds of lock in at which the egg hatches (level 2). Must match supabase/schema.sql. */
+/** Seconds of vainc at which the egg hatches (level 2). Must match supabase/schema.sql. */
 export const HATCH_SECONDS = LEVEL_HOURS[2] * 3600;
 
 export type Tier = { index: number; name: string; color: string; fromLevel: number };
@@ -159,7 +159,7 @@ export function monthlyAccessory(now = new Date()): string {
   return MONTHLY_ACCESSORIES[(now.getFullYear() * 12 + now.getMonth()) % MONTHLY_ACCESSORIES.length];
 }
 
-/** Whether the player can use this item (bought, or free; Lockin+ items need the subscription). */
+/** Whether the player can use this item (bought, or free; Vainc+ items need the subscription). */
 export function ownsItem(item: ShopItem, inventory: string[], premium = false): boolean {
   // A claimed accessory of the month stays yours.
   if (item.monthly) return inventory.includes(item.id);
@@ -173,12 +173,12 @@ export type ShopItem = {
   kind: 'accessory' | 'egg' | 'garden' | 'upgrade';
   slot: Slot | GardenSlot | null;
   rarity: Rarity;
-  /** Price in hours of lock in (0 = free for everyone). Must match supabase/schema.sql (shop_items). */
+  /** Price in hours of vainc (0 = free for everyone). Must match supabase/schema.sql (shop_items). */
   costHours: number;
   emoji?: string;
-  /** Only for Lockin+ subscribers. */
+  /** Only for Vainc+ subscribers. */
   premium?: boolean;
-  /** Lockin+ accessory of the month: claimed for free during its month (see monthlyAccessory). */
+  /** Vainc+ accessory of the month: claimed for free during its month (see monthlyAccessory). */
   monthly?: boolean;
 };
 
@@ -278,13 +278,13 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'size24', name: 'Île 24×24', kind: 'upgrade', slot: null, rarity: 'épique', costHours: 120, emoji: '🏝️' },
   { id: 'size28', name: 'Île 28×28', kind: 'upgrade', slot: null, rarity: 'mythique', costHours: 250, emoji: '🏝️' },
   { id: 'size32', name: 'Île 32×32', kind: 'upgrade', slot: null, rarity: 'légendaire', costHours: 500, emoji: '🏝️' },
-  // Lockin+ (subscription): an egg with the 10 exclusive creatures, and decorations free for subscribers.
-  // Accessory of the month (Lockin+): free to claim during its month, kept for good.
+  // Vainc+ (subscription): an egg with the 10 exclusive creatures, and decorations free for subscribers.
+  // Accessory of the month (Vainc+): free to claim during its month, kept for good.
   { id: 'tiara', name: 'Diadème étoilé', kind: 'accessory', slot: 'head', rarity: 'légendaire', costHours: 0, premium: true, monthly: true },
   { id: 'bunny', name: 'Oreilles de lapin', kind: 'accessory', slot: 'head', rarity: 'légendaire', costHours: 0, premium: true, monthly: true },
   { id: 'galaxy', name: 'Écharpe galaxie', kind: 'accessory', slot: 'neck', rarity: 'légendaire', costHours: 0, premium: true, monthly: true },
   { id: 'butterfly', name: 'Ailes de papillon', kind: 'accessory', slot: 'back', rarity: 'légendaire', costHours: 0, premium: true, monthly: true },
-  { id: 'egg_plus', name: 'Œuf Lockin+', kind: 'egg', slot: null, rarity: 'légendaire', costHours: 50, emoji: '🥚', premium: true },
+  { id: 'egg_plus', name: 'Œuf Vainc+', kind: 'egg', slot: null, rarity: 'légendaire', costHours: 50, emoji: '🥚', premium: true },
   { id: 'portal', name: 'Portail magique', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '🌀', premium: true },
   { id: 'crystals', name: 'Cristaux lumineux', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '💠', premium: true },
   { id: 'lanterns', name: 'Lanternes', kind: 'garden', slot: 'deco', rarity: 'légendaire', costHours: 0, emoji: '🏮', premium: true },

@@ -51,7 +51,7 @@ export const PACE_TEXT: Record<Pace, string> = {
   done: 'Objectif atteint 🎉 Tu peux réviser encore pour assurer.',
   ok: 'Tranquille si tu suis le plan 👌',
   hard: 'Ça va demander du sérieux 😤',
-  late: 'Gros retard : baisse l’objectif ou lock in à fond 🚨',
+  late: 'Gros retard : baisse l’objectif ou vainc à fond 🚨',
 };
 
 export type PlanDay = { date: Date; total: number; parts: { name: string; seconds: number }[] };

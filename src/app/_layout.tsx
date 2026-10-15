@@ -8,13 +8,13 @@ import { openFromNotification, registerForPushNotifications, syncDailyReminders,
 import { loadReminder } from '../lib/reminder';
 import { dayKey } from '../lib/time';
 import { SocialProvider, useSocial } from '../lib/social';
-import { LockinProvider } from '../lib/store';
+import { VaincProvider } from '../lib/store';
 import { ChatProvider } from '../lib/chat';
 import { colors } from '../lib/theme';
 import { takePendingGift } from '../lib/gifts';
 import { supabase } from '../lib/supabase';
 
-/** Says "you've got Lockin+" once when it arrives, and opens a gift link kept from before sign-in. */
+/** Says "you've got Vainc+" once when it arrives, and opens a gift link kept from before sign-in. */
 function PlusBridge() {
   const { profile } = useAuth();
   const userId = profile?.id;
@@ -41,7 +41,7 @@ function PlusBridge() {
   return null;
 }
 
-/** Registers for push, opens tapped notifications and schedules group lock-in reminders. */
+/** Registers for push, opens tapped notifications and schedules group vainc reminders. */
 function NotificationsBridge() {
   const { profile } = useAuth();
   const { events, loading, mySessions, myStreak, todos } = useSocial();
@@ -91,7 +91,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <SocialProvider>
-        <LockinProvider>
+        <VaincProvider>
           <ChatProvider>
           <StatusBar style="dark" />
           {Platform.OS !== 'web' && <NotificationsBridge />}
@@ -111,7 +111,7 @@ export default function RootLayout() {
             <Stack.Screen name="world" options={{ gestureEnabled: false }} />
           </Stack>
           </ChatProvider>
-        </LockinProvider>
+        </VaincProvider>
       </SocialProvider>
     </AuthProvider>
   );

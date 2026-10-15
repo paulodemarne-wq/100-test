@@ -20,7 +20,7 @@ export type ActiveSession = {
   /** Row id in study_sessions, once created. */
   remoteId: string | null;
   subject: string;
-  /** Group lock-in this session belongs to. */
+  /** Group vainc this session belongs to. */
   eventId?: string | null;
   startedAt: number;
   /** Short trips outside the app that were tolerated. */
@@ -32,11 +32,11 @@ export type ActiveSession = {
   /** The break in progress, if any. */
   pause: { startedAt: number; until: number } | null;
   tasks: SessionTask[];
-  /** The to-do being worked on right now (can change during the lock-in). */
+  /** The to-do being worked on right now (can change during the vainc). */
   todoId?: string | null;
   /** Focus seconds at which the current to-do was picked. */
   todoSince?: number;
-  /** Focus seconds already spent on earlier to-dos of this lock-in. */
+  /** Focus seconds already spent on earlier to-dos of this vainc. */
   todoSplit?: Record<string, number>;
 };
 
@@ -116,10 +116,10 @@ function updateRemote(id: string | null, fields: Record<string, unknown>) {
   supabase.from('study_sessions').update(fields).eq('id', id).then(() => {});
 }
 
-export function LockinProvider({ children }: { children: ReactNode }) {
+export function VaincProvider({ children }: { children: ReactNode }) {
   const { userId } = useAuth();
   const { refresh } = useSocial();
-  const storageKey = userId ? `lockin/active/${userId}` : null;
+  const storageKey = userId ? `vainc/active/${userId}` : null;
   const [active, setActive] = useState<ActiveSession | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -197,7 +197,7 @@ export function LockinProvider({ children }: { children: ReactNode }) {
       paused_seconds: Math.round(next.pausedSeconds),
       last_seen_at: new Date().toISOString(),
     });
-    setNotice({ kind: 'pause', message: 'Fin de la pause. On lock in 🔒' });
+    setNotice({ kind: 'pause', message: 'Fin de la pause. On vainc 🔒' });
   }, []);
 
   // A break ends by itself when its time is up and the app is open.
@@ -323,7 +323,7 @@ export function LockinProvider({ children }: { children: ReactNode }) {
     setNotice({
       kind: 'done',
       message:
-        `${formatDuration(seconds)} de lock in. Respect 🫡` +
+        `${formatDuration(seconds)} de vainc. Respect 🫡` +
         (current.tasks.length ? ` ${doneTasks}/${current.tasks.length} tâches faites.` : ''),
     });
   }, [end]);
@@ -381,9 +381,9 @@ export function LockinProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useLockin(): Store {
+export function useVainc(): Store {
   const store = useContext(StoreContext);
-  if (!store) throw new Error('useLockin must be used inside <LockinProvider>');
+  if (!store) throw new Error('useVainc must be used inside <VaincProvider>');
   return store;
 }
 

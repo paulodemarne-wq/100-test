@@ -1,4 +1,4 @@
-// Renders the Lockin logo (padlock holding the timer ring) into the app icon files.
+// Renders the Vainc logo (padlock holding the timer ring) into the app icon files.
 // Run: node scripts/icon/make.js assets   (needs Playwright with Chromium)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
 const mark = (bg, body, shackle, ringBg, ring, opts = {}) => `

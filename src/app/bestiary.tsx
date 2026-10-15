@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetView } from '../components/PetView';
 import { elementOf, emojiFor, levelFor, PLUS_SPECIES, SPECIES, Species, TIERS } from '../creatures/species';
 
-/** The 30 animals, then the 10 Lockin+ ones. */
+/** The 30 animals, then the 10 Vainc+ ones. */
 const ALL = [...SPECIES, ...PLUS_SPECIES];
 import { useSocial } from '../lib/social';
 import { card, colors, type } from '../lib/theme';
@@ -57,7 +57,7 @@ export default function Bestiary() {
           <View style={styles.empty}>
             <Text style={{ fontSize: 44 }}>🥚</Text>
             <Text style={[type.subhead, { textAlign: 'center' }]}>
-              Fais éclore ton œuf (5 h 30 de lock in) pour découvrir ton premier animal.
+              Fais éclore ton œuf (5 h 30 de vainc) pour découvrir ton premier animal.
             </Text>
           </View>
         )}
@@ -75,7 +75,7 @@ export default function Bestiary() {
             >
               <Text style={[styles.cellEmoji, !known && { opacity: 0.25 }]}>{known ? emojiFor(s, 2) : '❔'}</Text>
               <Text style={[styles.cellName, !known && { color: colors.tertiary }]} numberOfLines={1}>
-                {known ? s.name : s.plus ? '✨ Lockin+' : `n° ${s.id + 1}`}
+                {known ? s.name : s.plus ? '✨ Vainc+' : `n° ${s.id + 1}`}
               </Text>
               <View style={[styles.cellDot, { backgroundColor: elementOf(s).color, opacity: known ? 1 : 0.3 }]} />
             </Pressable>

@@ -14,7 +14,7 @@ begin execute 'select count(*) from (' || q || ') x' into c;
   if c <> n then raise exception 'FAIL: % expected % rows, got %', label, n, c; end if;
   raise notice 'OK %: % rows', label, c;
 end $$;
--- v20: gift links. P pays, Q and R never had Lockin+, S already had it.
+-- v20: gift links. P pays, Q and R never had Vainc+, S already had it.
 reset role;
 insert into auth.users values ('20000000-0000-0000-0000-00000000000a'), ('20000000-0000-0000-0000-00000000000b'), ('20000000-0000-0000-0000-00000000000c'), ('20000000-0000-0000-0000-00000000000d') on conflict do nothing;
 insert into profiles (id, username, display_name) values
@@ -23,7 +23,7 @@ insert into profiles (id, username, display_name) values
 select grant_plus('20000000-0000-0000-0000-00000000000a', 30, 'paid');
 select grant_plus('20000000-0000-0000-0000-00000000000d', 7, 'admin');
 set role authenticated;
--- Someone without a paid Lockin+ cannot make links.
+-- Someone without a paid Vainc+ cannot make links.
 select pg_temp.as_user('20000000-0000-0000-0000-00000000000b');
 select pg_temp.expect_fail($$select create_gift_link()$$, 'no link without paying');
 select pg_temp.expect_fail($$insert into plus_gifts (code, giver) values ('HACK1234', auth.uid())$$, 'cannot insert links');
@@ -32,10 +32,10 @@ select create_gift_link() as link \gset
 select pg_temp.expect_rows(format($$select 1 where create_gift_link() = %L$$, :'link'), 1, 'sharing again gives the same link');
 select pg_temp.expect_rows($$select 1 where trials_left(auth.uid()) = 4$$, 1, 'a waiting link holds one trial');
 select pg_temp.expect_fail(format($$select claim_gift(%L)$$, :'link'), 'cannot take my own gift');
--- Sami already had Lockin+.
+-- Sami already had Vainc+.
 select pg_temp.as_user('20000000-0000-0000-0000-00000000000d');
-select pg_temp.expect_fail(format($$select claim_gift(%L)$$, :'link'), 'not for people who had Lockin+');
-select pg_temp.expect_rows($$select 1 from unseen_plus() where source = 'admin'$$, 1, 'Sami sees his Lockin+ once');
+select pg_temp.expect_fail(format($$select claim_gift(%L)$$, :'link'), 'not for people who had Vainc+');
+select pg_temp.expect_rows($$select 1 from unseen_plus() where source = 'admin'$$, 1, 'Sami sees his Vainc+ once');
 select mark_plus_seen();
 select pg_temp.expect_rows($$select 1 from unseen_plus()$$, 0, 'then never again');
 -- Quentin opens the link (lower case works too).
