@@ -43,7 +43,7 @@ select pg_temp.expect_fail($$select save_world('{"size":16,"sea":false,"tiles":"
 select pg_temp.expect_fail($$select save_world('{"size":16,"sea":false,"tiles":"' || repeat('g', 256) || '","objects":[]}'::jsonb, 4)$$, 'only 3 islands');
 -- Group vaincs: 8 people without Vainc+, 30 with it.
 reset role;
-insert into lockin_events (id, host, title, starts_at) values ('77777777-0000-0000-0000-000000000001', '00000001-0000-0000-0000-000000000000', 'Révisions', now() + interval '1 hour');
+insert into vainc_events (id, host, title, starts_at) values ('77777777-0000-0000-0000-000000000001', '00000001-0000-0000-0000-000000000000', 'Révisions', now() + interval '1 hour');
 insert into event_members (event_id, user_id) select '77777777-0000-0000-0000-000000000001', id from profiles order by id limit 8;
 select pg_temp.expect_fail($$insert into event_members (event_id, user_id) select '77777777-0000-0000-0000-000000000001', id from profiles order by id offset 8 limit 1$$, 'ninth person refused without Vainc+');
 update profiles set premium_until = now() + interval '1 day' where id = '00000001-0000-0000-0000-000000000000';

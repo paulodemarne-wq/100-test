@@ -186,9 +186,9 @@ Autour de ça :
 
 ## 11. Renommage Lockin → Vainc
 
-L'app s'appelle maintenant **Vainc** (« lock in » devient « vainc » partout dans les textes, le code et la doc).
-Deux noms techniques gardent l'ancien nom exprès, pour ne rien casser :
-- la table Supabase `lockin_events` (renommer la table casserait la base déjà en place) ;
-- le `slug` `lockin` dans `app.json` (il est lié au projet EAS, `extra.eas.projectId`).
+L'app s'appelle **Vainc** (« lock in » devient « vainc » partout : textes, code, doc, dossier, fichiers SQL, `slug` et `scheme` d'`app.json`).
+La table Supabase `lockin_events` est devenue `vainc_events`. Un petit bloc au début de `schema.sql`, de `mise-a-jour-tout.sql` et de `fix-vainc-groupe.sql` la renomme tout seul sur une base existante (sans perdre de données).
+Le test `vainc/tests-sql/old0.sql` simule volontairement l'ancienne base (avec `lockin_events`).
 
 Le dépôt GitHub s'appelle toujours `100-test` (à renommer à la main dans GitHub → Settings si besoin).
+Le `slug` est lié au projet EAS (`extra.eas.projectId`) : si `eas build` se plaint, renommer aussi le projet sur expo.dev.

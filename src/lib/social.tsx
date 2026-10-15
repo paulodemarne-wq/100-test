@@ -210,7 +210,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       supabase.from('friendships').select('*').or(`requester.eq.${userId},addressee.eq.${userId}`),
       supabase.from('study_groups').select('*').order('created_at'),
       supabase.from('group_members').select('*'),
-      supabase.from('lockin_events').select('*').gte('starts_at', eventsSince).order('starts_at'),
+      supabase.from('vainc_events').select('*').gte('starts_at', eventsSince).order('starts_at'),
       supabase.from('exams').select('*').order('exam_date'),
       supabase.from('nudges').select('*').eq('to_user', userId).is('seen_at', null).order('created_at', { ascending: false }),
     ]);
@@ -309,7 +309,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     if (!userId || !profile) return;
     refresh();
     const channel = supabase.channel(`vainc-${userId}`);
-    for (const table of ['study_sessions', 'friendships', 'group_members', 'lockin_events', 'event_members', 'session_reactions', 'pets']) {
+    for (const table of ['study_sessions', 'friendships', 'group_members', 'vainc_events', 'event_members', 'session_reactions', 'pets']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh);
     }
     channel
@@ -555,7 +555,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       createEvent: async ({ title, startsAt, friendIds }) => {
         if (!userId) throw new Error('Non connecté.');
         const { data, error } = await supabase
-          .from('lockin_events')
+          .from('vainc_events')
           .insert({ title: title.trim(), starts_at: startsAt.toISOString() })
           .select()
           .single();
@@ -571,7 +571,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       },
       answerEvent: (eventId, rsvp) =>
         run(() => supabase.from('event_members').update({ status: rsvp }).eq('event_id', eventId).eq('user_id', userId!)),
-      cancelEvent: (eventId) => run(() => supabase.from('lockin_events').delete().eq('id', eventId)),
+      cancelEvent: (eventId) => run(() => supabase.from('vainc_events').delete().eq('id', eventId)),
       addExam: ({ name, date, goalMinutes }) =>
         run(() =>
           supabase.from('exams').insert({ name: name.trim(), exam_date: localDate(date), goal_minutes: goalMinutes }),

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Vainc",
-    "slug": "lockin",
+    "slug": "vainc",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

@@ -2,6 +2,13 @@
 -- Run it once in Supabase: SQL Editor > New query > paste this file > Run.
 -- It is safe to run again: every statement is idempotent.
 
+-- Renommage : la table des vainc de groupe s'appelait lockin_events, elle s'appelle maintenant vainc_events.
+do $$ begin
+  if to_regclass('public.lockin_events') is not null and to_regclass('public.vainc_events') is null then
+    alter table public.lockin_events rename to vainc_events;
+  end if;
+end $$;
+
 -- ─── Profiles ────────────────────────────────────────────────────────────────
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -265,7 +272,7 @@ revoke execute on function public.join_group(text) from public, anon;
 grant execute on function public.join_group(text) to authenticated;
 
 -- ─── Group vaincs ("On vainc à 20 h ?") ──────────────────────────────────
-create table if not exists public.lockin_events (
+create table if not exists public.vainc_events (
   id uuid primary key default gen_random_uuid(),
   host uuid not null default auth.uid() references public.profiles (id) on delete cascade,
   title text not null check (char_length(title) between 1 and 40),
@@ -274,41 +281,41 @@ create table if not exists public.lockin_events (
 );
 
 create table if not exists public.event_members (
-  event_id uuid not null references public.lockin_events (id) on delete cascade,
+  event_id uuid not null references public.vainc_events (id) on delete cascade,
   user_id uuid not null references public.profiles (id) on delete cascade,
   status text not null default 'invited' check (status in ('invited', 'going', 'declined')),
   primary key (event_id, user_id)
 );
 
 alter table public.study_sessions
-  add column if not exists event_id uuid references public.lockin_events (id) on delete set null;
+  add column if not exists event_id uuid references public.vainc_events (id) on delete set null;
 
 create or replace function public.is_event_member(e uuid, u uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.event_members where event_id = e and user_id = u)
-      or exists (select 1 from public.lockin_events where id = e and host = u);
+      or exists (select 1 from public.vainc_events where id = e and host = u);
 $$;
 
 create or replace function public.event_host(e uuid)
 returns uuid language sql stable security definer set search_path = public as $$
-  select host from public.lockin_events where id = e;
+  select host from public.vainc_events where id = e;
 $$;
 
-alter table public.lockin_events enable row level security;
+alter table public.vainc_events enable row level security;
 alter table public.event_members enable row level security;
 
-drop policy if exists "see own events" on public.lockin_events;
-create policy "see own events" on public.lockin_events
+drop policy if exists "see own events" on public.vainc_events;
+create policy "see own events" on public.vainc_events
   -- The host is checked directly: right after creating the event, the lookup inside
   -- is_event_member can't see the new row yet (which made creating an event fail).
   for select to authenticated using (host = auth.uid() or public.is_event_member(id, auth.uid()));
 
-drop policy if exists "host events" on public.lockin_events;
-create policy "host events" on public.lockin_events
+drop policy if exists "host events" on public.vainc_events;
+create policy "host events" on public.vainc_events
   for insert to authenticated with check (host = auth.uid());
 
-drop policy if exists "cancel own events" on public.lockin_events;
-create policy "cancel own events" on public.lockin_events
+drop policy if exists "cancel own events" on public.vainc_events;
+create policy "cancel own events" on public.vainc_events
   for delete to authenticated using (host = auth.uid());
 
 drop policy if exists "see event members" on public.event_members;
@@ -467,9 +474,9 @@ create trigger push_on_session_start after insert on public.study_sessions
 -- Invited to a group vainc.
 create or replace function public.push_on_event_invite()
 returns trigger language plpgsql security definer set search_path = public as $$
-declare e public.lockin_events;
+declare e public.vainc_events;
 begin
-  select * into e from public.lockin_events where id = new.event_id;
+  select * into e from public.vainc_events where id = new.event_id;
   if new.user_id <> e.host then
     perform public.send_push(array[new.user_id],
       public.display_name_of(e.host) || ' : on vainc à ' || to_char(e.starts_at at time zone 'Europe/Paris', 'HH24"h"MI') || ' ?',
@@ -486,7 +493,7 @@ create trigger push_on_event_invite after insert on public.event_members
 do $$
 declare t text;
 begin
-  foreach t in array array['group_members', 'lockin_events', 'event_members'] loop
+  foreach t in array array['group_members', 'vainc_events', 'event_members'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
