@@ -14,18 +14,8 @@ import { pbr } from './materials';
 
 export type IslandKind = 'normal' | 'snow' | 'cloud';
 
-/** Which island this is, from its ground (the snow and cloud islands start covered in snow / clouds). */
-export function islandKind(world: World): IslandKind {
-  let n = 0;
-  let c = 0;
-  for (let i = 0; i < world.tiles.length; i++) {
-    const ch = world.tiles.charCodeAt(i);
-    if (ch === 110) n++;
-    else if (ch === 99) c++;
-  }
-  const cells = world.size * world.size;
-  if (c >= n && c >= cells * 0.3) return 'cloud';
-  if (n >= cells * 0.3) return 'snow';
+/** There is a single island: the normal one (the snow and cloud variants are no longer used). */
+export function islandKind(_world: World): IslandKind {
   return 'normal';
 }
 

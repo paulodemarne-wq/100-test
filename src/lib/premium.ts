@@ -110,7 +110,7 @@ export const PLUS_PERKS: { icon: string; title: string; text: string }[] = [
   { icon: 'ribbon', title: 'Badge, titre et décoration de photo', text: '12 badges, 12 titres, 10 décorations en 3D (anneau de feu, couronne…).' },
   { icon: 'egg', title: '10 animaux exclusifs', text: 'L’œuf Vainc+ : panthère noire, tigre blanc, loup noir, cobra doré, jaguar…' },
   { icon: 'gift', title: 'Un accessoire offert chaque mois', text: 'Diadème, oreilles de lapin, écharpe galaxie, ailes de papillon…' },
-  { icon: 'snow', title: '2 îles en plus + 6 décos gratuites', text: 'Une île de neige, une île volante, et des décos exclusives.' },
+  { icon: 'snow', title: '6 décos gratuites', text: 'Des décos exclusives pour ton île.' },
   { icon: 'timer', title: 'Effets du chrono', text: 'Thèmes de couleurs, fond animé, ton animal qui fait la fête à côté.' },
   { icon: 'stats-chart', title: 'Stats détaillées', text: 'Par matière, ton meilleur moment, le mois jour par jour.' },
   { icon: 'shield-checkmark', title: '2 jokers de série par mois', text: 'Et tu peux renommer ton animal.' },

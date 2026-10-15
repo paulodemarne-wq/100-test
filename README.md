@@ -110,7 +110,7 @@ src/lib/
   l'œuf Vainc+ (10 animaux exclusifs : panthère noire, tigre blanc, loup noir, cobra doré…) et 6 décos d'île gratuites.
 - Aussi : titre sous le prénom, renommer son animal (montré en grand sur le profil), 2 jokers de série par mois,
   stats détaillées, thèmes du chrono avec fond animé et l'animal qui réagit, un accessoire offert chaque mois,
-  2 îles en plus (neige, volante), vainc de groupe jusqu'à 30 (8 sans Vainc+).
+  vainc de groupe jusqu'à 30 (8 sans Vainc+).
 - La photo de profil est gratuite pour tout le monde.
 - C'est la base qui décide qui a Vainc+ (`profiles.premium_until`, ou un compte vedette) : rien ne peut être triché depuis l'app.
 - Parrainage : un pote qui prend Vainc+ avec ton code = 1 mois offert chacun. Un abonné peut offrir 5 essais de 7 jours avec un lien cadeau (comme Snapchat+). Quand tu reçois Vainc+, l'app te le dit. Pendant un essai, tu peux quand même t'abonner.

@@ -27,7 +27,7 @@ import {
   rotateAt,
   setTile,
   SIZES,
-  ISLANDS,
+  ISLAND_GROUND,
   TILE_CHARS,
   World,
 } from '../world/world';
@@ -56,16 +56,12 @@ export default function WorldScreen() {
   const shopIsland = !!host?.featured;
   const mine = !params.user || params.user === profile?.id;
 
-  // Which island: 1 for everyone, 2 (snow) and 3 (floating) with Vainc+.
-  const [island, setIsland] = useState(1);
-  const islandRef = useRef(1);
-  islandRef.current = island;
-  const rawWorld = island === 1 ? host?.world : island === 2 ? host?.world2 : host?.world3;
-  const saved = useMemo(() => readWorld(rawWorld, ISLANDS[island - 1].ground), [rawWorld, island]);
+  const rawWorld = host?.world;
+  const saved = useMemo(() => readWorld(rawWorld, ISLAND_GROUND), [rawWorld]);
   // My island is always editable (Clash of Clans style) and saves itself.
   // draft = my changes not saved yet. Coming from the shop after buying a bigger island or the sea: apply it right away.
   const [draft, setDraft] = useState<World | null>(() => {
-    if (!mine || island !== 1 || (!params.grow && !params.sea)) return null;
+    if (!mine || (!params.grow && !params.sea)) return null;
     let w = saved;
     if (params.grow) w = resizeWorld(w, ownedSize(inventory));
     if (params.sea && ownsSea(inventory)) w = { ...w, sea: true };
@@ -84,12 +80,11 @@ export default function WorldScreen() {
     (params.item && SHOP_ITEMS.find((i) => i.id === params.item)?.slot as GardenSlot) || 'house',
   );
   const [picked, setPicked] = useState<string | null>(null);
-  // Switching island closes the bubble and the selection.
+  // Visiting someone else closes the bubble and the selection.
   useEffect(() => {
     setPicked(null);
     setSelected(null);
     setDrag(null);
-    setIsland(1);
   }, [params.user]);
   /** My island as it is now (with my latest changes). */
   const current = mine ? (draft ?? saved) : saved;
@@ -113,7 +108,7 @@ export default function WorldScreen() {
       unsaved.current = null;
       setSaving(true);
       try {
-        await saver.current.saveWorld(draft, islandRef.current);
+        await saver.current.saveWorld(draft);
         await saver.current.reloadProfile();
         setDraft((d) => (d === draft ? null : d));
       } catch (e) {
@@ -127,7 +122,7 @@ export default function WorldScreen() {
   }, [draft]);
   useEffect(
     () => () => {
-      if (unsaved.current) saver.current.saveWorld(unsaved.current, islandRef.current).then(saver.current.reloadProfile).catch(() => {});
+      if (unsaved.current) saver.current.saveWorld(unsaved.current).then(saver.current.reloadProfile).catch(() => {});
     },
     [],
   );
@@ -261,32 +256,6 @@ export default function WorldScreen() {
     ]);
 
   const premium = isPremium(profile);
-  // My 3 islands (2 and 3 locked without Vainc+), or the ones a friend has built.
-  const islands = ISLANDS.filter((it) => mine || it.n === 1 || (it.n === 2 ? !!host?.world2 : !!host?.world3));
-  const switchIsland = async (n: number) => {
-    if (n === island) return;
-    if (mine && n > 1 && !premium) {
-      Alert.alert(`${ISLANDS[n - 1].name} · Vainc+`, 'Deux îles en plus à décorer : une île de neige et une île volante.', [
-        { text: 'Plus tard', style: 'cancel' },
-        { text: 'Voir Vainc+', onPress: () => router.push('/premium') },
-      ]);
-      return;
-    }
-    // Save what was changed on the island I leave.
-    if (draft) {
-      try {
-        unsaved.current = null;
-        await saveWorld(draft, island);
-        await reloadProfile();
-      } catch (e) {
-        Alert.alert('Oups', (e as Error).message);
-      }
-      setDraft(null);
-    }
-    setSelected(null);
-    setTool({ kind: 'none' });
-    setIsland(n);
-  };
   const choose = (item: ShopItem) => {
     // Vainc+ decorations: free, but only with Vainc+.
     if (item.premium && !premium) {
@@ -297,8 +266,7 @@ export default function WorldScreen() {
       return;
     }
     // Grounds are unlocked once in the shop; objects are paid one by one when placed.
-    // The snow island's snow and the floating island's clouds come with them.
-    const freeGround = TILE_CHARS[item.id] === ISLANDS[island - 1].ground;
+    const freeGround = TILE_CHARS[item.id] === ISLAND_GROUND;
     if (item.slot === 'ground' && !ownsItem(item, inventory) && !freeGround) {
       Alert.alert(item.name, `À débloquer dans la boutique pour ${item.costHours} h. Ensuite tu peux en peindre autant que tu veux.`, [
         { text: 'Plus tard', style: 'cancel' },
@@ -510,21 +478,6 @@ export default function WorldScreen() {
           }
         </View>
 
-        {islands.length > 1 && (
-          <View style={styles.islands}>
-            {islands.map((it) => {
-              const locked = mine && it.n > 1 && !premium;
-              return (
-                <Pressable key={it.n} onPress={() => switchIsland(it.n)} style={[styles.islandChip, island === it.n && styles.islandChipOn]}>
-                  <Text style={[styles.islandText, island === it.n && { color: colors.onAccent }]}>
-                    {locked ? '🔒' : it.icon} {it.short}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
         {!shopOpen && (friends.length > 0 || featured.length > 0) && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.visits}>
             <Pressable onPress={() => router.setParams({ user: '' })} style={[styles.visit, mine && styles.visitActive]}>
@@ -634,7 +587,7 @@ export default function WorldScreen() {
                 {items.map((item) => {
                   const tile = item.slot === 'ground';
                   const left = tile ? 0 : available(item.id);
-                  const ready = tile ? ownsItem(item, inventory) || TILE_CHARS[item.id] === ISLANDS[island - 1].ground : left > 0;
+                  const ready = tile ? ownsItem(item, inventory) || TILE_CHARS[item.id] === ISLAND_GROUND : left > 0;
                   const label = item.premium ? (premium ? 'Vainc+ ✓' : '🔒 Vainc+') : item.costHours === 0 ? 'Gratuit' : tile ? (ready ? '✓' : `🔒 ${item.costHours} h`) : ready ? `×${left}` : `${item.costHours} h`;
                   return (
                     <Pressable key={item.id} onPress={() => choose(item)} style={[styles.item, selectedId === item.id && styles.itemActive]}>
@@ -682,10 +635,6 @@ const styles = StyleSheet.create({
   pillAccent: { backgroundColor: colors.accent },
   pillText: { fontSize: 15, fontWeight: '700', color: colors.text },
   count: { ...glass, flex: 1, textAlign: 'center', borderRadius: 999, paddingVertical: 10, fontWeight: '700', color: colors.secondary, overflow: 'hidden' },
-  islands: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10 },
-  islandChip: { ...glass, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  islandChipOn: { backgroundColor: colors.accent },
-  islandText: { fontSize: 13, fontWeight: '700', color: colors.text },
   visits: { gap: 8, paddingHorizontal: 16, paddingTop: 10 },
   visit: { ...glass, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, maxWidth: 150 },
   visitActive: { borderWidth: 2, borderColor: colors.accent },

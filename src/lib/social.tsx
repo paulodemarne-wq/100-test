@@ -104,8 +104,8 @@ type Social = {
   /** Place an owned garden item (null removes it). Reload the profile afterwards. */
   setGarden: (slot: string, itemId: string | null) => Promise<void>;
   /** Saves my island. Reload the profile afterwards. */
-  /** Saves one of my islands (1, or 2 and 3 with Vainc+). */
-  saveWorld: (world: unknown, island?: number) => Promise<void>;
+  /** Saves my island. */
+  saveWorld: (world: unknown) => Promise<void>;
   /** How many of each island object I bought (one purchase = one object to place). */
   stock: Record<string, number>;
   /** Featured accounts (not me): their pet walks on every island, their island has a shop with deals. */
@@ -475,7 +475,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       equipItem: (petId, slot, itemId) => run(() => supabase.rpc('equip_item', { pet: petId, slot, item: itemId })),
       setActivePet: (petId) => run(() => supabase.rpc('set_active_pet', { pet: petId })),
       setGarden: (slot, itemId) => run(() => supabase.rpc('set_garden', { slot, item: itemId })),
-      saveWorld: (world, island = 1) => run(() => supabase.rpc('save_world', island === 1 ? { world } : { world, island })),
+      saveWorld: (world) => run(() => supabase.rpc('save_world', { world })),
       featured: featuredRows,
       deals: dealRows,
       claimedGifts,

@@ -129,8 +129,7 @@ Autour de ça :
 
 ## 6. Île réaliste
 
-- `src/world/real/island.ts` : relief, tuiles peintes (texture 1024²), mer avec vagues, falaises et glace sur l'île de neige, nuages sur l'île des nuages.
-- Le type d'île est déduit : au moins 30 % de tuiles neige ou nuage.
+- `src/world/real/island.ts` : relief, tuiles peintes (texture 1024²), mer avec vagues. Il n'y a **qu'une seule île** : les îles de neige et volante (Vainc+) ont été supprimées à la demande de l'utilisateur. `islandKind()` renvoie toujours `normal` ; le code neige/nuages de `island.ts` n'est plus utilisé. Les colonnes `world2`/`world3` et `save_world(world, island)` existent encore en base mais ne sont plus appelées.
 - 58 objets réalistes : 21 maisons, 16 éléments de nature, 21 objets et bateaux. Les bateaux sont posés à la ligne d'eau, vers y ≈ 0,05.
 - Matériaux PBR partagés : `materials.ts`, `pbr()`.
 - `flatten.ts` fusionne les objets par matériau pour la performance. Il garde les UV et les couleurs.
@@ -142,7 +141,7 @@ Autour de ça :
 - Cadeau comme Snapchat+ : `create_gift_link()` crée un lien `gift/CODE`, et l'ami l'ouvre (`claim_gift`) pour avoir 7 jours d'essai.
   Quand on reçoit Vainc+, l'écran « tu as reçu » s'affiche (`unseen_plus` / `mark_plus_seen`).
 - Pendant un essai, on peut quand même s'abonner. Le bouton « S'abonner à Vainc+ » est sur le **profil**, au-dessus de la section Vainc+ (`SubscribeBar`).
-- Avantages : badges, titres, renommer l'animal, accessoire du mois, îles neige et nuages, stats détaillées, thèmes de chrono, groupes de 30, 2 jokers de série.
+- Avantages : badges, titres, renommer l'animal, accessoire du mois, stats détaillées, thèmes de chrono, groupes de 30, 2 jokers de série.
 
 ## 8. État actuel et choses à surveiller
 
@@ -155,7 +154,6 @@ Autour de ça :
 - Défauts connus :
   - les feuilles de palmier sont un peu plates ;
   - les cristaux roses brillent peu ;
-  - la mer est toujours affichée ;
   - les ailes de la Légende serpent sont en partie cachées ;
   - les piques de l'aigle sont cachées par les plumes.
 - Prochaine étape probable : l'utilisateur teste et envoie des captures, puis on corrige.

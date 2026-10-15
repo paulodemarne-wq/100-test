@@ -40,9 +40,6 @@ export type ProfileRow = {
   garden: Partial<Record<'house' | 'tree' | 'deco' | 'ground', string>>;
   /** The island (see src/world/world.ts). Null until first saved. */
   world: unknown;
-  /** Vainc+ islands: snow (2) and floating (3). */
-  world2: unknown;
-  world3: unknown;
   /** The app's creator: their pet visits every island and their island has a shop. */
   featured: boolean;
   /** Vainc+ (subscription) end date, set by the server only. See src/lib/premium.ts. */

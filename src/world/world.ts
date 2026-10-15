@@ -120,17 +120,13 @@ export function walkable(world: World): boolean[] {
   return ok;
 }
 
-/** A new island starts empty: only grass (snow on the snow island, clouds on the floating one). */
+/** A new island starts empty: only grass. */
 export function defaultWorld(ground = 'g'): World {
   return { v: 2, size: MIN_SIZE, sea: false, tiles: ground.repeat(MIN_SIZE * MIN_SIZE), objects: [] };
 }
 
-/** The 3 islands: the first one for everyone, the other two with Vainc+. Must match save_world(world, island). */
-export const ISLANDS = [
-  { n: 1, name: 'Mon île', short: 'Île', icon: '🏝️', ground: 'g' },
-  { n: 2, name: 'Île de neige', short: 'Neige', icon: '❄️', ground: 'n' },
-  { n: 3, name: 'Île volante', short: 'Volante', icon: '☁️', ground: 'c' },
-] as const;
+/** The ground a new island starts with (grass). */
+export const ISLAND_GROUND = 'g';
 
 /** Accepts whatever is stored (maybe nothing yet, or the first 16×16 format) and returns a usable world. */
 export function readWorld(raw: unknown, ground = 'g'): World {
