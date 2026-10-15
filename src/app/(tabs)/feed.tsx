@@ -121,7 +121,7 @@ export default function FeedScreen() {
         </View>
         {friends.length > 0 && (
           <Text style={type.subhead}>
-            {liveCount} {liveCount > 1 ? 'potes sont en vainc' : 'pote en vainc'} en ce moment
+            {liveCount} {liveCount > 1 ? 'potes sont en lock in' : 'pote en lock in'} en ce moment
           </Text>
         )}
 
@@ -131,7 +131,7 @@ export default function FeedScreen() {
               key={p.id}
               left={<Avatar name={p.display_name} photoUri={p.avatar_url} decoration={decorationOf(p)} />}
               title={<Named person={p} />}
-              subtitle={`@${p.username} veut vainc avec toi`}
+              subtitle={`@${p.username} veut lock in avec toi`}
               right={
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <Pill title="✕" tone="muted" onPress={() => confirmRemove(p.id, p.display_name, true)} />
@@ -142,7 +142,7 @@ export default function FeedScreen() {
           ))}
         </Section>
 
-        <Section title="vainc de groupe">
+        <Section title="Lock in de groupe">
           {visibleEvents.map((e) => {
             const going = e.participants.filter((p) => p.rsvp === 'going');
             return (
@@ -185,12 +185,12 @@ export default function FeedScreen() {
           </View>
         )}
 
-        <Section title="En vainc">
+        <Section title="En lock in">
           {friends.length > 0 && active && profile ? (
             <Row
               left={<Avatar name={profile.display_name} photoUri={profile.avatar_url} decoration={decorationOf(profile)} live />}
               title={<Named person={profile} name={crown(profile.id, profile.display_name)} suffix=" (toi)" />}
-              subtitle={active.pause ? 'En pause ☕' : labelOr(active.subject, 'En vainc')}
+              subtitle={active.pause ? 'En pause ☕' : labelOr(active.subject, 'En lock in')}
               right={<Text style={styles.liveTimer}>{formatTimer(focusSeconds(active, now))}</Text>}
             />
           ) : null}
@@ -269,7 +269,7 @@ export default function FeedScreen() {
                   />
                 </View>
               }
-              title={labelOr(s.subject, 'vainc')}
+              title={labelOr(s.subject, 'Lock in')}
               subtitle={
                 s.status === 'done'
                   ? timeAgo(Date.parse(s.ended_at ?? s.started_at), now)

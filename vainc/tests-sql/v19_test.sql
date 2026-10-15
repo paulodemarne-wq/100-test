@@ -41,7 +41,7 @@ select pg_temp.as_user(:G);
 select save_world(('{"size":16,"sea":false,"tiles":"' || repeat('g', 256) || '","objects":[["tent",2,2,0]]}')::jsonb);
 select pg_temp.expect_fail($$select save_world('{"size":16,"sea":false,"tiles":"' || repeat('n', 256) || '","objects":[["tent",3,3,0]]}'::jsonb, 2)$$, 'same tent on two islands');
 select pg_temp.expect_fail($$select save_world('{"size":16,"sea":false,"tiles":"' || repeat('g', 256) || '","objects":[]}'::jsonb, 4)$$, 'only 3 islands');
--- Group vaincs: 8 people without Vainc+, 30 with it.
+-- Group lock-ins: 8 people without Vainc+, 30 with it.
 reset role;
 insert into vainc_events (id, host, title, starts_at) values ('77777777-0000-0000-0000-000000000001', '00000001-0000-0000-0000-000000000000', 'Révisions', now() + interval '1 hour');
 insert into event_members (event_id, user_id) select '77777777-0000-0000-0000-000000000001', id from profiles order by id limit 8;

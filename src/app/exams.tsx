@@ -36,7 +36,7 @@ export default function Exams() {
   const fail = (e: unknown) => Alert.alert('Oups', errorMessage(e));
 
   const vainc = (x: Exam) => {
-    if (active) return Alert.alert('Déjà en vainc', 'Termine ta session en cours d’abord.');
+    if (active) return Alert.alert('Déjà en lock in', 'Termine ta session en cours d’abord.');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startSession(x.name);
     router.navigate('/');
@@ -158,7 +158,7 @@ export default function Exams() {
                 <View style={styles.actions}>
                   <Pressable onPress={() => vainc(x)} style={styles.smallButton}>
                     <Ionicons name="lock-closed" size={13} color={colors.onAccent} />
-                    <Text style={styles.smallButtonText}>vainc</Text>
+                    <Text style={styles.smallButtonText}>Lock in</Text>
                   </Pressable>
                   <Pressable onPress={() => setInviting(inviting === x.id ? null : x.id)} style={styles.ghostButton}>
                     <Ionicons name="person-add" size={13} color={colors.accent} />
@@ -231,7 +231,7 @@ export default function Exams() {
               <Button title="Ajouter le partiel" onPress={submit} loading={adding} disabled={!name.trim()} />
             </View>
           </View>
-          <Text style={type.footnote}>Tes vainc comptent pour un partiel quand leur sujet porte son nom (le bouton « vainc » le fait pour toi).</Text>
+          <Text style={type.footnote}>Tes lock in comptent pour un partiel quand leur sujet porte son nom (le bouton « Lock in » le fait pour toi).</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -268,7 +268,7 @@ function Hero({ plan, onVainc }: { plan: ExamPlan; onVainc: () => void }) {
       )}
       <Pressable onPress={onVainc} style={styles.heroButton}>
         <Ionicons name="lock-closed" size={16} color={colors.accent} />
-        <Text style={styles.heroButtonText}>vainc sur {x.name}</Text>
+        <Text style={styles.heroButtonText}>Lock in sur {x.name}</Text>
       </Pressable>
     </View>
   );

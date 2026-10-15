@@ -114,5 +114,5 @@ export const PLUS_PERKS: { icon: string; title: string; text: string }[] = [
   { icon: 'timer', title: 'Effets du chrono', text: 'Thèmes de couleurs, fond animé, ton animal qui fait la fête à côté.' },
   { icon: 'stats-chart', title: 'Stats détaillées', text: 'Par matière, ton meilleur moment, le mois jour par jour.' },
   { icon: 'shield-checkmark', title: '2 jokers de série par mois', text: 'Et tu peux renommer ton animal.' },
-  { icon: 'people', title: 'vainc de groupe à 30', text: 'Au lieu de 8. Et 5 essais de 7 jours à offrir à tes potes.' },
+  { icon: 'people', title: 'Lock in de groupe à 30', text: 'Au lieu de 8. Et 5 essais de 7 jours à offrir à tes potes.' },
 ];

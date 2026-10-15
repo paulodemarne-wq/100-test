@@ -25,7 +25,7 @@ import {
 const LIVE_WINDOW_MS = 150_000;
 /** History loaded for streaks, badges and rankings. */
 const HISTORY_DAYS = 60;
-/** Group vaincs stay listed this long after they start. */
+/** Group lock-ins stay listed this long after they start. */
 const EVENT_VISIBLE_AFTER_START_MS = 6 * 3_600_000;
 
 type SessionInfo = { sessionId: string; label: string; tasks: SessionTask[] };

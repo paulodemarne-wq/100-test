@@ -41,7 +41,7 @@ function PlusBridge() {
   return null;
 }
 
-/** Registers for push, opens tapped notifications and schedules group vainc reminders. */
+/** Registers for push, opens tapped notifications and schedules group lock-in reminders. */
 function NotificationsBridge() {
   const { profile } = useAuth();
   const { events, loading, mySessions, myStreak, todos } = useSocial();

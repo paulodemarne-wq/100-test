@@ -2,7 +2,7 @@
 -- Run it once in Supabase: SQL Editor > New query > paste this file > Run.
 -- It is safe to run again: every statement is idempotent.
 
--- Renommage : la table des vainc de groupe s'appelait lockin_events, elle s'appelle maintenant vainc_events.
+-- Renommage : la table des événements de groupe s'appelait lockin_events, elle s'appelle maintenant vainc_events.
 do $$ begin
   if to_regclass('public.lockin_events') is not null and to_regclass('public.vainc_events') is null then
     alter table public.lockin_events rename to vainc_events;
@@ -107,7 +107,7 @@ create index if not exists study_sessions_user_started on public.study_sessions 
 
 alter table public.study_sessions enable row level security;
 
--- The select, insert and update policies are defined further down, once group vaincs exist.
+-- The select, insert and update policies are defined further down, once group lock-ins exist.
 
 drop policy if exists "delete own sessions" on public.study_sessions;
 create policy "delete own sessions" on public.study_sessions
@@ -175,7 +175,7 @@ create policy "delete own avatar" on storage.objects
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v2: exams, study groups, group vaincs, push notifications
+-- v2: exams, study groups, group lock-ins, push notifications
 -- ═════════════════════════════════════════════════════════════════════════════
 
 -- ─── Exams ("mode partiels"), private to their owner ─────────────────────────
@@ -271,7 +271,7 @@ end $$;
 revoke execute on function public.join_group(text) from public, anon;
 grant execute on function public.join_group(text) to authenticated;
 
--- ─── Group vaincs ("On vainc à 20 h ?") ──────────────────────────────────
+-- ─── Group lock-ins ("On lock in à 20 h ?") ──────────────────────────────────
 create table if not exists public.vainc_events (
   id uuid primary key default gen_random_uuid(),
   host uuid not null default auth.uid() references public.profiles (id) on delete cascade,
@@ -338,7 +338,7 @@ revoke update on public.event_members from anon, authenticated;
 grant update (status) on public.event_members to authenticated;
 
 -- ─── Who can see whose sessions ──────────────────────────────────────────────
--- Yourself, your friends, people in your groups, and people in the same group vainc.
+-- Yourself, your friends, people in your groups, and people in the same group lock-in.
 drop policy if exists "see own and friends sessions" on public.study_sessions;
 create policy "see own and friends sessions" on public.study_sessions
   for select to authenticated using (
@@ -348,7 +348,7 @@ create policy "see own and friends sessions" on public.study_sessions
     or (event_id is not null and public.is_event_member(event_id, auth.uid()))
   );
 
--- A session can only be attached to a group vainc you are part of.
+-- A session can only be attached to a group lock-in you are part of.
 drop policy if exists "start own sessions" on public.study_sessions;
 create policy "start own sessions" on public.study_sessions
   for insert to authenticated with check (
@@ -419,7 +419,7 @@ create or replace function public.push_on_nudge()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   perform public.send_push(array[new.to_user], public.display_name_of(new.from_user) || ' t''attend 📣',
-    'vainc. Maintenant.', jsonb_build_object('type', 'nudge'));
+    'Lock in. Maintenant.', jsonb_build_object('type', 'nudge'));
   return new;
 end $$;
 
@@ -433,7 +433,7 @@ returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'INSERT' then
     perform public.send_push(array[new.addressee], 'Nouvelle demande d''ami',
-      public.display_name_of(new.requester) || ' veut vainc avec toi', jsonb_build_object('type', 'friend_request'));
+      public.display_name_of(new.requester) || ' veut lock in avec toi', jsonb_build_object('type', 'friend_request'));
   elsif new.status = 'accepted' and old.status <> 'accepted' then
     perform public.send_push(array[new.requester], 'Demande acceptée ✓',
       public.display_name_of(new.addressee) || ' et toi êtes maintenant amis', jsonb_build_object('type', 'friend_accepted'));
@@ -460,7 +460,7 @@ begin
   from public.profiles p
   where p.notify_friend_sessions and public.is_friend(p.id, new.user_id);
   if recipients is not null then
-    perform public.send_push(recipients, public.display_name_of(new.user_id) || ' vient de vainc 🔒',
+    perform public.send_push(recipients, public.display_name_of(new.user_id) || ' vient de lock in 🔒',
       case when new.subject = 'Focus' then 'Et toi ?' else new.subject || ' · Et toi ?' end,
       jsonb_build_object('type', 'friend_session'));
   end if;
@@ -471,7 +471,7 @@ drop trigger if exists push_on_session_start on public.study_sessions;
 create trigger push_on_session_start after insert on public.study_sessions
   for each row execute function public.push_on_session_start();
 
--- Invited to a group vainc.
+-- Invited to a group lock-in.
 create or replace function public.push_on_event_invite()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare e public.vainc_events;
@@ -479,7 +479,7 @@ begin
   select * into e from public.vainc_events where id = new.event_id;
   if new.user_id <> e.host then
     perform public.send_push(array[new.user_id],
-      public.display_name_of(e.host) || ' : on vainc à ' || to_char(e.starts_at at time zone 'Europe/Paris', 'HH24"h"MI') || ' ?',
+      public.display_name_of(e.host) || ' : on lock in à ' || to_char(e.starts_at at time zone 'Europe/Paris', 'HH24"h"MI') || ' ?',
       e.title, jsonb_build_object('type', 'event_invite', 'event_id', e.id));
   end if;
   return new;
@@ -595,7 +595,7 @@ begin
     public.display_name_of(new.user_id) || ' a réagi ' || new.emoji,
     case
       when s.status = 'abandoned' then 'à ton craquage 😅'
-      when s.status = 'active' then 'à ton vainc en cours'
+      when s.status = 'active' then 'à ton lock in en cours'
       else 'à ta session de ' || (coalesce(s.duration_sec, 0) / 60) || ' min'
     end,
     jsonb_build_object('type', 'reaction'));
@@ -631,7 +631,7 @@ create table if not exists public.pets (
   user_id uuid not null references public.profiles (id) on delete cascade,
   -- Null while still an egg; picked at random on hatching (0..99, see src/creatures/species.ts).
   species smallint check (species between 0 and 99),
-  -- Seconds of vainc done while this pet was the active one.
+  -- Seconds of lock in done while this pet was the active one.
   xp_seconds bigint not null default 0,
   equipped jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -1149,7 +1149,7 @@ end $$;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v12: to-dos with a time budget and a due date. A vainc can work on one:
+-- v12: to-dos with a time budget and a due date. A lock-in can work on one:
 -- its focus time is added to the to-do (worked_seconds) when the session ends.
 -- ═════════════════════════════════════════════════════════════════════════════
 create table if not exists public.todos (
@@ -1190,7 +1190,7 @@ drop trigger if exists check_session_todo on public.study_sessions;
 create trigger check_session_todo before insert or update of todo_id on public.study_sessions
   for each row execute function public.check_session_todo();
 
--- v13: one vainc can switch between to-dos. todo_split = {"<todo id>": seconds, ...}.
+-- v13: one lock-in can switch between to-dos. todo_split = {"<todo id>": seconds, ...}.
 alter table public.study_sessions add column if not exists todo_split jsonb;
 do $$
 begin
@@ -1758,7 +1758,7 @@ grant execute on function public.rename_pet(uuid, text) to authenticated;
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- v19: more Vainc+: the accessory of the month, two more islands (snow, floating),
--- and bigger group vaincs (30 people instead of 8).
+-- and bigger group lock-ins (30 people instead of 8).
 -- ═════════════════════════════════════════════════════════════════════════════
 insert into public.shop_items (id, kind, slot, rarity, cost_seconds, premium) values
   ('tiara', 'accessory', 'head', 'légendaire', 0, true),
@@ -1880,7 +1880,7 @@ returns void language sql security definer set search_path = public as $$
   select public.save_world(world, 1);
 $$;
 
--- Group vaincs: 8 people, or 30 when the host has Vainc+.
+-- Group lock-ins: 8 people, or 30 when the host has Vainc+.
 create or replace function public.check_event_size()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -1888,7 +1888,7 @@ declare
   cap int := case when public.is_premium(host) then 30 else 8 end;
 begin
   if (select count(*) from public.event_members where event_id = new.event_id) >= cap then
-    raise exception 'vainc de groupe plein (% personnes max%)', cap, case when cap = 8 then ', 30 avec Vainc+' else '' end using errcode = 'P0001';
+    raise exception 'Lock in de groupe plein (% personnes max%)', cap, case when cap = 8 then ', 30 avec Vainc+' else '' end using errcode = 'P0001';
   end if;
   return new;
 end $$;

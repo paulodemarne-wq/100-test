@@ -104,7 +104,7 @@ export default function RankingScreen() {
                 ? `Encore ${formatDuration(ahead.seconds - myWeekSeconds + 60)} pour passer devant ${ahead.name} 🔥`
                 : myWeekSeconds > 0
                   ? 'T’es devant tout le monde. Lâche rien 👑'
-                  : 'vainc pour entrer dans le classement.'}
+                  : 'Lock in pour entrer dans le classement.'}
           </Text>
         </View>
 

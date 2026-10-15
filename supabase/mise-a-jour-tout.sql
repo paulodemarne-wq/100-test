@@ -3,7 +3,7 @@
 -- Supabase → SQL Editor → + → colle tout → Run. On peut le relancer sans risque (même si tu as déjà
 -- lancé une ancienne mise à jour To-do ou Vainc+).
 
--- Renommage : la table des vainc de groupe s'appelait lockin_events, elle s'appelle maintenant vainc_events.
+-- Renommage : la table des événements de groupe s'appelait lockin_events, elle s'appelle maintenant vainc_events.
 do $$ begin
   if to_regclass('public.lockin_events') is not null and to_regclass('public.vainc_events') is null then
     alter table public.lockin_events rename to vainc_events;
@@ -22,7 +22,7 @@ returns uuid language sql stable security definer set search_path = public as $$
   select host from public.vainc_events where id = e;
 $$;
 
--- Invited to a group vainc.
+-- Invited to a group lock-in.
 create or replace function public.push_on_event_invite()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare e public.vainc_events;
@@ -30,7 +30,7 @@ begin
   select * into e from public.vainc_events where id = new.event_id;
   if new.user_id <> e.host then
     perform public.send_push(array[new.user_id],
-      public.display_name_of(e.host) || ' : on vainc à ' || to_char(e.starts_at at time zone 'Europe/Paris', 'HH24"h"MI') || ' ?',
+      public.display_name_of(e.host) || ' : on lock in à ' || to_char(e.starts_at at time zone 'Europe/Paris', 'HH24"h"MI') || ' ?',
       e.title, jsonb_build_object('type', 'event_invite', 'event_id', e.id));
   end if;
   return new;
@@ -41,7 +41,7 @@ create policy "see own events" on public.vainc_events
   for select to authenticated using (host = auth.uid() or public.is_event_member(id, auth.uid()));
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v12: to-dos with a time budget and a due date. A vainc can work on one:
+-- v12: to-dos with a time budget and a due date. A lock-in can work on one:
 -- its focus time is added to the to-do (worked_seconds) when the session ends.
 -- ═════════════════════════════════════════════════════════════════════════════
 create table if not exists public.todos (
@@ -82,7 +82,7 @@ drop trigger if exists check_session_todo on public.study_sessions;
 create trigger check_session_todo before insert or update of todo_id on public.study_sessions
   for each row execute function public.check_session_todo();
 
--- v13: one vainc can switch between to-dos. todo_split = {"<todo id>": seconds, ...}.
+-- v13: one lock-in can switch between to-dos. todo_split = {"<todo id>": seconds, ...}.
 alter table public.study_sessions add column if not exists todo_split jsonb;
 do $$
 begin
@@ -650,7 +650,7 @@ grant execute on function public.rename_pet(uuid, text) to authenticated;
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- v19: more Vainc+: the accessory of the month, two more islands (snow, floating),
--- and bigger group vaincs (30 people instead of 8).
+-- and bigger group lock-ins (30 people instead of 8).
 -- ═════════════════════════════════════════════════════════════════════════════
 insert into public.shop_items (id, kind, slot, rarity, cost_seconds, premium) values
   ('tiara', 'accessory', 'head', 'légendaire', 0, true),
@@ -772,7 +772,7 @@ returns void language sql security definer set search_path = public as $$
   select public.save_world(world, 1);
 $$;
 
--- Group vaincs: 8 people, or 30 when the host has Vainc+.
+-- Group lock-ins: 8 people, or 30 when the host has Vainc+.
 create or replace function public.check_event_size()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -780,7 +780,7 @@ declare
   cap int := case when public.is_premium(host) then 30 else 8 end;
 begin
   if (select count(*) from public.event_members where event_id = new.event_id) >= cap then
-    raise exception 'vainc de groupe plein (% personnes max%)', cap, case when cap = 8 then ', 30 avec Vainc+' else '' end using errcode = 'P0001';
+    raise exception 'Lock in de groupe plein (% personnes max%)', cap, case when cap = 8 then ', 30 avec Vainc+' else '' end using errcode = 'P0001';
   end if;
   return new;
 end $$;

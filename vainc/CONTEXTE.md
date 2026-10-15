@@ -173,7 +173,7 @@ Autour de ça :
 
 ## 10. Historique résumé (du plus ancien au plus récent)
 
-1. Chrono anti-triche, amis, classement, profil, partiels, groupes, vainc de groupe, push, mur de la honte, récap.
+1. Chrono anti-triche, amis, classement, profil, partiels, groupes, lock in de groupe, push, mur de la honte, récap.
 2. Pauses, réactions, rappel quotidien, joker de série.
 3. Animaux 3D (ancienne version, 100 créatures avec raretés), porte-monnaie d'heures, boutique, bestiaire.
 4. Île 16×16 → 32×32 avec mer et bateaux, édition comme Clash of Clans. Compte vedette avec boutique du jour.
@@ -184,7 +184,10 @@ Autour de ça :
 
 ## 11. Renommage Lockin → Vainc
 
-L'app s'appelle **Vainc** (« lock in » devient « vainc » partout : textes, code, doc, dossier, fichiers SQL, `slug` et `scheme` d'`app.json`).
+Le **nom de l'app** est **Vainc** (écran de connexion, « Vainc+ », partages, `name`/`scheme`/`slug` d'`app.json`, dossier `vainc/`, fichiers SQL).
+Mais **l'action de travailler reste « lock in »** dans tous les textes (bouton pour lancer le chrono, « en lock in », « lock in de groupe », notifications…) : l'utilisateur a demandé de garder « lock in » parce que « vainc » n'est pas compréhensible comme verbe.
+Règle : « Vainc » = la marque ; « lock in » = l'activité.
+
 La table Supabase `lockin_events` est devenue `vainc_events`. Un petit bloc au début de `schema.sql`, de `mise-a-jour-tout.sql` et de `fix-vainc-groupe.sql` la renomme tout seul sur une base existante (sans perdre de données).
 Le test `vainc/tests-sql/old0.sql` simule volontairement l'ancienne base (avec `lockin_events`).
 

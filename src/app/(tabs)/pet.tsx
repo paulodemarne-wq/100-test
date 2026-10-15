@@ -147,7 +147,7 @@ export default function PetScreen() {
           <View style={{ flex: 1 }}>
             <Text style={type.footnote}>
               {pet?.nickname ? `${displayName(species, level)} · ` : ''}
-              {species && form > 0 ? `${elementOf(species).emoji} ${elementOf(species).name} · ${tier.name}` : 'Il éclot après 5 h 30 de vainc'}
+              {species && form > 0 ? `${elementOf(species).emoji} ${elementOf(species).name} · ${tier.name}` : 'Il éclot après 5 h 30 de lock in'}
             </Text>
             <Pressable onPress={rename} hitSlop={6} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={[type.largeTitle, { flexShrink: 1 }]} numberOfLines={1}>
@@ -182,7 +182,7 @@ export default function PetScreen() {
 
         <View style={styles.xpCard}>
           <View style={styles.xpTop}>
-            <Text style={type.headline}>{formatDuration(pet.xp_seconds)} de vainc ensemble</Text>
+            <Text style={type.headline}>{formatDuration(pet.xp_seconds)} de lock in ensemble</Text>
             {!maxed && <Text style={[styles.nextStage, { color: tier.color }]}>Niv. {level + 1}</Text>}
           </View>
           <View style={styles.barTrack}>

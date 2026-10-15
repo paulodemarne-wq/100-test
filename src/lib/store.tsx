@@ -20,7 +20,7 @@ export type ActiveSession = {
   /** Row id in study_sessions, once created. */
   remoteId: string | null;
   subject: string;
-  /** Group vainc this session belongs to. */
+  /** Group lock-in this session belongs to. */
   eventId?: string | null;
   startedAt: number;
   /** Short trips outside the app that were tolerated. */
@@ -32,11 +32,11 @@ export type ActiveSession = {
   /** The break in progress, if any. */
   pause: { startedAt: number; until: number } | null;
   tasks: SessionTask[];
-  /** The to-do being worked on right now (can change during the vainc). */
+  /** The to-do being worked on right now (can change during the lock-in). */
   todoId?: string | null;
   /** Focus seconds at which the current to-do was picked. */
   todoSince?: number;
-  /** Focus seconds already spent on earlier to-dos of this vainc. */
+  /** Focus seconds already spent on earlier to-dos of this lock-in. */
   todoSplit?: Record<string, number>;
 };
 
@@ -197,7 +197,7 @@ export function VaincProvider({ children }: { children: ReactNode }) {
       paused_seconds: Math.round(next.pausedSeconds),
       last_seen_at: new Date().toISOString(),
     });
-    setNotice({ kind: 'pause', message: 'Fin de la pause. On vainc 🔒' });
+    setNotice({ kind: 'pause', message: 'Fin de la pause. On lock in 🔒' });
   }, []);
 
   // A break ends by itself when its time is up and the app is open.
@@ -323,7 +323,7 @@ export function VaincProvider({ children }: { children: ReactNode }) {
     setNotice({
       kind: 'done',
       message:
-        `${formatDuration(seconds)} de vainc. Respect 🫡` +
+        `${formatDuration(seconds)} de lock in. Respect 🫡` +
         (current.tasks.length ? ` ${doneTasks}/${current.tasks.length} tâches faites.` : ''),
     });
   }, [end]);

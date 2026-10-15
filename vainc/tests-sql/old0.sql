@@ -100,7 +100,7 @@ create index if not exists study_sessions_user_started on public.study_sessions 
 
 alter table public.study_sessions enable row level security;
 
--- The select, insert and update policies are defined further down, once group vaincs exist.
+-- The select, insert and update policies are defined further down, once group lock-ins exist.
 
 drop policy if exists "delete own sessions" on public.study_sessions;
 create policy "delete own sessions" on public.study_sessions
@@ -168,7 +168,7 @@ create policy "delete own avatar" on storage.objects
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- v2: exams, study groups, group vaincs, push notifications
+-- v2: exams, study groups, group lock-ins, push notifications
 -- ═════════════════════════════════════════════════════════════════════════════
 
 -- ─── Exams ("mode partiels"), private to their owner ─────────────────────────
@@ -264,7 +264,7 @@ end $$;
 revoke execute on function public.join_group(text) from public, anon;
 grant execute on function public.join_group(text) to authenticated;
 
--- ─── Group vaincs ("On vainc à 20 h ?") ──────────────────────────────────
+-- ─── Group lock-ins ("On lock in à 20 h ?") ──────────────────────────────────
 create table if not exists public.lockin_events (
   id uuid primary key default gen_random_uuid(),
   host uuid not null default auth.uid() references public.profiles (id) on delete cascade,
@@ -331,7 +331,7 @@ revoke update on public.event_members from anon, authenticated;
 grant update (status) on public.event_members to authenticated;
 
 -- ─── Who can see whose sessions ──────────────────────────────────────────────
--- Yourself, your friends, people in your groups, and people in the same group vainc.
+-- Yourself, your friends, people in your groups, and people in the same group lock-in.
 drop policy if exists "see own and friends sessions" on public.study_sessions;
 create policy "see own and friends sessions" on public.study_sessions
   for select to authenticated using (
@@ -341,7 +341,7 @@ create policy "see own and friends sessions" on public.study_sessions
     or (event_id is not null and public.is_event_member(event_id, auth.uid()))
   );
 
--- A session can only be attached to a group vainc you are part of.
+-- A session can only be attached to a group lock-in you are part of.
 drop policy if exists "start own sessions" on public.study_sessions;
 create policy "start own sessions" on public.study_sessions
   for insert to authenticated with check (
@@ -412,7 +412,7 @@ create or replace function public.push_on_nudge()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   perform public.send_push(array[new.to_user], public.display_name_of(new.from_user) || ' t''attend 📣',
-    'vainc. Maintenant.', jsonb_build_object('type', 'nudge'));
+    'Lock in. Maintenant.', jsonb_build_object('type', 'nudge'));
   return new;
 end $$;
 
@@ -426,7 +426,7 @@ returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'INSERT' then
     perform public.send_push(array[new.addressee], 'Nouvelle demande d''ami',
-      public.display_name_of(new.requester) || ' veut vainc avec toi', jsonb_build_object('type', 'friend_request'));
+      public.display_name_of(new.requester) || ' veut lock in avec toi', jsonb_build_object('type', 'friend_request'));
   elsif new.status = 'accepted' and old.status <> 'accepted' then
     perform public.send_push(array[new.requester], 'Demande acceptée ✓',
       public.display_name_of(new.addressee) || ' et toi êtes maintenant amis', jsonb_build_object('type', 'friend_accepted'));
@@ -453,7 +453,7 @@ begin
   from public.profiles p
   where p.notify_friend_sessions and public.is_friend(p.id, new.user_id);
   if recipients is not null then
-    perform public.send_push(recipients, public.display_name_of(new.user_id) || ' vient de vainc 🔒',
+    perform public.send_push(recipients, public.display_name_of(new.user_id) || ' vient de lock in 🔒',
       case when new.subject = 'Focus' then 'Et toi ?' else new.subject || ' · Et toi ?' end,
       jsonb_build_object('type', 'friend_session'));
   end if;
@@ -464,7 +464,7 @@ drop trigger if exists push_on_session_start on public.study_sessions;
 create trigger push_on_session_start after insert on public.study_sessions
   for each row execute function public.push_on_session_start();
 
--- Invited to a group vainc.
+-- Invited to a group lock-in.
 create or replace function public.push_on_event_invite()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare e public.lockin_events;
@@ -472,7 +472,7 @@ begin
   select * into e from public.lockin_events where id = new.event_id;
   if new.user_id <> e.host then
     perform public.send_push(array[new.user_id],
-      public.display_name_of(e.host) || ' : on vainc à ' || to_char(e.starts_at at time zone 'Europe/Paris', 'HH24"h"MI') || ' ?',
+      public.display_name_of(e.host) || ' : on lock in à ' || to_char(e.starts_at at time zone 'Europe/Paris', 'HH24"h"MI') || ' ?',
       e.title, jsonb_build_object('type', 'event_invite', 'event_id', e.id));
   end if;
   return new;
@@ -588,7 +588,7 @@ begin
     public.display_name_of(new.user_id) || ' a réagi ' || new.emoji,
     case
       when s.status = 'abandoned' then 'à ton craquage 😅'
-      when s.status = 'active' then 'à ton vainc en cours'
+      when s.status = 'active' then 'à ton lock in en cours'
       else 'à ta session de ' || (coalesce(s.duration_sec, 0) / 60) || ' min'
     end,
     jsonb_build_object('type', 'reaction'));
@@ -624,7 +624,7 @@ create table if not exists public.pets (
   user_id uuid not null references public.profiles (id) on delete cascade,
   -- Null while still an egg; picked at random on hatching (0..99, see src/creatures/species.ts).
   species smallint check (species between 0 and 99),
-  -- Seconds of vainc done while this pet was the active one.
+  -- Seconds of lock in done while this pet was the active one.
   xp_seconds bigint not null default 0,
   equipped jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),

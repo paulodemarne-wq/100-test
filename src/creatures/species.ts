@@ -44,7 +44,7 @@ export const LEVEL_HOURS: number[] = Array.from({ length: MAX_LEVEL + 1 }, (_, L
   return h < 20 ? Math.round(h * 2) / 2 : h < 100 ? Math.round(h) : Math.round(h / 5) * 5;
 });
 
-/** Seconds of vainc at which the egg hatches (level 2). Must match supabase/schema.sql. */
+/** Seconds of lock in at which the egg hatches (level 2). Must match supabase/schema.sql. */
 export const HATCH_SECONDS = LEVEL_HOURS[2] * 3600;
 
 export type Tier = { index: number; name: string; color: string; fromLevel: number };
@@ -173,7 +173,7 @@ export type ShopItem = {
   kind: 'accessory' | 'egg' | 'garden' | 'upgrade';
   slot: Slot | GardenSlot | null;
   rarity: Rarity;
-  /** Price in hours of vainc (0 = free for everyone). Must match supabase/schema.sql (shop_items). */
+  /** Price in hours of lock in (0 = free for everyone). Must match supabase/schema.sql (shop_items). */
   costHours: number;
   emoji?: string;
   /** Only for Vainc+ subscribers. */

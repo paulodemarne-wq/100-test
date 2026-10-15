@@ -70,7 +70,7 @@ export function badges(sessions: SessionRow[], weeklyGoalMinutes: number, now = 
     {
       id: 'first',
       emoji: '🔒',
-      name: 'Premier vainc',
+      name: 'Premier lock in',
       description: 'Terminer une première session',
       unlocked: completed.length > 0,
     },
@@ -113,7 +113,7 @@ export function badges(sessions: SessionRow[], weeklyGoalMinutes: number, now = 
       id: 'team',
       emoji: '🤝',
       name: 'Esprit d’équipe',
-      description: 'Finir un vainc de groupe',
+      description: 'Finir un lock in de groupe',
       unlocked: completed.some((s) => s.event_id !== null),
     },
     {
@@ -127,7 +127,7 @@ export function badges(sessions: SessionRow[], weeklyGoalMinutes: number, now = 
       id: 'fifty',
       emoji: '💯',
       name: 'Machine',
-      description: '50 h de vainc',
+      description: '50 h de lock in',
       unlocked: total >= 50 * 3600,
     },
   ];

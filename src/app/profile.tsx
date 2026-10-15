@@ -175,7 +175,7 @@ export default function Profile() {
 
         <Section title="Objectif de la semaine">
           <Row
-            title="Heures de vainc"
+            title="Heures de lock in"
             subtitle={`${formatDuration(myWeekSeconds)} faites sur ${goalHours} h`}
             right={
               <Stepper
@@ -218,7 +218,7 @@ export default function Profile() {
         <Section title="Notifications">
           <Row
             title="Rappel quotidien"
-            subtitle="Si tu n'as pas encore vainc ce jour-là"
+            subtitle="Si tu n'as pas encore lock in ce jour-là"
             right={
               <Switch
                 value={reminder.enabled}
@@ -236,7 +236,7 @@ export default function Profile() {
             />
           ) : null}
           <Row
-            title="Quand un pote vainc"
+            title="Quand un pote lock in"
             subtitle="Reçois une notif quand un ami lance une session"
             right={
               <Switch

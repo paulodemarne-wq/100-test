@@ -72,7 +72,7 @@ export default function Recap() {
             </View>
 
             <Text style={styles.total}>{formatDuration(recap.totalSeconds)}</Text>
-            <Text style={styles.totalLabel}>de vainc cette semaine</Text>
+            <Text style={styles.totalLabel}>de lock in cette semaine</Text>
 
             <View style={styles.lines}>
               {lines.map(([label, value]) => (

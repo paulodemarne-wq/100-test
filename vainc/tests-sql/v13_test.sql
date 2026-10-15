@@ -29,7 +29,7 @@ select pg_temp.expect_rows($$select 1 from todos$$, 0, 'to-dos are private');
 -- C cannot attach a session to E's to-do.
 insert into study_sessions (id, subject, todo_id) values ('99999999-0000-0000-0000-000000000778', 'x', :'t_id');
 select pg_temp.expect_rows($$select 1 from study_sessions where id = '99999999-0000-0000-0000-000000000778' and todo_id is null$$, 1, 'foreign to-do ignored');
--- v13: switching to-dos during one vainc.
+-- v13: switching to-dos during one lock-in.
 select pg_temp.as_user('eeeeeeee-0000-0000-0000-00000000000e');
 insert into todos (title, hours, due_date) values ('Maths', 4, current_date + 3) returning id \gset m_
 insert into todos (title, hours, due_date) values ('Français', 4, current_date + 3) returning id \gset f_

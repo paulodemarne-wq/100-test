@@ -111,7 +111,7 @@ export default function Stats() {
 
             <Text style={styles.sectionTitle}>PAR MATIÈRE</Text>
             <View style={[card, styles.chartCard, { gap: 10 }]}>
-              {s.subjects.length === 0 && <Text style={type.footnote}>Donne un sujet à tes vainc pour voir le détail.</Text>}
+              {s.subjects.length === 0 && <Text style={type.footnote}>Donne un sujet à tes lock in pour voir le détail.</Text>}
               {s.subjects.map(([name, sec]) => (
                 <View key={name} style={{ gap: 4 }}>
                   <View style={styles.subjectTop}>
@@ -132,7 +132,7 @@ export default function Stats() {
             <Text style={styles.sectionTitle}>TON MEILLEUR MOMENT</Text>
             <View style={[card, styles.chartCard]}>
               <Text style={type.headline}>
-                {s.byHour.some((x) => x > 0) ? `Tu bosses le plus entre ${s.best} h et ${(s.best + 2) % 24} h` : 'Pas encore assez de vainc'}
+                {s.byHour.some((x) => x > 0) ? `Tu bosses le plus entre ${s.best} h et ${(s.best + 2) % 24} h` : 'Pas encore assez de lock in'}
               </Text>
               <View style={[styles.bars, { height: 90 }]}>
                 {s.byHour.map((sec, h) => (

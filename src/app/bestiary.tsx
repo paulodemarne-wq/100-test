@@ -57,7 +57,7 @@ export default function Bestiary() {
           <View style={styles.empty}>
             <Text style={{ fontSize: 44 }}>🥚</Text>
             <Text style={[type.subhead, { textAlign: 'center' }]}>
-              Fais éclore ton œuf (5 h 30 de vainc) pour découvrir ton premier animal.
+              Fais éclore ton œuf (5 h 30 de lock in) pour découvrir ton premier animal.
             </Text>
           </View>
         )}

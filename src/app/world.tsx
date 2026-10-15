@@ -228,10 +228,10 @@ export default function WorldScreen() {
     // None left in stock: buy one (each object is paid once, for one placement).
     const item = itemOf(id)!;
     if (balance < item.costHours * 3600) {
-      Alert.alert("Pas assez d'heures", `${item.name} coûte ${item.costHours} h. Il te manque ${formatDuration(item.costHours * 3600 - balance)} de vainc 💪`);
+      Alert.alert("Pas assez d'heures", `${item.name} coûte ${item.costHours} h. Il te manque ${formatDuration(item.costHours * 3600 - balance)} de lock in 💪`);
       return false;
     }
-    Alert.alert(`Acheter ${item.name.toLowerCase()} ?`, `1 ${item.name.toLowerCase()} pour ${item.costHours} h de vainc.`, [
+    Alert.alert(`Acheter ${item.name.toLowerCase()} ?`, `1 ${item.name.toLowerCase()} pour ${item.costHours} h de lock in.`, [
       { text: 'Annuler', style: 'cancel' },
       {
         text: `Payer ${item.costHours} h`,

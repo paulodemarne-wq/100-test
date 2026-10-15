@@ -142,7 +142,7 @@ export function errorMessage(error: unknown): string {
   if (/email not confirmed/i.test(message)) return 'Confirme ton e-mail (regarde ta boîte mail), puis reconnecte-toi.';
   if (/unable to validate email|invalid format|email address .* is invalid/i.test(message)) return 'Adresse e-mail invalide.';
   if (/profiles_username_key/i.test(message)) return 'Ce pseudo est déjà pris.';
-  if (/pas assez d'heures/i.test(message)) return "Pas assez d'heures. vainc pour en gagner 💪";
+  if (/pas assez d'heures/i.test(message)) return "Pas assez d'heures. Lock in pour en gagner 💪";
   if (/déjà acheté/i.test(message)) return 'Tu l’as déjà.';
   if (/code invalide/i.test(message)) return 'Code invalide. Vérifie-le avec la personne qui a créé le groupe.';
   if (/network request failed|fetch failed/i.test(message)) return 'Pas de connexion internet.';

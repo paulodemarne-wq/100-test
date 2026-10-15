@@ -79,12 +79,12 @@ export default function Shop() {
     const deal = dealFor(item);
     const price = priceOf(item);
     if (balance < price * 3600) {
-      Alert.alert("Pas assez d'heures", `Il te manque ${formatDuration(price * 3600 - balance)} de vainc 💪`);
+      Alert.alert("Pas assez d'heures", `Il te manque ${formatDuration(price * 3600 - balance)} de lock in 💪`);
       return;
     }
     Alert.alert(
       price === 0 ? `Prendre ${item.name} ?` : `Acheter ${item.name} ?`,
-      price === 0 ? 'C’est offert 🎁' : deal ? `Pour ${price} h au lieu de ${item.costHours} h.` : `Pour ${item.costHours} h de vainc.`,
+      price === 0 ? 'C’est offert 🎁' : deal ? `Pour ${price} h au lieu de ${item.costHours} h.` : `Pour ${item.costHours} h de lock in.`,
       [
       { text: 'Annuler', style: 'cancel' },
       {
@@ -231,7 +231,7 @@ export default function Shop() {
             ? `Chaque jour, une nouvelle boutique : 6 promos et un cadeau offert. Nouvelle boutique dans ${formatDuration(Math.max(60, Math.floor(msUntilNextShop(now) / 1000)))}.`
             : tab === 'garden'
             ? 'Agrandis ton île, ajoute la mer et des bateaux. Chaque objet acheté = 1 objet à poser ; les sols se débloquent une fois.'
-            : 'Chaque heure de vainc = 1 h à dépenser ici.'}
+            : 'Chaque heure de lock in = 1 h à dépenser ici.'}
         </Text>
         {sections.map((section) => (
         <View key={section.title} style={{ gap: 8 }}>

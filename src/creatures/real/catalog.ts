@@ -24,7 +24,7 @@ const bird = (name: string, about: string, element: Element, look: Omit<BirdLook
 const BASE = [
   // ── Snakes
   snake('Python royal', 'Calme et puissant, il s’enroule pour réviser.', 'fire', { pattern: 'python', base: '#9A7A4A', dark: '#3B2A1A', light: '#D8C28E', belly: '#EDE3C8', iris: '#B8862E', majestic: { base: '#C99A3A', dark: '#2A1A0E', light: '#F2D58A', iris: '#E8B23A' } }),
-  snake('Cobra royal', 'Il se dresse quand tu vainc.', 'shadow', { pattern: 'cobra', base: '#5C5A3A', dark: '#2A2A1C', light: '#D9CF9A', belly: '#E8DDB0', iris: '#C9A23A', hood: true, girth: 0.8, majestic: { base: '#3A3348', dark: '#16121E', light: '#C9B2FF', iris: '#C49BFF' } }),
+  snake('Cobra royal', 'Il se dresse quand tu lock in.', 'shadow', { pattern: 'cobra', base: '#5C5A3A', dark: '#2A2A1C', light: '#D9CF9A', belly: '#E8DDB0', iris: '#C9A23A', hood: true, girth: 0.8, majestic: { base: '#3A3348', dark: '#16121E', light: '#C9B2FF', iris: '#C49BFF' } }),
   snake('Boa émeraude', 'Vert vif, il dort en boule dans les arbres.', 'nature', { pattern: 'emerald', base: '#1E9E4A', dark: '#0E5A2A', light: '#F4F8E8', belly: '#F2E38A', iris: '#C9C060', girth: 0.85, majestic: { base: '#2BCB5E', dark: '#0B4A22', light: '#FFFFFF', iris: '#E8F070' } }),
   snake('Serpent-roi', 'Rouge, noir, jaune : il ne passe pas inaperçu.', 'lightning', { pattern: 'bands', base: '#C8322A', dark: '#151212', light: '#F2D24A', belly: '#F3E6C8', iris: '#3A2A20', girth: 0.7, majestic: { base: '#E8402F', light: '#FFE45A' } }),
   snake('Crotale', 'Sa queue fait du bruit quand on le dérange.', 'fire', { pattern: 'diamond', base: '#A8906A', dark: '#4A3826', light: '#EDE0C0', belly: '#EDE3CC', iris: '#C9A23A', girth: 0.9, majestic: { base: '#C49A5A', dark: '#3A2410' } }),
@@ -58,7 +58,7 @@ const BASE = [
 ];
 
 const PLUS = [
-  quad('Panthère noire', 'Vainc+ · Invisible dans la nuit, imbattable au vainc.', 'shadow', { coat: 'plain', base: '#1A1820', back: '#121016', belly: '#24222A', accent: '#0A0A0E', iris: '#F2C21A', length: 1.05, height: 0.85, snout: 0.72, ears: 'round', tail: 'thin', fur: 0.3, majestic: { base: '#221E2E', iris: '#C49BFF' } }),
+  quad('Panthère noire', 'Vainc+ · Invisible dans la nuit, imbattable au lock in.', 'shadow', { coat: 'plain', base: '#1A1820', back: '#121016', belly: '#24222A', accent: '#0A0A0E', iris: '#F2C21A', length: 1.05, height: 0.85, snout: 0.72, ears: 'round', tail: 'thin', fur: 0.3, majestic: { base: '#221E2E', iris: '#C49BFF' } }),
   quad('Tigre blanc', 'Vainc+ · Le plus rare des tigres.', 'ice', { coat: 'tiger', base: '#F4F2EE', back: '#E8E4DC', belly: '#FFFFFF', accent: '#2A2830', iris: '#6FA8D8', length: 1.15, height: 0.9, girth: 1.15, snout: 0.75, ears: 'round', tail: 'thin', fur: 0.35 }),
   quad('Lion à crinière noire', 'Vainc+ · Une crinière qui impose le respect.', 'fire', { coat: 'lion', base: '#C9A06A', back: '#B88A52', belly: '#E8D6B4', accent: '#1E140C', iris: '#E8902E', length: 1.12, height: 0.94, girth: 1.2, snout: 0.8, ears: 'round', tail: 'tuft', fur: 0.35, mane: 'adult' }),
   quad('Loup noir', 'Vainc+ · Le chef de meute.', 'lightning', { coat: 'wolf', base: '#2A2A30', back: '#16161A', belly: '#4A4A52', accent: '#0A0A0E', iris: '#F2D24A', mane: 'majestic' }),
