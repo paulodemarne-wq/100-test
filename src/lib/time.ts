@@ -18,6 +18,11 @@ export function formatDuration(totalSec: number): string {
   return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, '0')}`;
 }
 
+/** Like formatDuration, but shows seconds under a minute, so you see the time move right away. */
+export function formatDurationLive(totalSec: number): string {
+  return totalSec > 0 && totalSec < 60 ? `${Math.floor(totalSec)} s` : formatDuration(totalSec);
+}
+
 export function dayKey(date: Date): string {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }

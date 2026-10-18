@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { TodoRow } from '../lib/supabase';
 import { colors } from '../lib/theme';
+import { formatDurationLive } from '../lib/time';
 import { daysLeft, dueLabel, formatHours, isFinished, progress } from '../lib/todos';
 
 type Props = {
@@ -47,7 +48,7 @@ export function TodoItem({ todo, liveSeconds = 0, selected, onPress, right }: Pr
           <View style={[styles.fill, { width: `${Math.round(p * 100)}%`, backgroundColor: barColor }]} />
         </View>
         <Text style={styles.hours}>
-          {formatHours((todo.worked_seconds + liveSeconds) / 3600)} / {formatHours(todo.hours)}
+          {formatDurationLive(todo.worked_seconds + liveSeconds)} / {formatHours(todo.hours)}
         </Text>
       </View>
       {right}

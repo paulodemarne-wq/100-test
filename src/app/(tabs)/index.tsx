@@ -20,7 +20,7 @@ import { focusSeconds, MAX_AWAY_MS, Notice, todoSplitAt, useVainc, useNow } from
 import { isFinished, sortTodos } from '../../lib/todos';
 import { countdown as examCountdown, planExam } from '../../lib/exams';
 import { card, colors, DEFAULT_LABEL, type } from '../../lib/theme';
-import { formatDuration, formatTimer, startOfWeek } from '../../lib/time';
+import { formatDuration, formatDurationLive, formatTimer, startOfWeek } from '../../lib/time';
 import { decorationOf } from '../../lib/premium';
 import { Named } from '../../components/Badge';
 
@@ -170,7 +170,7 @@ export default function FocusScreen() {
           <Stat
             icon="time-outline"
             label={goalSeconds > 0 ? `sur ${formatDuration(goalSeconds)} cette semaine` : 'Cette semaine'}
-            value={formatDuration(weekLive)}
+            value={formatDurationLive(weekLive)}
             progress={goalSeconds > 0 ? weekLive / goalSeconds : undefined}
             onPress={() => router.push('/profile')}
           />
