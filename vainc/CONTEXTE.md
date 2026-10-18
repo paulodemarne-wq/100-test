@@ -21,6 +21,7 @@ Autour de ça :
   - expo-gl + three.js 0.185 (WebGL2 via `src/lib/glRenderer.ts`) ;
   - Supabase (auth, base Postgres, RLS, RPC `security definer`, push via `pg_net` → Expo Push).
 - Test : l'utilisateur lance l'app sur son iPhone avec **Expo Go** (`npx expo start -c`, puis scan du QR code). Il n'a pas de Mac.
+- Version navigateur (pour jeter un œil sur ordinateur) : `npx expo start --web` (paquets `react-dom`, `react-native-web`, `@expo/metro-runtime`). L'écran de connexion marche ; le reste, surtout la 3D (expo-gl), n'est pas vérifié sur le web. Le rendu final se juge sur iPhone.
 - Supabase :
   - URL `https://ljomnjzqnnkzkteqnrsy.supabase.co` ;
   - clé publique `sb_publishable_73bX9VlfmUOVxvDF7wL0ow_mKBFBAxg` (dans `src/lib/supabase.ts`).
