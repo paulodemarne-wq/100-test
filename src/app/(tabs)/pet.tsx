@@ -274,7 +274,7 @@ export default function PetScreen() {
 
         <Pressable onPress={() => router.push('/bestiary')} style={styles.linkRow}>
           <Ionicons name="book" size={20} color={colors.accent} />
-          <Text style={[type.headline, { flex: 1 }]}>Bestiaire · 110 animaux</Text>
+          <Text style={[type.headline, { flex: 1 }]}>Skins · 40 animaux</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.tertiary} />
         </Pressable>
       </ScrollView>

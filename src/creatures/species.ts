@@ -44,6 +44,9 @@ export const LEVEL_HOURS: number[] = Array.from({ length: MAX_LEVEL + 1 }, (_, L
   return h < 20 ? Math.round(h * 2) / 2 : h < 100 ? Math.round(h) : Math.round(h / 5) * 5;
 });
 
+/** Price in hours of a normal skin (change your pet's animal, keep its level). Must match buy_skin in supabase/schema.sql. */
+export const SKIN_HOURS = 30;
+
 /** Seconds of lock in at which the egg hatches (level 2). Must match supabase/schema.sql. */
 export const HATCH_SECONDS = LEVEL_HOURS[2] * 3600;
 

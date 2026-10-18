@@ -8,6 +8,9 @@ import { fitSun, updateFog } from '../world/real/island';
 import { buildIsland, IslandCamera, IslandScene, PetSpec } from '../world/scene';
 import { World } from '../world/world';
 
+/** The camera must be closer than this for the pets' names to show. */
+const NAME_DISTANCE = 11;
+
 type Props = {
   world: World;
   pets: PetSpec[];
@@ -133,8 +136,10 @@ export function WorldView({
         if (s && s.x > -40 && s.x < width + 40 && s.y > -20 && s.y < height + 20) next.push({ id: key, x: s.x, y: s.y, text, marker });
       };
       for (const m of fixed) show(`m:${m.id}`, m.x, m.y, m.z, m.text, true);
+      // Pet names only show once you zoom in close (with 30 friends the island would be covered in names).
+      const zoomedIn = cam.distance < NAME_DISTANCE;
       for (const p of island.petPositions()) {
-        if (!labels?.[p.id] || p.id === focus.current.id) continue;
+        if (!zoomedIn || !labels?.[p.id] || p.id === focus.current.id) continue;
         show(p.id, p.x, p.y, p.z, labels[p.id]);
       }
       setShown(next);

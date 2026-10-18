@@ -4,7 +4,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Avatar } from '../components/Avatar';
 import { WorldView } from '../components/WorldView';
 import { displayName, GARDEN_SLOT_NAMES, GardenSlot, levelFor, ownsItem, SHOP_ITEMS, ShopItem, speciesById, tierFor } from '../creatures/species';
 import { useAuth } from '../lib/auth';
@@ -32,7 +31,7 @@ import {
   World,
 } from '../world/world';
 import { walletSeconds } from '../lib/wallet';
-import { decorationOf, isPremium } from '../lib/premium';
+import { isPremium } from '../lib/premium';
 import { Named } from '../components/Badge';
 
 /** What a tap does: nothing special (select objects), paint a ground, or put an object down. */
@@ -477,39 +476,6 @@ export default function WorldScreen() {
             </>
           }
         </View>
-
-        {!shopOpen && (friends.length > 0 || featured.length > 0) && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.visits}>
-            <Pressable onPress={() => router.setParams({ user: '' })} style={[styles.visit, mine && styles.visitActive]}>
-              <Text style={{ fontSize: 18 }}>🏝️</Text>
-              <Text style={styles.visitText}>Chez moi</Text>
-            </Pressable>
-            {featured.map((f) => (
-              <Pressable
-                key={f.id}
-                onPress={() => router.setParams({ user: f.id })}
-                style={[styles.visit, styles.visitFeatured, params.user === f.id && styles.visitActive]}
-              >
-                <Text style={{ fontSize: 16 }}>⭐</Text>
-                <Text style={styles.visitText} numberOfLines={1}>
-                  {f.display_name}
-                </Text>
-              </Pressable>
-            ))}
-            {friends.map((f) => (
-              <Pressable
-                key={f.profile.id}
-                onPress={() => router.setParams({ user: f.profile.id })}
-                style={[styles.visit, params.user === f.profile.id && styles.visitActive]}
-              >
-                <Avatar name={f.profile.display_name} photoUri={f.profile.avatar_url} decoration={decorationOf(f.profile)} size={22} />
-                <Text style={styles.visitText} numberOfLines={1}>
-                  {f.profile.display_name}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
       </SafeAreaView>
 
       {mine && !shopOpen && !selected && !picked && (
@@ -635,11 +601,6 @@ const styles = StyleSheet.create({
   pillAccent: { backgroundColor: colors.accent },
   pillText: { fontSize: 15, fontWeight: '700', color: colors.text },
   count: { ...glass, flex: 1, textAlign: 'center', borderRadius: 999, paddingVertical: 10, fontWeight: '700', color: colors.secondary, overflow: 'hidden' },
-  visits: { gap: 8, paddingHorizontal: 16, paddingTop: 10 },
-  visit: { ...glass, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, maxWidth: 150 },
-  visitActive: { borderWidth: 2, borderColor: colors.accent },
-  visitFeatured: { backgroundColor: '#FFF4D6' },
-  visitText: { fontSize: 13, fontWeight: '600', color: colors.text },
   bottom: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   palette: { ...glass, margin: 10, borderRadius: 20, paddingVertical: 10, gap: 8 },
   tabs: { flexDirection: 'row', backgroundColor: colors.fill, borderRadius: 10, padding: 2, marginHorizontal: 12 },

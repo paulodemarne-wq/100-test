@@ -84,11 +84,13 @@ Autour de ça :
   - v17 : messages ;
   - v18 et v19 : bonus Vainc+ ;
   - v20 : cadeaux Vainc+ par lien ;
-  - v21 : animaux réalistes, espèces 0..39, colonne `pets.species_v`.
+  - v21 : animaux réalistes, espèces 0..39, colonne `pets.species_v` ;
+  - v22 : skins (`pet_skins`, `buy_skin`, `set_skin`).
 - Fichiers pour l'utilisateur :
-  - `mise-a-jour-tout.sql` : v12 → v21. Il est généré par `python3 vainc/outils/make_update.py`.
+  - `mise-a-jour-tout.sql` : v12 → v22. Il est généré par `python3 vainc/outils/make_update.py`.
   - `mise-a-jour-cadeaux.sql` : v20.
   - `mise-a-jour-animaux.sql` : v21.
+  - `mise-a-jour-skins.sql` : v22.
   - `admin.sql` : compte vedette, généré par `scripts/admin/make-admin-sql.ts`.
   - `verifier.sql` : vérification.
 - **Quand on ajoute un bloc v22 dans `schema.sql`** :
@@ -127,12 +129,19 @@ Autour de ça :
 - Le mode `lite` (moins de fourrure et de particules) sert pour les animaux qui se promènent sur l'île.
 - Les accessoires de la boutique (chapeaux…) s'ajoutent dans `src/creatures/build.ts` (`addAccessories`).
 
+## 5b. Skins (changer d'animal)
+
+- L'animal éclos est un **skin** que le joueur possède (table `pet_skins`, remplie par un trigger à l'éclosion).
+- Écran **Skins** (`src/app/bestiary.tsx`) : les 40 animaux sont tous visibles. Bouton : *Utiliser ce skin* (possédé), *Acheter · 30 h* (`SKIN_HOURS`, RPC `buy_skin`, on garde tous ses skins), *Gratuit avec Vainc+* (les 10 animaux Vainc+ se portent gratuitement tant que Vainc+ est actif, `set_skin`).
+- Changer de skin **garde le niveau** de l'animal (seule `pets.species` change).
+
 ## 6. Île réaliste
 
 - `src/world/real/island.ts` : relief, tuiles peintes (texture 1024²), mer avec vagues. Il n'y a **qu'une seule île** : les îles de neige et volante (Vainc+) ont été supprimées à la demande de l'utilisateur. `islandKind()` renvoie toujours `normal` ; le code neige/nuages de `island.ts` n'est plus utilisé. Les colonnes `world2`/`world3` et `save_world(world, island)` existent encore en base mais ne sont plus appelées.
 - 58 objets réalistes : 21 maisons, 16 éléments de nature, 21 objets et bateaux. Les bateaux sont posés à la ligne d'eau, vers y ≈ 0,05.
 - Matériaux PBR partagés : `materials.ts`, `pbr()`.
 - `flatten.ts` fusionne les objets par matériau pour la performance. Il garde les UV et les couleurs.
+- Sur la carte, il n'y a plus de barre pour choisir un ami (trop long avec 30 amis) : on touche son animal. Les noms au-dessus des animaux n'apparaissent que quand on zoome (`NAME_DISTANCE` dans `WorldView.tsx`).
 - Les animaux des amis se promènent sur l'île. Ils ne sont pas fusionnés, et `update(t)` les anime.
 
 ## 7. Vainc+ (abonnement)

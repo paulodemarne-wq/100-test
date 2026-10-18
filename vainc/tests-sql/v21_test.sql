@@ -8,8 +8,8 @@ insert into pets (id, user_id, species, egg, xp_seconds, species_v) values
   ('21000000-0000-0000-0000-000000000003', :A, 7, 'normal', 30000, 1),
   ('21000000-0000-0000-0000-000000000004', :A, null, 'plus', 0, 1),
   ('21000000-0000-0000-0000-000000000005', :A, null, 'normal', 0, 1);
-\i /var/lib/postgresql/t13/animaux.sql
-\i /var/lib/postgresql/t13/animaux.sql
+\i /var/lib/postgresql/vainc-work/mise-a-jour-animaux.sql
+\i /var/lib/postgresql/vainc-work/mise-a-jour-animaux.sql
 do $$
 begin
   if (select species from pets where id = '21000000-0000-0000-0000-000000000001') <> 15 then raise exception 'FAIL 45 -> 15'; end if;

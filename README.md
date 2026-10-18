@@ -28,7 +28,7 @@ Vainc est une app de révision sociale : tu lances une session « Je bosse », t
   Chaque objet se paie à la pièce (confirmation avant de payer) ; un objet enlevé retourne dans le stock. Comme dans Clash of Clans : touche un objet pour le choisir (carré à flèches, « Supprimer » au-dessus avec confirmation, « Tourner » en dessous), maintiens-le pour le déplacer. Bouton « Magasin » pour poser de nouveaux objets ; tout s'enregistre tout seul.
   On peut **l'agrandir** (16×16 → 32×32), **ajouter la mer** autour et y mettre **des bateaux** (barque, pédalo canard, voilier, yacht, bateau pirate).
   **Les animaux de tous tes amis se promènent sur ton île** : touche-en un, il se tourne vers toi avec son nom et un bouton pour visiter son île.
-- **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis de 10 h à 400 h) ou en nouvel œuf (100 h). **Bestiaire** des 40 animaux, avec un aperçu de chaque palier.
+- **Boutique** : chaque heure de lock in se dépense en accessoires et objets d'île (gratuit, puis de 10 h à 400 h) ou en nouvel œuf (100 h). **Skins** : les 40 animaux avec un aperçu de chaque palier ; on change l'animal de son compagnon en gardant son niveau (30 h par skin normal, les 10 skins Vainc+ sont gratuits avec l'abonnement).
 - **Rappel quotidien** à l'heure choisie et **joker de série** : un jour raté par mois est pardonné.
 
 ### Compte vedette

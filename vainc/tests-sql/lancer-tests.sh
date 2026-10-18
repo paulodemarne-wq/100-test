@@ -12,12 +12,12 @@ W=/var/lib/postgresql/vainc-work
 mkdir -p $W
 if [ ! -d $D ]; then su postgres -c "$BIN/initdb -D $D" >/dev/null; fi
 su postgres -c "$BIN/pg_ctl -D $D status" >/dev/null 2>&1 || { su postgres -c "$BIN/pg_ctl -D $D -o '-p 5499 -k /var/run/postgresql' -l $D.log start" >/dev/null; sleep 2; }
-cp $HERE/*.sql $REPO/supabase/mise-a-jour-tout.sql $W/
+cp $HERE/*.sql $REPO/supabase/mise-a-jour-tout.sql $REPO/supabase/mise-a-jour-animaux.sql $W/
 sed 's/^create extension if not exists pg_net.*$/create schema if not exists net; create or replace function net.http_post(url text, body jsonb default null, params jsonb default null, headers jsonb default null, timeout_milliseconds int default 1000) returns bigint language sql as $x$ select 1::bigint $x$;/' $REPO/supabase/schema.sql > $W/schema.sql
 chown -R postgres $W
 P="psql -h /var/run/postgresql -p 5499 -U postgres -v ON_ERROR_STOP=1 -q"
 # v12_test is superseded by v13_test (same setup, they cannot run on the same database).
-TESTS="rls_test rls_test2 v2_test v3_test v4_test v5_test v6_test v7_test admin_run v8_test v9_test v10_test v11_test v13_test v14_test v15_test v16_test v17_test v18_test v19_test v20_test v21_test"
+TESTS="rls_test rls_test2 v2_test v3_test v4_test v5_test v6_test v7_test admin_run v8_test v9_test v10_test v11_test v13_test v14_test v15_test v16_test v17_test v18_test v19_test v20_test v21_test v22_test"
 set +e
 echo "== Base neuve (schema.sql x2)"
 su postgres -c "dropdb -h /var/run/postgresql -p 5499 --if-exists lt; createdb -h /var/run/postgresql -p 5499 lt"
