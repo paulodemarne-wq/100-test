@@ -48,3 +48,12 @@ head = '''-- Mise à jour de la base Vainc : to-do, Vainc+ (abonnement, parraina
 
 '''
 open('supabase/mise-a-jour-tout.sql', 'w').write(head + fix + s[start:])
+
+# Builds supabase/mise-a-jour-securite.sql: the table rename (+ functions that read it) and the v23 block.
+fixs = open('supabase/fix-vainc-groupe.sql').read()
+rename = fixs[:fixs.index("-- Corrige l'erreur")]
+v23 = s[s.rfind('\n-- ═', 0, s.index('-- v23:')) + 1 : s.rindex("-- L'app voit tout de suite")]
+open('supabase/mise-a-jour-securite.sql', 'w').write(
+    "-- Mise à jour : règles de l'App Store (supprimer son compte, bloquer, signaler, filtre de mots).\n"
+    "-- Supabase → SQL Editor → + → colle tout → Run. On peut le relancer sans risque.\n\n"
+    + rename + v23 + "notify pgrst, 'reload schema';\n")
