@@ -17,7 +17,7 @@ sed 's/^create extension if not exists pg_net.*$/create schema if not exists net
 chown -R postgres $W
 P="psql -h /var/run/postgresql -p 5499 -U postgres -v ON_ERROR_STOP=1 -q"
 # v12_test is superseded by v13_test (same setup, they cannot run on the same database).
-TESTS="rls_test rls_test2 v2_test v3_test v4_test v5_test v6_test v7_test admin_run v8_test v9_test v10_test v11_test v13_test v14_test v15_test v16_test v17_test v18_test v19_test v20_test v21_test v22_test"
+TESTS="rls_test rls_test2 v2_test v3_test v4_test v5_test v6_test v7_test admin_run v8_test v9_test v10_test v11_test v13_test v14_test v15_test v16_test v17_test v18_test v19_test v20_test v21_test v22_test v23_test"
 set +e
 echo "== Base neuve (schema.sql x2)"
 su postgres -c "dropdb -h /var/run/postgresql -p 5499 --if-exists lt; createdb -h /var/run/postgresql -p 5499 lt"

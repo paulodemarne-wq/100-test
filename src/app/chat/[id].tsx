@@ -9,6 +9,7 @@ import { Named } from '../../components/Badge';
 import { useAuth } from '../../lib/auth';
 import { useChat } from '../../lib/chat';
 import { decorationOf, titleOf } from '../../lib/premium';
+import { blockUser, REPORT_REASONS, reportUser } from '../../lib/safety';
 import { useSocial } from '../../lib/social';
 import { colors, type } from '../../lib/theme';
 
@@ -57,6 +58,38 @@ export default function ChatScreen() {
   };
   const lastMine = [...messages].reverse().find((m) => m.sender === userId);
 
+  const fail = (e: unknown) => Alert.alert('Oups', (e as Error).message);
+  /** Report this person (or one of their messages): pick a reason. */
+  const report = (context?: string) =>
+    Alert.alert(context ? 'Signaler ce message' : `Signaler ${friend.profile.display_name}`, 'Pourquoi ?', [
+      ...REPORT_REASONS.map((reason) => ({
+        text: reason,
+        onPress: () =>
+          reportUser(friend.profile.id, reason, context)
+            .then(() => Alert.alert('Merci', "On regarde ça. Tu peux aussi bloquer cette personne pour ne plus être dérangé."))
+            .catch(fail),
+      })),
+      { text: 'Annuler', style: 'cancel' as const },
+    ]);
+  const block = () =>
+    Alert.alert(`Bloquer ${friend.profile.display_name} ?`, 'Vous ne serez plus amis. Cette personne ne pourra plus t’écrire ni te redemander en ami.', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Bloquer',
+        style: 'destructive',
+        onPress: () =>
+          blockUser(friend.profile.id)
+            .then(() => router.back())
+            .catch(fail),
+      },
+    ]);
+  const menu = () =>
+    Alert.alert(friend.profile.display_name, undefined, [
+      { text: 'Signaler', onPress: () => report() },
+      { text: 'Bloquer', style: 'destructive', onPress: block },
+      { text: 'Annuler', style: 'cancel' },
+    ]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
@@ -70,6 +103,9 @@ export default function ChatScreen() {
           </Text>
           <Text style={type.footnote}>{friend.status.kind === 'working' ? 'En lock in 🔒' : (titleOf(friend.profile) ?? `@${friend.profile.username}`)}</Text>
         </View>
+        <Pressable onPress={menu} hitSlop={10} accessibilityLabel="Signaler ou bloquer">
+          <Ionicons name="ellipsis-horizontal-circle" size={26} color={colors.accent} />
+        </Pressable>
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <FlatList
@@ -82,13 +118,17 @@ export default function ChatScreen() {
             const mine = m.sender === userId;
             return (
               <View style={[styles.bubbleRow, mine && { justifyContent: 'flex-end' }]}>
-                <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+                <Pressable
+                  onLongPress={mine ? undefined : () => report(m.body)}
+                  delayLongPress={400}
+                  style={[styles.bubble, mine ? styles.mine : styles.theirs]}
+                >
                   <Text style={[styles.body, mine && { color: colors.onAccent }]}>{m.body}</Text>
                   <Text style={[styles.time, mine && { color: 'rgba(255,255,255,0.75)' }]}>
                     {hour(m.created_at)}
                     {mine && m.id === lastMine?.id ? (m.read_at ? ' · Vu' : ' · Envoyé') : ''}
                   </Text>
-                </View>
+                </Pressable>
               </View>
             );
           }}

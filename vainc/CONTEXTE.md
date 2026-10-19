@@ -86,12 +86,14 @@ Autour de ça :
   - v18 et v19 : bonus Vainc+ ;
   - v20 : cadeaux Vainc+ par lien ;
   - v21 : animaux réalistes, espèces 0..39, colonne `pets.species_v` ;
-  - v22 : skins (`pet_skins`, `buy_skin`, `set_skin`).
+  - v22 : skins (`pet_skins`, `buy_skin`, `set_skin`) ;
+  - v23 : sécurité App Store (`blocks`, `reports`, `block_user`, `report_user`, `delete_my_account`, filtre `is_clean_text`).
 - Fichiers pour l'utilisateur :
-  - `mise-a-jour-tout.sql` : v12 → v22. Il est généré par `python3 vainc/outils/make_update.py`.
+  - `mise-a-jour-tout.sql` : v12 → v23. Il est généré par `python3 vainc/outils/make_update.py`.
   - `mise-a-jour-cadeaux.sql` : v20.
   - `mise-a-jour-animaux.sql` : v21.
   - `mise-a-jour-skins.sql` : v22.
+  - `mise-a-jour-securite.sql` : v23.
   - `admin.sql` : compte vedette, généré par `scripts/admin/make-admin-sql.ts`.
   - `verifier.sql` : vérification.
 - **Quand on ajoute un bloc v22 dans `schema.sql`** :
@@ -135,6 +137,10 @@ Autour de ça :
 - L'animal éclos est un **skin** que le joueur possède (table `pet_skins`, remplie par un trigger à l'éclosion).
 - Écran **Skins** (`src/app/bestiary.tsx`) : les 40 animaux sont tous visibles. Bouton : *Utiliser ce skin* (possédé), *Acheter · 30 h* (`SKIN_HOURS`, RPC `buy_skin`, on garde tous ses skins), *Gratuit avec Vainc+* (les 10 animaux Vainc+ se portent gratuitement tant que Vainc+ est actif, `set_skin`).
 - Changer de skin **garde le niveau** de l'animal (seule `pets.species` change).
+
+## 5c. App Store
+
+Voir `vainc/APPLE.md` : ce qui est fait (supprimer son compte, signaler/bloquer, filtre, confidentialité, bundle id, eas.json), ce que l'utilisateur doit faire (compte Apple Developer, e-mail de contact dans `src/lib/config.ts`, GitHub Pages sur `/docs`), et ce qui bloque encore (abonnement en achat intégré Apple).
 
 ## 6. Île réaliste
 

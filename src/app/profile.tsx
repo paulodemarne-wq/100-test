@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { DateField } from '../components/DateField';
@@ -22,6 +22,8 @@ import { PetView } from '../components/PetView';
 import { displayName, levelFor, speciesById } from '../creatures/species';
 import { Named } from '../components/Badge';
 import { SubscribeBar } from '../components/SubscribeBar';
+import { deleteMyAccount } from '../lib/safety';
+import { SUPPORT_EMAIL } from '../lib/config';
 
 export default function Profile() {
   const { profile, setPhoto, signOut, updateSettings } = useAuth();
@@ -83,6 +85,37 @@ export default function Profile() {
         },
       },
     ]);
+
+  /** App Store rule: the account can be deleted from the app. Two confirmations, then everything goes. */
+  const confirmDelete = () =>
+    Alert.alert(
+      'Supprimer mon compte ?',
+      'Ton profil, tes sessions, tes messages, tes amis, ton animal et ton île seront effacés pour toujours. Si tu as Vainc+, annule aussi l’abonnement dans les réglages de ton compte Apple.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Continuer',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert('Vraiment tout supprimer ?', 'Tu ne pourras pas revenir en arrière.', [
+              { text: 'Non, je garde mon compte', style: 'cancel' },
+              {
+                text: 'Oui, supprimer',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    if (active) stopSession();
+                    await deleteMyAccount();
+                    await signOut();
+                  } catch (e) {
+                    Alert.alert('Oups', (e as Error).message);
+                  }
+                },
+              },
+            ]),
+        },
+      ],
+    );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -248,7 +281,19 @@ export default function Profile() {
           />
         </Section>
 
+        <Section title="Sécurité et confidentialité">
+          <Row title="Personnes bloquées" onPress={() => router.push('/blocked')} right={<Ionicons name="chevron-forward" size={18} color={colors.tertiary} />} />
+          <Row title="Politique de confidentialité" onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })} right={<Ionicons name="chevron-forward" size={18} color={colors.tertiary} />} />
+          <Row title="Conditions d’utilisation" onPress={() => router.push({ pathname: '/legal', params: { doc: 'terms' } })} right={<Ionicons name="chevron-forward" size={18} color={colors.tertiary} />} />
+          {SUPPORT_EMAIL ? (
+            <Row title="Nous contacter" subtitle={SUPPORT_EMAIL} onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)} right={<Ionicons name="chevron-forward" size={18} color={colors.tertiary} />} />
+          ) : null}
+        </Section>
+
         <Button title="Se déconnecter" variant="destructive" onPress={confirmSignOut} style={{ marginTop: 28 }} />
+        <Pressable onPress={confirmDelete} hitSlop={8} style={{ alignSelf: 'center', marginTop: 18 }}>
+          <Text style={{ color: colors.danger, fontSize: 15, fontWeight: '600' }}>Supprimer mon compte</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );

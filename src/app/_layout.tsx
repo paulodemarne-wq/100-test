@@ -108,6 +108,8 @@ export default function RootLayout() {
             <Stack.Screen name="stats" options={{ presentation: 'modal' }} />
             <Stack.Screen name="plus-received" options={{ presentation: 'modal' }} />
             <Stack.Screen name="gift/[code]" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="blocked" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="legal" options={{ presentation: 'modal' }} />
             <Stack.Screen name="world" options={{ gestureEnabled: false }} />
           </Stack>
           </ChatProvider>
