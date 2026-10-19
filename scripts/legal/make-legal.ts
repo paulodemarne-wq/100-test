@@ -2,8 +2,10 @@
 // Run: npx esbuild scripts/legal/make-legal.ts --bundle --platform=node --outfile=/tmp/legal.js && node /tmp/legal.js
 // Publish: GitHub → Settings → Pages → Branch main, folder /docs. The links then are
 //   https://paulodemarne-wq.github.io/100-test/privacy.html and .../terms.html
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { LEGAL, LegalDoc } from '../../src/lib/legalText';
+
+declare function require(name: string): any;
+const { mkdirSync, writeFileSync } = require('node:fs');
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const page = (doc: LegalDoc) => `<!doctype html>
