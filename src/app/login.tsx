@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [accepted, setAccepted] = useState(false);
 
   if (session) return <Redirect href="/" />;
 
@@ -23,6 +24,7 @@ export default function Login() {
     setInfo('');
     if (!email.includes('@')) return setError('Entre ton adresse e-mail.');
     if (password.length < 6) return setError('Le mot de passe doit faire au moins 6 caractères.');
+    if (mode === 'signup' && !accepted) return setError('Pour créer un compte, accepte les conditions d’utilisation.');
     setLoading(true);
     try {
       if (mode === 'signup') {
@@ -74,12 +76,28 @@ export default function Login() {
               textContentType={mode === 'signup' ? 'newPassword' : 'password'}
               onSubmitEditing={submit}
             />
+            {mode === 'signup' && (
+              <Pressable onPress={() => setAccepted(!accepted)} style={styles.accept} accessibilityRole="checkbox" accessibilityState={{ checked: accepted }}>
+                <Ionicons name={accepted ? 'checkbox' : 'square-outline'} size={24} color={accepted ? colors.accent : colors.tertiary} />
+                <Text style={styles.acceptText}>
+                  J’ai 13 ans ou plus et j’accepte les{' '}
+                  <Text style={styles.link} onPress={() => router.push({ pathname: '/legal', params: { doc: 'terms' } })}>
+                    conditions d’utilisation
+                  </Text>{' '}
+                  et la{' '}
+                  <Text style={styles.link} onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })}>
+                    politique de confidentialité
+                  </Text>
+                  .
+                </Text>
+              </Pressable>
+            )}
             <ErrorText>{error}</ErrorText>
             {info ? <Text style={styles.info}>{info}</Text> : null}
           </View>
 
           <View style={{ gap: 16 }}>
-            <Button title={mode === 'signup' ? 'Créer mon compte' : 'Se connecter'} onPress={submit} loading={loading} />
+            <Button title={mode === 'signup' ? 'Créer mon compte' : 'Se connecter'} onPress={submit} loading={loading} disabled={mode === 'signup' && !accepted} />
             <Pressable
               onPress={() => {
                 setMode(mode === 'signup' ? 'signin' : 'signup');
@@ -120,4 +138,7 @@ const styles = StyleSheet.create({
   form: { gap: 16 },
   info: { color: colors.success, fontSize: 15, textAlign: 'center', lineHeight: 20 },
   switch: { ...type.subhead, textAlign: 'center' },
+  accept: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  acceptText: { flex: 1, ...type.footnote, lineHeight: 19, color: colors.secondary },
+  link: { color: colors.accent, fontWeight: '600' },
 });

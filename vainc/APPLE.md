@@ -1,7 +1,8 @@
 # Mettre Vainc sur l'App Store : où on en est
 
 ## Déjà fait dans le code
-- **Supprimer son compte** dans l'app (Profil → Supprimer mon compte, avec deux confirmations). Règle Apple 5.1.1(v).
+- **Case « j’ai 13 ans ou plus et j’accepte les conditions » à l’inscription** (le bouton reste grisé tant qu’elle n’est pas cochée).
+- **Supprimer son compte** dans l’app (Profil → Supprimer mon compte, avec deux confirmations). Règle Apple 5.1.1(v).
 - **Signaler et bloquer** : menu « … » dans une conversation, appui long sur un message pour le signaler. Les signalements arrivent dans la table `reports` de Supabase (Table Editor). Règle Apple 1.2.
 - **Filtre de mots interdits** sur les messages, pseudos, noms, libellés de sessions, noms de groupes et d'animaux (`is_clean_text` dans `schema.sql`). Liste à compléter si besoin.
 - **Politique de confidentialité et conditions** : écran dans l'app (Profil → Sécurité et confidentialité) + pages web dans `docs/` (générées par `scripts/legal/make-legal.ts`).
