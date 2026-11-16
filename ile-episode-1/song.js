@@ -20,8 +20,9 @@ drums.addMono(I.crash(3), 0, 0.35);
 verb.addMono(I.clap(), 0, 0.5);
 // 0.4 s : la silhouette disparaît
 fx.addMono(I.noiseSweep(0.32, 300, 7000, { q: 1.2, shape: (x) => x * x, pink: true }), ev.vanish - 0.32, 0.35);
-fx.addMono(I.thwack(), ev.vanish, 0.7);
-fx.addMono(I.subBoom(0.8, 90, 40), ev.vanish, 0.5);
+drums.addMono(I.kick({ punch: 1.4 }), ev.vanish, 0.9);
+drums.addMono(I.clap({ decay: 0.08 }), ev.vanish, 0.8);
+fx.addMono(I.subBoom(0.8, 90, 40), ev.vanish + 0.03, 0.3);
 verb.addMono(I.thwack(), ev.vanish, 0.35);
 
 // ---------- ambiances ----------
@@ -68,7 +69,8 @@ fx.addMono(I.noiseSweep(0.4, 400, 5000, { q: 1, shape: (x) => x * x, pink: true 
 fx.addMono(I.thud(70, 0.08), ev.toJungle, 0.55);
 drums.addMono(I.kick(), ev.toJungle, 0.7);
 // l'arbre : grosse note grave
-fx.addMono(I.subBoom(2.4, 60, 30), ev.toTree, 0.75);
+fx.addMono(I.subBoom(2.4, 60, 30), ev.toTree + 0.03, 0.4);
+drums.addMono(I.clap({ decay: 0.1 }), ev.toTree, 0.8);
 drums.addMono(I.kick({ punch: 1.2 }), ev.toTree, 0.9);
 drums.addMono(I.crash(9), ev.toTree, 0.25);
 bass.addMono(I.bass(m('E1'), 2.4, { sub: 1, bright: 0.4 }), ev.toTree, 0.5);

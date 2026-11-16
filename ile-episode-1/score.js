@@ -92,7 +92,7 @@
     vanish: { t: ev.vanish, sync: 'a' },
     lit: ev.lit,
     jungle: { t: ev.toJungle, sync: 'av' },
-    zoe: { t: ev.zoeStop, sync: 'a' },
+    zoe: ev.zoeStop,
     tree: { t: ev.toTree, sync: 'av' },
     hush: ev.hush,
     letterT: { t: ev.letters[0], sync: 'a' },
