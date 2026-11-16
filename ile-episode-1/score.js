@@ -27,7 +27,7 @@
     letters: [T(11, 1), T(11, 2), T(11, 3)], // T, O, I gravés tout seuls
     stare: T(12, 2), // 31.25 : tout le monde regarde la caméra
     flash: T(13), // 32.5 : éclair
-    ask: T(13, 1.5), // texte dans le noir
+    ask: T(13) + 0.12, // texte dans le noir
     vote: T(14), // 35 : carte de vote
     cardA: T(14, 1),
     cardB: T(14, 2),
@@ -46,15 +46,21 @@
   // ---------- dialogue (bulles) ----------
   const lines = [
     { who: 'lea', t: 1.05, end: 2.15, text: 'Où est-elle ?' },
-    { who: 'tom', t: 2.25, end: 3.95, text: 'Qui ? On a toujours été 5 !' },
-    { who: 'max', t: 6.0, end: 7.5, text: 'Pas de réseau. Évidemment.' },
-    { who: 'lea', t: 7.6, end: 8.7, text: 'Suivez-moi.' },
+    { who: 'tom', t: 2.2, end: 4.35, text: 'On a toujours été 5 !', say: 'On a toujours été cinq !' },
+    { who: 'max', t: 5.95, end: 7.55, text: 'Pas de réseau. Évidemment.' },
+    { who: 'lea', t: 7.65, end: 8.7, text: 'Suivez-moi.' },
     { who: 'tom', t: 10.0, end: 11.9, text: 'Elle connaît le chemin ?' },
     { who: 'zoe', t: 12.55, end: 14.2, text: 'Vous entendez ?' },
     { who: 'tom', t: 14.4, end: 16.1, text: "Non… et j'aime pas ça." },
     { who: 'max', t: 18.4, end: 20.2, text: 'Nos noms ?! Gravés ?!' },
     { who: 'tom', t: 20.6, end: 22.4, text: "Et c'est qui, Ève ?" },
     { who: 'zoe', t: 22.8, end: 24.7, text: "Lui, il n'est pas dessus." },
+  ];
+  lines.forEach((l, i) => { l.id = 'l' + String(i + 1).padStart(2, '0'); });
+  // voix off (narrateur)
+  const narration = [
+    { id: 'n1', who: 'narr', t: T(13) + 0.12, end: T(14) - 0.05, text: 'Et toi… tu fais quoi ?' },
+    { id: 'n2', who: 'narr', t: T(15), end: T(16) - 0.1, text: 'Commente A ou B.', say: 'Commente A, ou B.' },
   ];
   const nameTags = [
     { who: 'tom', t: T(1, 3), text: 'TOM' },
@@ -103,6 +109,6 @@
 
   const subtitles = lines.map((l) => ({ t: l.t, end: l.end, text: l.text }));
 
-  const SCORE = { FPS, FORMAT, W, H, SAFE, WIDE, DURATION, clock, T, BEAT, S, m, chords, chordAt, ev, lines, nameTags, leaTouch, heartbeats, lullaby, markers, subtitles };
+  const SCORE = { FPS, FORMAT, W, H, SAFE, WIDE, DURATION, clock, T, BEAT, S, m, chords, chordAt, ev, lines, narration, nameTags, leaTouch, heartbeats, lullaby, markers, subtitles };
   if (node) module.exports = SCORE; else globalThis.SCORE = SCORE;
 })();

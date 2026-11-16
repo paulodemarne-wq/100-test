@@ -26,7 +26,7 @@
   const activeLine = (who, t) => S.lines.find((l) => l.who === who && t >= l.t && t <= l.end);
 
   function actor(ctx, who, x, y, s, t, extra = {}) {
-    const talking = activeLine(who, t);
+    const talking = S.lines.find((l) => l.who === who && t >= l.t && t <= l.t + ((globalThis.VOIX_DUR || {})[l.id] || l.end - l.t));
     const blink = U.hash(SEED[who], Math.floor(t * 1.3)) < 0.18 && (t * 1.3) % 1 < 0.12 ? 1 : 0;
     Ch.person(ctx, {
       x, y, s, pose: 'stand', style: STY[who], seed: SEED[who], blink,

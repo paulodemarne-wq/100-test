@@ -112,10 +112,19 @@ clock.eachStep(14, 16, 8, (t, b, s) => {
 });
 for (const t of [ev.cardA, ev.cardB, ev.comment]) fx.addMono(I.pop(1.2), t, 0.35);
 
+// ---------- les voix (Piper, voix/*.wav) ----------
+const voice = bus();
+for (const l of [...sc.lines, ...sc.narration]) {
+  const v = MIX.loadAudio(path.join(__dirname, 'voix', l.id + '.wav'), { at: l.t, length: DURATION });
+  v.mixInto(voice, l.who === 'narr' ? 1.1 : 1);
+  if (l.who === 'narr') v.mixInto(verb, 0.25); // le narrateur résonne
+}
+MIX.duck([pad, bass, keys, amb, drums, fx], voice, { depth: 0.55, release: 0.3 });
+
 // ---------- mix ----------
 MIX.sidechain([pad, bass], kicks);
-const stems = { drums, bass, pad, keys, fx, amb, verb: reverb(verb, { room: 0.88, damp: 0.35 }), dly: pingpong(dly, BEAT * 0.75, 0.35, 3000) };
-const GAIN = { drums: 0.55, bass: 0.8, pad: 2.4, keys: 1.1, fx: 0.9, amb: 1.0, verb: 1, dly: 0.8 };
+const stems = { voice, drums, bass, pad, keys, fx, amb, verb: reverb(verb, { room: 0.88, damp: 0.35 }), dly: pingpong(dly, BEAT * 0.75, 0.35, 3000) };
+const GAIN = { voice: 1.6, drums: 0.55, bass: 0.8, pad: 2.4, keys: 1.1, fx: 0.9, amb: 1.0, verb: 1, dly: 0.8 };
 const out = path.join(__dirname, 'out');
 const mix = MIX.mixdown(stems, GAIN, { stemDir: process.env.STEMS ? out : null });
 MIX.highpass(mix, 24);
