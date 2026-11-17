@@ -85,7 +85,7 @@
   const lullaby = [LULL.a, LULL.b, LULL.a, LULL.b, LULL.a].flatMap((bar, i) => placeBar(clock, bar, 6 + i));
 
   const markers = {
-    torch: { t: ev.torch, sync: 'a' },
+    torch: ev.torch,
     inside: { t: ev.inside, sync: 'av' },
     wall: { t: ev.wall, sync: 'av' },
     box: { t: ev.box, sync: 'av' },

@@ -56,7 +56,6 @@ for (const t of [ev.inside, ev.wall, ev.box]) {
   drums.addMono(I.clap({ decay: 0.08 }), t, 0.45);
   fx.addMono(I.subBoom(1.2, 70, 35), t + 0.03, 0.3);
 }
-fx.addMono(I.noiseSweep(0.4, 400, 5000, { q: 1, shape: (x) => x * x, pink: true }), ev.inside - 0.4, 0.25);
 // le X rouge sur Ève
 fx.addMono(I.scribble(0.6, 5), sc.lines[5].t - 0.4, 0.4);
 
@@ -67,7 +66,7 @@ drums.addMono(I.crash(17), ev.collapse, 0.5);
 fx.addMono(I.thud(45, 0.2), ev.collapse, 0.9);
 fx.addMono(I.subBoom(3, 80, 25), ev.collapse + 0.02, 0.9);
 fx.addMono(I.noiseSweep(3, 1500, 80, { q: 0.6, pink: true, shape: (x) => Math.exp(-x * 2.5) }), ev.collapse, 0.4);
-{ const r = require('./engine/util').mulberry32(5); for (let i = 0; i < 10; i++) fx.addMono(I.thud(70 + r() * 80, 0.06), ev.collapse + 0.1 + r() * 1.2, 0.35, r() - 0.5); }
+{ const r = require('./engine/util').mulberry32(5); for (let i = 0; i < 10; i++) fx.addMono(I.thud(70 + r() * 80, 0.06), ev.collapse + 0.4 + r() * 1.2, 0.35, r() - 0.5); }
 
 // ---------- l'inconnu : silence, un seul accord grave ----------
 drums.addMono(I.kick(), ev.inc, 0.6);
@@ -78,6 +77,8 @@ fx.addMono(I.heartbeat(), ev.inc + BEAT * 2.5, 0.7);
 const K = I.kick(), CL = I.clap(), HC = I.hat(false, 31);
 const kicks = [];
 drums.addMono(I.crash(40), ev.vote, 0.4);
+drums.addMono(I.clap({ decay: 0.1 }), ev.vote, 0.8);
+fx.addMono(I.thud(60, 0.1), ev.vote, 0.7);
 clock.eachStep(14, 16, 8, (t, b, s) => {
   if (s % 2 === 0) { drums.addMono(K, t, 0.85); kicks.push(t); }
   if (s % 4 === 2) { drums.addMono(CL, t, 0.5); verb.addMono(CL, t, 0.2); }
